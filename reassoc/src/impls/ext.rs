@@ -3,40 +3,28 @@ use core::num::{Saturating, Wrapping};
 use core::ops::{Add, Div, Mul, Rem, Sub};
 use core::time::Duration;
 
-/// One operator, possibly heterogeneous. Used for types where only some of
-/// the five operators exist — `Duration * u32` is valid, `Duration + u32` is not.
-macro_rules! plain_hetero {
-    ($trait_name:ident, $method:ident, $op:tt, $a:ty, $b:ty => $o:ty) => {
-        impl $trait_name<$b, $o> for $a {
-            #[inline(always)]
-            fn $method(self, rhs: $b) -> $o { self $op rhs }
-        }
-    };
-}
-
-plain_hetero!(AlgAdd, alg_add, +, Duration, Duration => Duration);
-plain_hetero!(AlgSub, alg_sub, -, Duration, Duration => Duration);
-plain_hetero!(AlgMul, alg_mul, *, Duration, u32 => Duration);
-plain_hetero!(AlgMul, alg_mul, *, u32, Duration => Duration);
-plain_hetero!(AlgDiv, alg_div, /, Duration, u32 => Duration);
+crate::passthrough!(add: Duration, Duration => Duration);
+crate::passthrough!(sub: Duration, Duration => Duration);
+crate::passthrough!(mul: Duration, u32 => Duration);
+crate::passthrough!(mul: u32, Duration => Duration);
+crate::passthrough!(div: Duration, u32 => Duration);
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-    use super::*;
     use alloc::string::String;
 
-    plain_hetero!(AlgAdd, alg_add, +, String, &str => String);
+    crate::passthrough!(add: String, &str => String);
 }
 
 #[cfg(feature = "std")]
 mod std_impls {
-    use super::*;
+    use core::time::Duration;
     use std::time::{Instant, SystemTime};
 
-    plain_hetero!(AlgAdd, alg_add, +, Instant, Duration => Instant);
-    plain_hetero!(AlgSub, alg_sub, -, Instant, Duration => Instant);
-    plain_hetero!(AlgAdd, alg_add, +, SystemTime, Duration => SystemTime);
-    plain_hetero!(AlgSub, alg_sub, -, SystemTime, Duration => SystemTime);
+    crate::passthrough!(add: Instant, Duration => Instant);
+    crate::passthrough!(sub: Instant, Duration => Instant);
+    crate::passthrough!(add: SystemTime, Duration => SystemTime);
+    crate::passthrough!(sub: SystemTime, Duration => SystemTime);
 }
 
 /// `Wrapping<T>` and `Saturating<T>` for every inner type at once.
