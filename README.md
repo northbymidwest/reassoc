@@ -154,6 +154,12 @@ will delete it.
   `&f32` operands — which rules it out, since references are ubiquitous in
   iterator-based numeric code. If `min_specialization` ever stabilizes, the
   opt-in can be removed with no such tradeoff.
+- Integer arithmetic on compile-time-known values that are not literals — say
+  `let x: u8 = 255; x + 1` — is not seen by rustc's `arithmetic_overflow` lint
+  once rewritten, so it wraps or panics at runtime instead of being rejected.
+  Literal operands are left unrewritten precisely so the lint still fires;
+  covering the const-propagated case too would mean not rewriting integer
+  arithmetic at all.
 - Compound assignment on a **non-primitive** type evaluates its right-hand side
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not

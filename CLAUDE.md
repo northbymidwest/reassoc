@@ -103,10 +103,21 @@ is rejected with an authored error.
 **Generated code uses absolute paths** (`::reassoc::ops::add`) and never emits
 parentheses around operands.
 
-**Literal-only arithmetic is left unrewritten.** `255u8 + 1` must stay visible
-to rustc's deny-by-default `arithmetic_overflow` and `unconditional_panic`
-lints; rewriting it to a call hides the constants and turns a compile error
-into a silent wrap. It is const-folded anyway, so nothing is lost.
+**Integer-literal arithmetic is left unrewritten — integer specifically.**
+`255u8 + 1` must stay visible to rustc's deny-by-default `arithmetic_overflow`
+and `unconditional_panic` lints; rewriting to a call hides the constants and
+turns a compile error into a silent wrap. Integers dispatch to plain operators
+anyway, so nothing is lost.
+
+Float literals are still rewritten, deliberately. Neither lint applies to them,
+and the algebraic operators are meaningfully non-deterministic even on
+constants — that freedom is their purpose, and the reference declines to
+guarantee anything about the returned value. Do not "simplify" the check to all
+literals; that silently opts float constants out of algebraic semantics.
+
+Residual gap: rustc also lints const-known *non-literal* integer arithmetic
+(`let x: u8 = 255; x + 1`), which the macro cannot preserve without abandoning
+integer rewriting entirely. Documented in the README.
 
 **Compound assignment binds through a `match`, not a `let`.** A `let` drops the
 RHS's temporaries at the end of its own statement, before the place is

@@ -380,6 +380,18 @@ fn literal_arithmetic_still_evaluates() {
     assert_eq!(literals_are_not_rewritten(), 255);
 }
 
+/// Only INTEGER literals are exempted. Both lints are integer-only —
+/// `1.0 / 0.0` is inf, not a panic — and the algebraic operators are
+/// meaningfully non-deterministic even on constants, so float literals stay
+/// rewritten. This asserts the value; the property that they are dispatched
+/// is not observable from a test, since a float literal expression folds to
+/// the same constant either way.
+#[test]
+fn float_literals_are_still_rewritten() {
+    assert_eq!(alg!(2.0f32 * 3.0), 6.0);
+    assert_eq!(alg!(2.0f32 * 3.0 + 1.0), 7.0);
+}
+
 /// Const positions inside a nested `impl` are const contexts too. An
 /// associated const and a `const fn` method are `ImplItem`s, not `Item`s, so
 /// the `Item`-level check used to miss them and they failed with E0015.

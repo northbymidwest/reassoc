@@ -246,14 +246,22 @@ impl VisitMut for Rewriter {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
 
-            if is_literal(&binary.left) && is_literal(&binary.right) {
-                // Both operands are literals, so rustc can evaluate this at
-                // compile time — and does, to fire `arithmetic_overflow` and
-                // `unconditional_panic`, which are deny-by-default. Rewriting
-                // to a function call hides the constants from those lints, so
-                // `255u8 + 1` would compile and wrap instead of being rejected.
-                // Literal-only arithmetic is const-folded anyway and gains
-                // nothing from dispatch, so leaving it alone costs nothing.
+            if is_int_literal(&binary.left) && is_int_literal(&binary.right) {
+                // Integer literals only, and deliberately not float literals.
+                //
+                // `arithmetic_overflow` and `unconditional_panic` are
+                // deny-by-default and fire on compile-time-evaluable INTEGER
+                // arithmetic. Rewriting to a call hides the constants, so
+                // `255u8 + 1` would compile and wrap to 0 instead of being
+                // rejected. Integers dispatch to plain operators anyway, so
+                // skipping them forfeits nothing.
+                //
+                // Floats are a different matter. Neither lint applies to them
+                // (`1.0/0.0` is inf, not a panic), and the algebraic operators
+                // are meaningfully non-deterministic even on constants — that
+                // freedom is the whole point of them, and the reference
+                // explicitly declines to guarantee anything about the returned
+                // value. So `2.0 * 3.0` is still rewritten.
                 return;
             }
 
@@ -331,15 +339,17 @@ impl VisitMut for Rewriter {
     }
 }
 
-/// True for a literal, or a negated literal, ignoring parentheses.
+/// True for an integer literal, or a negated one, ignoring parentheses.
 ///
-/// Used to leave compile-time-evaluable arithmetic unrewritten so rustc's
-/// deny-by-default `arithmetic_overflow` / `unconditional_panic` lints can
-/// still see the constants.
-fn is_literal(expr: &Expr) -> bool {
+/// Integer specifically: this exists to keep rustc's deny-by-default
+/// `arithmetic_overflow` / `unconditional_panic` lints able to see the
+/// constants, and those lints apply only to integer arithmetic. Float literals
+/// are still rewritten, because algebraic operators are meaningfully
+/// non-deterministic even on constants.
+fn is_int_literal(expr: &Expr) -> bool {
     match unparen(expr) {
-        Expr::Lit(_) => true,
-        Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_literal(&unary.expr),
+        Expr::Lit(lit) => matches!(lit.lit, syn::Lit::Int(_)),
+        Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_int_literal(&unary.expr),
         _ => false,
     }
 }
