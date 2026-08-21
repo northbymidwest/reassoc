@@ -2,6 +2,16 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.2.2 — 2026-08-21
+
+### Changed
+
+- The README and crate docs now lead with a work-in-progress warning. The
+  failure mode of a rewriting macro is not a compile error but code that
+  compiles and quietly behaves differently, and every bug found so far has
+  had that shape — so the warning names them, and separates them from the
+  intended behaviour of changing results.
+
 ## 0.2.1 — 2026-08-21
 
 ### Fixed
