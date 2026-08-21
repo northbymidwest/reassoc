@@ -191,6 +191,68 @@ fn nested_static_item_stays_const() {
     assert_eq!(nested_static_is_not_rewritten(), 6.0);
 }
 
+// An inline `const { .. }` block is a const context in plain expression
+// position, stable since Rust 1.79 -- reachable with no opt-in at all,
+// just like the array-repeat length above.
+#[algebraic]
+fn inline_const_block_is_not_rewritten() -> f32 {
+    const { 2.0 * 3.0 }
+}
+
+#[test]
+fn inline_const_block_stays_const() {
+    assert_eq!(inline_const_block_is_not_rewritten(), 6.0);
+}
+
+// `Type::Array`'s length is the same const context as `Expr::Repeat`'s
+// length, but reached through a *type* position (here, a `let` type
+// annotation) rather than an expression. Uses a length distinct from the
+// array literal's own element count so this cannot be silently passing
+// only because `Expr::Repeat`'s length exclusion already covers it.
+#[algebraic]
+fn type_array_length_is_not_rewritten(n: usize) -> f32 {
+    let buf: [f32; 2 * 4] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    buf[n % buf.len()]
+}
+
+#[test]
+fn type_array_length_stays_const() {
+    assert_eq!(type_array_length_is_not_rewritten(3), 0.0);
+}
+
+// A const-generic argument (`dim::<{ 1 + 2 }>()`) is evaluated at const
+// time, reached through `GenericArgument::Const` rather than an ordinary
+// expression or item position.
+fn dim<const N: usize>() -> usize {
+    N
+}
+
+#[algebraic]
+fn const_generic_argument_is_not_rewritten() -> usize {
+    dim::<{ 1 + 2 }>()
+}
+
+#[test]
+fn const_generic_argument_stays_const() {
+    assert_eq!(const_generic_argument_is_not_rewritten(), 3);
+}
+
+// A `Variant`'s explicit discriminant (`A = 1 + 1`) is a const context,
+// reached through `items = true` the same way as a nested `const`/`static`
+// item above.
+#[algebraic(items = true)]
+fn enum_discriminant_is_not_rewritten() -> i32 {
+    enum E {
+        A = 1 + 1,
+    }
+    E::A as i32
+}
+
+#[test]
+fn enum_discriminant_stays_const() {
+    assert_eq!(enum_discriminant_is_not_rewritten(), 2);
+}
+
 // --- Proof that the attribute actually rewrites, not just "passes with f32" ---
 //
 // Every test above uses `f32`, whose native operators already produce the
@@ -253,4 +315,50 @@ fn dispatch_only_nested_item(w: Dispatched) -> Dispatched {
 #[test]
 fn items_true_descends_into_nested_fn_dispatch_only() {
     assert_eq!(dispatch_only_nested_item(Dispatched(3.0)), Dispatched(9.0));
+}
+
+// An inline `const { .. }` block nested inside an expression that *is*
+// rewritten. `Dispatched` has no `std::ops::Mul`, so this compiles at all
+// only if the outer `*` became an `::reassoc::ops::mul` call -- proving the
+// exclusion for `Expr::Const` didn't spread to its surroundings. The
+// `2.0 * 3.0` inside the const block stays plain `f32` multiplication
+// (fine at const-eval time); if the exclusion failed, it would become a
+// non-const `ops::mul` call and fail to compile with E0015 instead of
+// silently passing with the wrong value.
+#[algebraic]
+fn dispatch_only_around_inline_const(x: Dispatched) -> Dispatched {
+    x * const { Dispatched(2.0 * 3.0) }
+}
+
+#[test]
+fn inline_const_nested_inside_rewritten_expr_dispatch_only() {
+    assert_eq!(
+        dispatch_only_around_inline_const(Dispatched(2.0)),
+        Dispatched(12.0)
+    );
+}
+
+// Re-verification that ordinary runtime positions -- a `let` initializer, a
+// closure body, and an array-index expression -- still get rewritten when
+// const contexts (an inline `const` block, an array-repeat length) sit
+// right next to them in the same function. `Dispatched` makes a silent
+// failure to rewrite a compile error rather than an invisible no-op: this
+// guards against the const exclusion being too broad and swallowing real
+// code along with the const positions it's meant to skip.
+#[algebraic]
+fn dispatch_still_rewrites_around_const_contexts(w: Dispatched) -> Dispatched {
+    let _unused = const { 2.0 * 3.0 }; // const context: left alone
+    let buf = [0.0f32; 4 * 2]; // const context: length left alone
+    let doubled = w * w; // let initializer: must be rewritten
+    let square = |v: Dispatched| v * v; // closure body: must be rewritten
+    let arr = [w, doubled];
+    arr[buf.len() % 2] * square(w) // array index + call: must be rewritten
+}
+
+#[test]
+fn dispatch_still_rewrites_non_const_positions_near_const_contexts() {
+    assert_eq!(
+        dispatch_still_rewrites_around_const_contexts(Dispatched(3.0)),
+        Dispatched(27.0)
+    );
 }

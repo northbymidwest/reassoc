@@ -111,6 +111,39 @@ impl VisitMut for Rewriter {
         self.visit_expr_mut(&mut expr_repeat.expr);
     }
 
+    // `[T; len]`'s `len` (a *type*, not an expression -- e.g. a return type
+    // or a local binding's type annotation) is the same const context as
+    // `Expr::Repeat`'s length above, reachable the same way with no opt-in:
+    // `fn f() -> [f32; 4 * 2] { .. }`. Only the element type can contain
+    // ordinary nested types worth visiting; array types have no other
+    // expression-shaped field.
+    fn visit_type_array_mut(&mut self, type_array: &mut syn::TypeArray) {
+        self.visit_type_mut(&mut type_array.elem);
+    }
+
+    // A const-generic argument (`f::<{ 1 + 1 }>()`) is evaluated at const
+    // time for the same reason as `Expr::Const` below: `ops::*` are not
+    // `const fn`. Every other kind of generic argument (lifetimes, types,
+    // associated-type/const bindings) may still contain ordinary runtime
+    // expressions nested inside a type and must still be visited normally.
+    fn visit_generic_argument_mut(&mut self, arg: &mut syn::GenericArgument) {
+        if let syn::GenericArgument::Const(_) = arg {
+            return;
+        }
+        visit_mut::visit_generic_argument_mut(self, arg);
+    }
+
+    // A `Variant`'s explicit discriminant (`Variant = 1 + 1`) is a const
+    // context, reachable via `items = true` the same way as a nested
+    // `Item::Const`/`Item::Static` (`is_const_context` below): `ops::*` are
+    // not `const fn`. Only the discriminant is skipped; attributes, the
+    // variant name, and its fields are ordinary positions.
+    fn visit_variant_mut(&mut self, variant: &mut syn::Variant) {
+        self.visit_attributes_mut(&mut variant.attrs);
+        self.visit_ident_mut(&mut variant.ident);
+        self.visit_fields_mut(&mut variant.fields);
+    }
+
     fn visit_item_mut(&mut self, item: &mut syn::Item) {
         if !self.items {
             return;
@@ -145,6 +178,18 @@ impl VisitMut for Rewriter {
             // native operator semantics instead of dispatch calls. Matching
             // it by name here would only add a name-collision hazard for no
             // benefit.
+            return;
+        }
+
+        if let Expr::Const(_) = expr {
+            // An inline `const { .. }` block's body is a const context,
+            // just like a `const`/`static` item or a `const fn` body
+            // (`is_const_context` below); `ops::*` are not `const fn`, so
+            // rewriting inside it fails with E0015. Unlike a macro
+            // invocation this is an ordinary `Expr` syn hands us in full,
+            // but it still must not be descended into. Stable since Rust
+            // 1.79, it sits in plain expression position and needs no
+            // opt-in, so it is reachable from any function body.
             return;
         }
 
