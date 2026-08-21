@@ -18,18 +18,17 @@ impl Rewriter {
     }
 }
 
-/// Strips redundant grouping parens from an operand, repeatedly.
+/// Strips one layer of grouping parens from an operand.
 ///
-/// Grouping parens exist to fix precedence in the original source; once an
-/// operand lands in a generated call's argument position, the call's own
-/// parens and the comma already delimit it, so any surviving `Expr::Paren`
-/// wrapper is dead weight that would round-trip into the emitted tokens and
-/// trip `unused_parens` in the caller's code (or fail their build outright
-/// under `#[deny(warnings)]`). Precedence is unaffected: nothing needs
-/// grouping in argument position.
-fn unparen(mut expr: &Expr) -> &Expr {
-    while let Expr::Paren(inner) = expr {
-        expr = &inner.expr;
+/// Exactly one layer, deliberately. The outermost layer is the one macro
+/// expansion makes redundant: `(a + b) * c` needs those parens in source,
+/// but the rewritten call delimits its own arguments, so they would trip
+/// `unused_parens` in user code. Any FURTHER layers were already redundant
+/// in the user's source, so they are left in place for rustc to lint —
+/// stripping them too would silently swallow a real diagnostic.
+fn unparen(expr: &Expr) -> &Expr {
+    if let Expr::Paren(inner) = expr {
+        return &inner.expr;
     }
     expr
 }

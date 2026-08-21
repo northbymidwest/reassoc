@@ -40,15 +40,6 @@ fn does_not_rewrite_unary_negation() {
 }
 
 #[test]
-fn strips_repeatedly_nested_parens() {
-    // Guards `unparen`'s loop: a single-strip implementation would leave a
-    // redundant paren in the generated call and trip `unused_parens`.
-    let (a, b, c) = (2.0f32, 3.0f32, 4.0f32);
-    assert_eq!(alg!(((a + b)) * c), 20.0);
-    assert_eq!(alg!((((a + b))) * ((c))), 20.0);
-}
-
-#[test]
 fn rewrites_compound_assignment() {
     let mut s = 0.0f32;
     let x = 3.0f32;
