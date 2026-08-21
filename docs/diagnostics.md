@@ -96,7 +96,7 @@ Implementing `MulRhs` by hand rather than through `passthrough!` skips that
 inference, so declare the output yourself when it is not the left operand:
 
 ```rust
-passthrough!(mul out Ray => f64);
+passthrough!(mul out Ray, Ray => f64);
 ```
 
 **Two other cases are unaffected by any of this** and behave as they always

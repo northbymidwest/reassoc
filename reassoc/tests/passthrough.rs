@@ -236,6 +236,41 @@ fn an_output_that_is_not_the_left_operand() {
     assert_eq!(mul(&u, &v), 11.0);
 }
 
+/// Two heterogeneous opt-ins on one left type, both yielding a type that is
+/// not the left operand. The output trait names the right operand, so these
+/// are distinct impls; keyed on the left type alone they were the same impl
+/// twice, `E0119`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Q(f64);
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct R(f64);
+
+impl core::ops::Mul<Q> for Q {
+    type Output = f64;
+    fn mul(self, o: Q) -> f64 {
+        self.0 * o.0
+    }
+}
+impl core::ops::Mul<R> for Q {
+    type Output = f64;
+    fn mul(self, o: R) -> f64 {
+        self.0 * o.0
+    }
+}
+
+passthrough!(mul: Q, Q => f64);
+passthrough!(mul: Q, R => f64);
+
+#[allow(clippy::needless_borrows_for_generic_args)] // borrows are deliberate
+#[test]
+fn two_opt_ins_with_the_same_foreign_output() {
+    let (q, r) = (Q(2.0), R(3.0));
+    assert_eq!(mul(q, q), 4.0);
+    assert_eq!(mul(q, r), 6.0);
+    assert_eq!(mul(&q, &r), 6.0);
+    assert_eq!(mul(q, &r), 6.0);
+}
+
 /// A non-`Copy` type opts out of the reference impls.
 #[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
 #[passthrough(add, no_refs)]

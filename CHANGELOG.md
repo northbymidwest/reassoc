@@ -26,6 +26,11 @@ accepts that the macro did not.
   invisible group the rewriter did not look through: `-$e` with `$e = 128i8`
   failed to compile, and `$e + 1` with `$e = 255u8` compiled and panicked at
   runtime instead of being rejected by `arithmetic_overflow`.
+- **Two `passthrough!` opt-ins on one left type with the same foreign output**
+  — a dot product `Q * Q => f64` beside `Q * R => f64` — collided with `E0119`.
+  The output trait now names the right operand as well, so they are distinct.
+  `passthrough!(op out A => O)`, for operand traits implemented by hand, becomes
+  `passthrough!(op out A, B => O)`.
 - **A method call on a constant float expression**, `(1.0 * 2.0).sqrt()`, was
   special-cased out of rewriting to dodge an `E0282`. No longer necessary; it
   now fails with the same `E0689` plain Rust gives, and `(2.0f64 * 8.0).sqrt()`

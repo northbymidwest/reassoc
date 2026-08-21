@@ -181,14 +181,19 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
     }
 }
 
-/// `declare_output!($crate, MulOut, A, O)` — state that `A`'s operator yields
-/// `O`, but only when `O` is not `A` itself.
+/// `declare_output!($crate, MulOut, refs|no_refs, A, B, O)` — state that
+/// `A`'s operator with a `B` on the right yields `O`, but only when `O` is
+/// not `A` itself.
 ///
 /// `passthrough!` cannot make this call: `macro_rules!` cannot compare two
 /// `$ty` fragments, and emitting the impl unconditionally would collide with
-/// the blanket `impl<A> MulOut<A> for A` every time the output *is* the left
-/// operand — which is nearly always. So the decision moves here, where the two
-/// types can be compared as written.
+/// the blanket `impl<A, B> MulOut<B, A> for A` every time the output *is* the
+/// left operand — which is nearly always. So the decision moves here, where
+/// the two types can be compared as written.
+///
+/// `no_refs` emits the value pair. `refs` emits only the `&B` combinations,
+/// because the reference-emitting form of `passthrough!` expands the
+/// `no_refs` form first and that call has already emitted the value pair.
 ///
 /// Comparison is syntactic, which is exact for every spelling that reaches this
 /// macro except an alias: `passthrough!(mul: Vec3, Vec3 => V3)` where
@@ -202,7 +207,9 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
     struct Args {
         krate: syn::Path,
         trait_ident: Ident,
+        refs: bool,
         left: syn::Type,
+        right: syn::Type,
         output: syn::Type,
     }
 
@@ -212,13 +219,24 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
             input.parse::<syn::Token![,]>()?;
             let trait_ident = input.parse()?;
             input.parse::<syn::Token![,]>()?;
+            let mode: Ident = input.parse()?;
+            let refs = match mode.to_string().as_str() {
+                "refs" => true,
+                "no_refs" => false,
+                _ => return Err(syn::Error::new(mode.span(), "expected `refs` or `no_refs`")),
+            };
+            input.parse::<syn::Token![,]>()?;
             let left = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let right = input.parse()?;
             input.parse::<syn::Token![,]>()?;
             let output = input.parse()?;
             Ok(Args {
                 krate,
                 trait_ident,
+                refs,
                 left,
+                right,
                 output,
             })
         }
@@ -227,14 +245,21 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
     let Args {
         krate,
         trait_ident,
+        refs,
         left,
+        right,
         output,
     } = syn::parse2(input)?;
     if left.to_token_stream().to_string() == output.to_token_stream().to_string() {
         return Ok(TokenStream::new());
     }
+    let right: syn::Type = if refs {
+        syn::parse_quote!(&#right)
+    } else {
+        right
+    };
     Ok(quote! {
-        impl #krate::traits::#trait_ident<#output> for #left {}
-        impl #krate::traits::#trait_ident<#output> for &#left {}
+        impl #krate::traits::#trait_ident<#right, #output> for #left {}
+        impl #krate::traits::#trait_ident<#right, #output> for &#left {}
     })
 }

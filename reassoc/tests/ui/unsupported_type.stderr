@@ -27,5 +27,5 @@ help: the trait `MulRhs<Odd, Odd>` is not implemented for `Odd`
 note: required by a bound in `reassoc::ops::mul`
  --> src/ops.rs
   |
-  | pub fn mul<A: MulOut<O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O {
-  |                             ^^^^^^^^^^^^ required by this bound in `mul`
+  | pub fn mul<A: MulOut<B, O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O {
+  |                                ^^^^^^^^^^^^ required by this bound in `mul`

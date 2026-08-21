@@ -123,11 +123,11 @@ there fails with `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
 **Two traits per operator, and the shape of each is load-bearing for
-diagnostics.** `MulRhs<Lhs, O>` is where opting in happens; `MulOut<O>` states
-what the operator yields. `ops::mul` requires both:
+diagnostics.** `MulRhs<Lhs, O>` is where opting in happens; `MulOut<B, O>`
+states what the operator yields. `ops::mul` requires both:
 
 ```rust
-pub fn mul<A: MulOut<O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O { b.mul_rhs(a) }
+pub fn mul<A: MulOut<B, O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O { b.mul_rhs(a) }
 ```
 
 Four separate decisions are encoded there, each measured, each reverting to a
@@ -158,13 +158,27 @@ error twice.
 *`MulOut` exists to resolve `O` when the operand bound fails.* Without it the
 output stays an inference variable, rustc suppresses the return-type `E0308`,
 and its own `help: you can convert a u8 to a u32` goes with it. Its two blanket
-impls — `impl<A> MulOut<A> for A` and `impl<A> MulOut<A> for &A` — say an
-operator yields the type it was applied to, which covers every same-type
-operator and every heterogeneous pair whose output is its left operand
-(`Duration * u32` is a `Duration`). Only a pair whose output differs from its
-left operand needs an impl of its own. Do not make `passthrough!` emit these
-unconditionally — a specific impl collides with the blanket every time the
-output *is* the left operand, which is nearly always.
+impls — `impl<A, B> MulOut<B, A> for A` and the same for `&A` — say an operator
+yields the type it was applied to whatever is on the right, which covers every
+same-type operator and every heterogeneous pair whose output is its left
+operand (`Duration * u32` is a `Duration`). `B` is free in the blanket on
+purpose: that is what lets `O` resolve from the left operand alone, before the
+right one is known, so the `E0308` fires even when the operand bound fails.
+Only a pair whose output differs from its left operand needs an impl of its
+own. Do not make `passthrough!` emit these unconditionally — a specific impl
+collides with the blanket every time the output *is* the left operand, which is
+nearly always.
+
+*`MulOut` names the right operand, not just the output.* A first version was
+`MulOut<O>`, keyed on the left type alone. Two opt-ins on one left type with
+the same foreign output — `Q * Q => f64` and `Q * R => f64` — then emitted the
+identical impl twice, `E0119`. Specialization does not help with that (it
+resolves overlap, not duplication), and an associated-type output with a
+`default` blanket was built on nightly and rejected: it removes the collision
+but breaks literal inference, since a projection through a `default` item
+cannot be normalized while the left operand is still `{float}`. Adding `B`
+makes the two impls distinct and costs nothing, because the blanket ignores it.
+`tests/passthrough.rs::two_opt_ins_with_the_same_foreign_output` pins it.
 
 Deciding that needs a type comparison, which `macro_rules!` cannot do over two
 `$ty` fragments, so `passthrough!`'s per-operator rules delegate to

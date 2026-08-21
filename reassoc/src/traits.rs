@@ -32,22 +32,23 @@ macro_rules! declare_op_trait {
             fn $rhs_method(self, lhs: Lhs) -> O;
         }
 
-        /// What this operator produces for a given left type, stated
-        /// independently of what is on the right.
+        /// What this operator produces for a given left type and right
+        /// operand.
         ///
-        /// Two jobs. It lets `O` resolve when the operand bound fails, so the
-        /// return-type `E0308` still fires with rustc's own `.into()`
-        /// suggestion. And because it is the bound that fails when a type has
-        /// no opt-in at all, it carries the message for that case, leaving the
-        /// trait above to talk only about mismatched operands.
+        /// It exists so `O` resolves when the operand bound fails, which keeps
+        /// the return-type `E0308` — and rustc's own `.into()` suggestion —
+        /// alive. The blanket impls below say "an operator yields the type it
+        /// was applied to, whatever is on the right", which is true of every
+        /// same-type operator and of most heterogeneous ones — `Duration *
+        /// u32` is still a `Duration`. Because `B` is free in the blanket, `O`
+        /// is known from the left operand alone, before the right one is even
+        /// looked at.
         ///
-        /// The blanket impls below say "an operator yields the type it was
-        /// applied to", which is true of every same-type operator and of most
-        /// heterogeneous ones — `Duration * u32` is still a `Duration`. Only a
-        /// pair whose output differs from its *left* operand needs an impl of
-        /// its own, written with `passthrough!(mul out u32 => Duration);`.
-        /// A type then carries two, and the extra candidate simply hands the
-        /// decision back to the operand.
+        /// Only a pair whose output differs from its *left* operand needs an
+        /// impl of its own, and `passthrough!` emits it. Naming `B` here is
+        /// what lets two such pairs coexist on one left type: `Q * Q => f64`
+        /// and `Q * R => f64` are distinct impls, where a trait keyed on the
+        /// left type alone made them the same impl twice.
         #[diagnostic::on_unimplemented(
             message = $undeclared,
             label = "output not declared as `{O}`",
@@ -58,10 +59,10 @@ macro_rules! declare_op_trait {
                     resolved per concrete type, so `#[algebraic]` cannot be used in a \
                     generic function"
         )]
-        pub trait $out_trait<O> {}
+        pub trait $out_trait<B, O> {}
 
-        impl<A> $out_trait<A> for A {}
-        impl<A> $out_trait<A> for &A {}
+        impl<A, B> $out_trait<B, A> for A {}
+        impl<A, B> $out_trait<B, A> for &A {}
     };
 }
 
@@ -70,35 +71,35 @@ declare_op_trait!(
     AddOut,
     add_rhs,
     "cannot add `{Self}` to `{Lhs}`",
-    "`+` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(add out {Self} => {O});`"
+    "`+` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(add out {Self}, {B} => {O});`"
 );
 declare_op_trait!(
     SubRhs,
     SubOut,
     sub_rhs,
     "cannot subtract `{Self}` from `{Lhs}`",
-    "`-` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(sub out {Self} => {O});`"
+    "`-` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(sub out {Self}, {B} => {O});`"
 );
 declare_op_trait!(
     MulRhs,
     MulOut,
     mul_rhs,
     "cannot multiply `{Lhs}` by `{Self}`",
-    "`*` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(mul out {Self} => {O});`"
+    "`*` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(mul out {Self}, {B} => {O});`"
 );
 declare_op_trait!(
     DivRhs,
     DivOut,
     div_rhs,
     "cannot divide `{Lhs}` by `{Self}`",
-    "`/` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(div out {Self} => {O});`"
+    "`/` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(div out {Self}, {B} => {O});`"
 );
 declare_op_trait!(
     RemRhs,
     RemOut,
     rem_rhs,
     "cannot calculate the remainder of `{Lhs}` divided by `{Self}`",
-    "`%` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(rem out {Self} => {O});`"
+    "`%` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(rem out {Self}, {B} => {O});`"
 );
 
 /// Marks a type whose reference operands can be dispatched.
