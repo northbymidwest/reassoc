@@ -271,17 +271,17 @@ struct Dispatched(f32);
 macro_rules! impl_dispatched {
     ($trait_name:ident, $method:ident, $op:tt) => {
         impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
-            fn $method(self, rhs: Dispatched) -> Dispatched {
-                Dispatched(self.0 $op rhs.0)
+            fn $method(self, lhs: Dispatched) -> Dispatched {
+                Dispatched(lhs.0 $op self.0)
             }
         }
     };
 }
-impl_dispatched!(AlgAdd, alg_add, +);
-impl_dispatched!(AlgSub, alg_sub, -);
-impl_dispatched!(AlgMul, alg_mul, *);
-impl_dispatched!(AlgDiv, alg_div, /);
-impl_dispatched!(AlgRem, alg_rem, %);
+impl_dispatched!(AddRhs, add_rhs, +);
+impl_dispatched!(SubRhs, sub_rhs, -);
+impl_dispatched!(MulRhs, mul_rhs, *);
+impl_dispatched!(DivRhs, div_rhs, /);
+impl_dispatched!(RemRhs, rem_rhs, %);
 
 #[algebraic]
 fn dispatch_only_body(w: Dispatched) -> Dispatched {

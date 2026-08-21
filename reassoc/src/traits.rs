@@ -7,72 +7,96 @@
 //! associated type would break that inference.
 
 macro_rules! declare_op_trait {
-    ($trait_name:ident, $method:ident, $msg:literal) => {
+    ($rhs_trait:ident, $out_trait:ident, $rhs_method:ident, $msg:literal,
+     $undeclared:literal) => {
+        /// The right-hand operand of one operator, for a given left type.
+        ///
+        /// This is where opting in happens, and it is keyed on the *left* type
+        /// rather than on the right one. That is what lets a type carry
+        /// same-type and heterogeneous operators at once: `passthrough!(Vec3)`
+        /// and `passthrough!(mul: Vec3, f32 => Vec3)` add two impls of this
+        /// trait, where two impls of a right-keyed trait would overlap.
         #[diagnostic::on_unimplemented(
-                    message = $msg,
-                    label = "no `reassoc` impl for `{Self}`",
-                    note = "wrap this expression in `strict!(..)` to use ordinary operators,",
-                    note = "or opt the type in once with `reassoc::passthrough!({Self});`",
-            note = "if `{Self}` is a generic type parameter, neither applies: dispatch is \
+            message = $msg,
+            label = $msg,
+            note = "operands are never converted implicitly, inside an \
+                    `#[algebraic]` scope or outside one",
+            note = "if these are numeric types, cast one of them; if `{Lhs}` is not opted in \
+                    yet, add `reassoc::passthrough!({Lhs});`, or wrap the expression in \
+                    `strict!(..)` to use ordinary operators"
+        )]
+        pub trait $rhs_trait<Lhs, O> {
+            fn $rhs_method(self, lhs: Lhs) -> O;
+        }
+
+        /// What this operator produces for a given left type, stated
+        /// independently of what is on the right.
+        ///
+        /// Two jobs. It lets `O` resolve when the operand bound fails, so the
+        /// return-type `E0308` still fires with rustc's own `.into()`
+        /// suggestion. And because it is the bound that fails when a type has
+        /// no opt-in at all, it carries the message for that case, leaving the
+        /// trait above to talk only about mismatched operands.
+        ///
+        /// The blanket impls below say "an operator yields the type it was
+        /// applied to", which is true of every same-type operator and of most
+        /// heterogeneous ones — `Duration * u32` is still a `Duration`. Only a
+        /// pair whose output differs from its *left* operand needs an impl of
+        /// its own, written with `passthrough!(mul out u32 => Duration);`.
+        /// A type then carries two, and the extra candidate simply hands the
+        /// decision back to the operand.
+        #[diagnostic::on_unimplemented(
+            message = $undeclared,
+            label = "output not declared as `{O}`",
+            note = "the output is assumed to be `{Self}` itself, which covers every same-type \
+                    operator and pairs like `Duration * u32`",
+            note = "declare it once beside the opt-in, and this goes away",
+            note = "if `{Self}` is a generic type parameter, none of this applies: dispatch is \
                     resolved per concrete type, so `#[algebraic]` cannot be used in a \
                     generic function"
-                )]
-        pub trait $trait_name<B, O> {
-            fn $method(self, rhs: B) -> O;
-        }
+        )]
+        pub trait $out_trait<O> {}
+
+        impl<A> $out_trait<A> for A {}
+        impl<A> $out_trait<A> for &A {}
     };
 }
 
 declare_op_trait!(
-    AlgAdd,
-    alg_add,
-    "`{Self}` can't be used with `+` inside an `#[algebraic]` scope"
+    AddRhs,
+    AddOut,
+    add_rhs,
+    "cannot add `{Self}` to `{Lhs}`",
+    "`+` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(add out {Self} => {O});`"
 );
 declare_op_trait!(
-    AlgSub,
-    alg_sub,
-    "`{Self}` can't be used with `-` inside an `#[algebraic]` scope"
+    SubRhs,
+    SubOut,
+    sub_rhs,
+    "cannot subtract `{Self}` from `{Lhs}`",
+    "`-` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(sub out {Self} => {O});`"
 );
 declare_op_trait!(
-    AlgMul,
-    alg_mul,
-    "`{Self}` can't be used with `*` inside an `#[algebraic]` scope"
+    MulRhs,
+    MulOut,
+    mul_rhs,
+    "cannot multiply `{Lhs}` by `{Self}`",
+    "`*` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(mul out {Self} => {O});`"
 );
 declare_op_trait!(
-    AlgDiv,
-    alg_div,
-    "`{Self}` can't be used with `/` inside an `#[algebraic]` scope"
+    DivRhs,
+    DivOut,
+    div_rhs,
+    "cannot divide `{Lhs}` by `{Self}`",
+    "`/` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(div out {Self} => {O});`"
 );
 declare_op_trait!(
-    AlgRem,
-    alg_rem,
-    "`{Self}` can't be used with `%` inside an `#[algebraic]` scope"
+    RemRhs,
+    RemOut,
+    rem_rhs,
+    "cannot calculate the remainder of `{Lhs}` divided by `{Self}`",
+    "`%` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(rem out {Self} => {O});`"
 );
-
-/// The right-hand operand of a dispatched operator: a `T`, or a `&T`.
-///
-/// This exists for diagnostics, not for abstraction. Every operand type used
-/// to get four `Alg*` impls per operator — the `&` combinations of both sides.
-/// That left each type with more than one candidate impl, so rustc could not
-/// infer the right-hand type, the failure stayed the unresolved root bound
-/// `AlgAdd<u32, _>`, and the message blamed the left operand: "`u8` can't be
-/// used with `+`", advising `passthrough!(u8)`. Both claims were false.
-///
-/// Folding the reference variants in here leaves one candidate per operand
-/// type. The impl is then selected, `O` resolves, and the reported obligation
-/// becomes `u32: Operand<u8>` — whose message below names both types and
-/// points at the operand that is wrong, as rustc's own `E0308` does.
-#[diagnostic::on_unimplemented(
-    message = "expected `{T}`, found `{Self}`",
-    label = "expected `{T}`, found `{Self}`",
-    note = "operands are never converted implicitly, inside an `#[algebraic]` \
-            scope or outside one",
-    note = "if these are numeric types, cast the operand: `.. as {T}`"
-)]
-pub trait Operand<T> {
-    /// Yields the operand by value.
-    fn reassoc_operand(self) -> T;
-}
 
 /// Marks a type whose reference operands can be dispatched.
 ///

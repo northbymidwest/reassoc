@@ -40,3 +40,15 @@ fn main() {
     let summed = vs.iter().fold(Vec2(0.0, 0.0), |acc, v| reassoc::ops::add(acc, v));
     assert_eq!(summed, Vec2(4.0, 6.0));
 }
+
+// The same pair, declared correctly: the output line is all it needs.
+#[derive(Clone, Copy)]
+struct Dot([f32; 2]);
+impl core::ops::Mul for Dot {
+    type Output = f32;
+    fn mul(self, o: Dot) -> f32 {
+        self.0[0] * o.0[0] + self.0[1] * o.0[1]
+    }
+}
+reassoc::passthrough!(mul out Dot => f32);
+reassoc::passthrough!(mul: Dot, Dot => f32);

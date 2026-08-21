@@ -27,73 +27,254 @@ macro_rules! passthrough {
     // `Copy`, because a reference operand is dereferenced. For a type that is
     // not `Copy`, use the `no_refs` form below.
     ($t:ty) => {
-        impl $crate::traits::Operand<$t> for $t {
-            #[inline(always)]
-            fn reassoc_operand(self) -> $t {
-                self
-            }
-        }
-        impl $crate::traits::Operand<$t> for &$t
-        where
-            $t: $crate::traits::RefOperand,
-        {
-            #[inline(always)]
-            fn reassoc_operand(self) -> $t {
-                $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-
-        $crate::passthrough_ops!($t, refs);
+        $crate::passthrough!(add: $t, $t => $t);
+        $crate::passthrough!(sub: $t, $t => $t);
+        $crate::passthrough!(mul: $t, $t => $t);
+        $crate::passthrough!(div: $t, $t => $t);
+        $crate::passthrough!(rem: $t, $t => $t);
     };
     // Value operands only, for types that are not `Copy`.
     (no_refs $t:ty) => {
-        impl $crate::traits::Operand<$t> for $t {
-            #[inline(always)]
-            fn reassoc_operand(self) -> $t {
-                self
-            }
-        }
-
-        $crate::passthrough_ops!($t, no_refs);
+        $crate::passthrough!(no_refs add: $t, $t => $t);
+        $crate::passthrough!(no_refs sub: $t, $t => $t);
+        $crate::passthrough!(no_refs mul: $t, $t => $t);
+        $crate::passthrough!(no_refs div: $t, $t => $t);
+        $crate::passthrough!(no_refs rem: $t, $t => $t);
+    };
+    // Declares what an operator yields for a left-hand type, so a mismatched
+    // operand still reports the return-type `E0308`. The whole-type forms above
+    // emit these; a type opted in only through the per-operator form below
+    // needs one, once per operator.
+    (out $a:ty => $o:ty) => {
+        $crate::passthrough!(add out $a => $o);
+        $crate::passthrough!(sub out $a => $o);
+        $crate::passthrough!(mul out $a => $o);
+        $crate::passthrough!(div out $a => $o);
+        $crate::passthrough!(rem out $a => $o);
+    };
+    (add out $a:ty => $o:ty) => {
+        impl $crate::traits::AddOut<$o> for $a {}
+        impl $crate::traits::AddOut<$o> for &$a {}
+    };
+    (sub out $a:ty => $o:ty) => {
+        impl $crate::traits::SubOut<$o> for $a {}
+        impl $crate::traits::SubOut<$o> for &$a {}
+    };
+    (mul out $a:ty => $o:ty) => {
+        impl $crate::traits::MulOut<$o> for $a {}
+        impl $crate::traits::MulOut<$o> for &$a {}
+    };
+    (div out $a:ty => $o:ty) => {
+        impl $crate::traits::DivOut<$o> for $a {}
+        impl $crate::traits::DivOut<$o> for &$a {}
+    };
+    (rem out $a:ty => $o:ty) => {
+        impl $crate::traits::RemOut<$o> for $a {}
+        impl $crate::traits::RemOut<$o> for &$a {}
     };
     (add: $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AlgAdd<$b, $o> for $a {
+        $crate::passthrough!(no_refs add: $a, $b => $o);
+
+        impl $crate::traits::AddRhs<$a, $o> for &$b
+        where $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn alg_add(self, rhs: $b) -> $o {
-                self + rhs
+            fn add_rhs(self, lhs: $a) -> $o {
+                lhs + $crate::traits::RefOperand::reassoc_dup(self)
             }
+        }
+        impl $crate::traits::AddRhs<&$a, $o> for $b
+        where $a: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn add_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) + self
+            }
+        }
+        impl $crate::traits::AddRhs<&$a, $o> for &$b
+        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn add_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs)
+                    + $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+    };
+    (no_refs add: $a:ty, $b:ty => $o:ty) => {
+        // The output is assumed to be the left operand unless declared
+        // otherwise, so catch a pair that never declared its own here, at the
+        // opt-in, rather than at some distant use site where the message would
+        // claim the operator is not implemented at all.
+        const _: () = {
+            fn output_declared<A: $crate::traits::AddOut<O>, O>() {}
+            let _ = output_declared::<$a, $o>;
+        };
+
+        impl $crate::traits::AddRhs<$a, $o> for $b {
+            #[inline(always)]
+            fn add_rhs(self, lhs: $a) -> $o { lhs + self }
         }
     };
     (sub: $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AlgSub<$b, $o> for $a {
+        $crate::passthrough!(no_refs sub: $a, $b => $o);
+
+        impl $crate::traits::SubRhs<$a, $o> for &$b
+        where $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn alg_sub(self, rhs: $b) -> $o {
-                self - rhs
+            fn sub_rhs(self, lhs: $a) -> $o {
+                lhs - $crate::traits::RefOperand::reassoc_dup(self)
             }
+        }
+        impl $crate::traits::SubRhs<&$a, $o> for $b
+        where $a: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn sub_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) - self
+            }
+        }
+        impl $crate::traits::SubRhs<&$a, $o> for &$b
+        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn sub_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs)
+                    - $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+    };
+    (no_refs sub: $a:ty, $b:ty => $o:ty) => {
+        // The output is assumed to be the left operand unless declared
+        // otherwise, so catch a pair that never declared its own here, at the
+        // opt-in, rather than at some distant use site where the message would
+        // claim the operator is not implemented at all.
+        const _: () = {
+            fn output_declared<A: $crate::traits::SubOut<O>, O>() {}
+            let _ = output_declared::<$a, $o>;
+        };
+
+        impl $crate::traits::SubRhs<$a, $o> for $b {
+            #[inline(always)]
+            fn sub_rhs(self, lhs: $a) -> $o { lhs - self }
         }
     };
     (mul: $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AlgMul<$b, $o> for $a {
+        $crate::passthrough!(no_refs mul: $a, $b => $o);
+
+        impl $crate::traits::MulRhs<$a, $o> for &$b
+        where $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn alg_mul(self, rhs: $b) -> $o {
-                self * rhs
+            fn mul_rhs(self, lhs: $a) -> $o {
+                lhs * $crate::traits::RefOperand::reassoc_dup(self)
             }
+        }
+        impl $crate::traits::MulRhs<&$a, $o> for $b
+        where $a: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn mul_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) * self
+            }
+        }
+        impl $crate::traits::MulRhs<&$a, $o> for &$b
+        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn mul_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs)
+                    * $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+    };
+    (no_refs mul: $a:ty, $b:ty => $o:ty) => {
+        // The output is assumed to be the left operand unless declared
+        // otherwise, so catch a pair that never declared its own here, at the
+        // opt-in, rather than at some distant use site where the message would
+        // claim the operator is not implemented at all.
+        const _: () = {
+            fn output_declared<A: $crate::traits::MulOut<O>, O>() {}
+            let _ = output_declared::<$a, $o>;
+        };
+
+        impl $crate::traits::MulRhs<$a, $o> for $b {
+            #[inline(always)]
+            fn mul_rhs(self, lhs: $a) -> $o { lhs * self }
         }
     };
     (div: $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AlgDiv<$b, $o> for $a {
+        $crate::passthrough!(no_refs div: $a, $b => $o);
+
+        impl $crate::traits::DivRhs<$a, $o> for &$b
+        where $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn alg_div(self, rhs: $b) -> $o {
-                self / rhs
+            fn div_rhs(self, lhs: $a) -> $o {
+                lhs / $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+        impl $crate::traits::DivRhs<&$a, $o> for $b
+        where $a: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn div_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) / self
+            }
+        }
+        impl $crate::traits::DivRhs<&$a, $o> for &$b
+        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn div_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs)
+                    / $crate::traits::RefOperand::reassoc_dup(self)
             }
         }
     };
-    (rem: $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AlgRem<$b, $o> for $a {
+    (no_refs div: $a:ty, $b:ty => $o:ty) => {
+        // The output is assumed to be the left operand unless declared
+        // otherwise, so catch a pair that never declared its own here, at the
+        // opt-in, rather than at some distant use site where the message would
+        // claim the operator is not implemented at all.
+        const _: () = {
+            fn output_declared<A: $crate::traits::DivOut<O>, O>() {}
+            let _ = output_declared::<$a, $o>;
+        };
+
+        impl $crate::traits::DivRhs<$a, $o> for $b {
             #[inline(always)]
-            fn alg_rem(self, rhs: $b) -> $o {
-                self % rhs
+            fn div_rhs(self, lhs: $a) -> $o { lhs / self }
+        }
+    };
+    (rem: $a:ty, $b:ty => $o:ty) => {
+        $crate::passthrough!(no_refs rem: $a, $b => $o);
+
+        impl $crate::traits::RemRhs<$a, $o> for &$b
+        where $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn rem_rhs(self, lhs: $a) -> $o {
+                lhs % $crate::traits::RefOperand::reassoc_dup(self)
             }
+        }
+        impl $crate::traits::RemRhs<&$a, $o> for $b
+        where $a: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn rem_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) % self
+            }
+        }
+        impl $crate::traits::RemRhs<&$a, $o> for &$b
+        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            fn rem_rhs(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs)
+                    % $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+    };
+    (no_refs rem: $a:ty, $b:ty => $o:ty) => {
+        // The output is assumed to be the left operand unless declared
+        // otherwise, so catch a pair that never declared its own here, at the
+        // opt-in, rather than at some distant use site where the message would
+        // claim the operator is not implemented at all.
+        const _: () = {
+            fn output_declared<A: $crate::traits::RemOut<O>, O>() {}
+            let _ = output_declared::<$a, $o>;
+        };
+
+        impl $crate::traits::RemRhs<$a, $o> for $b {
+            #[inline(always)]
+            fn rem_rhs(self, lhs: $a) -> $o { lhs % self }
         }
     };
 }
@@ -121,50 +302,5 @@ macro_rules! passthrough {
 macro_rules! strict {
     ($e:expr) => {
         $e
-    };
-}
-
-/// The five operators for one type, in the shape that keeps a single `Alg*`
-/// candidate per operand type.
-///
-/// Not part of the public API surface anyone should call directly; it exists
-/// because `macro_rules!` cannot loop over operators inside another expansion.
-/// Keeping one candidate is what makes a mismatched operand report
-/// `Operand<T>` — see `traits::Operand`.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! passthrough_ops {
-    ($t:ty, $refs:ident) => {
-        $crate::passthrough_op!(AlgAdd, alg_add, +, $t, $refs);
-        $crate::passthrough_op!(AlgSub, alg_sub, -, $t, $refs);
-        $crate::passthrough_op!(AlgMul, alg_mul, *, $t, $refs);
-        $crate::passthrough_op!(AlgDiv, alg_div, /, $t, $refs);
-        $crate::passthrough_op!(AlgRem, alg_rem, %, $t, $refs);
-    };
-}
-
-/// One operator for one type. See `passthrough_ops!`.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! passthrough_op {
-    ($trait_name:ident, $method:ident, $op:tt, $t:ty, no_refs) => {
-        impl<B: $crate::traits::Operand<$t>> $crate::traits::$trait_name<B, $t> for $t {
-            #[inline(always)]
-            fn $method(self, rhs: B) -> $t {
-                self $op $crate::traits::Operand::reassoc_operand(rhs)
-            }
-        }
-    };
-    ($trait_name:ident, $method:ident, $op:tt, $t:ty, refs) => {
-        $crate::passthrough_op!($trait_name, $method, $op, $t, no_refs);
-
-        impl<B: $crate::traits::Operand<$t>> $crate::traits::$trait_name<B, $t> for &$t
-        where $t: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn $method(self, rhs: B) -> $t {
-                $crate::traits::RefOperand::reassoc_dup(self)
-                    $op $crate::traits::Operand::reassoc_operand(rhs)
-            }
-        }
     };
 }

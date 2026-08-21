@@ -26,18 +26,18 @@ macro_rules! impl_dispatched {
     ($($trait_name:ident, $method:ident, $op:tt);* $(;)?) => {$(
         impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
             #[inline(always)]
-            fn $method(self, rhs: Dispatched) -> Dispatched {
-                Dispatched(self.0 $op rhs.0)
+            fn $method(self, lhs: Dispatched) -> Dispatched {
+                Dispatched(lhs.0 $op self.0)
             }
         }
     )*};
 }
 impl_dispatched!(
-    AlgAdd, alg_add, +;
-    AlgSub, alg_sub, -;
-    AlgMul, alg_mul, *;
-    AlgDiv, alg_div, /;
-    AlgRem, alg_rem, %;
+    AddRhs, add_rhs, +;
+    SubRhs, sub_rhs, -;
+    MulRhs, mul_rhs, *;
+    DivRhs, div_rhs, /;
+    RemRhs, rem_rhs, %;
 );
 
 // ---------------------------------------------------------------------------

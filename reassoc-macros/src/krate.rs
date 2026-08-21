@@ -1,6 +1,6 @@
 //! Resolving the path the generated code should use to reach `reassoc`.
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::quote;
 
 /// The absolute path to the facade crate, as generated code should spell it.
@@ -33,4 +33,30 @@ pub fn path() -> TokenStream {
         }
     }
     quote!(::reassoc)
+}
+
+/// The same path, with every token moved to `span`.
+///
+/// `quote_spanned!` only spans the literal tokens it writes; an interpolated
+/// stream keeps the spans it already had. Leaving the crate path at
+/// `Span::call_site()` makes rustc anchor "required by a bound introduced by
+/// this call" to the macro invocation — the `#[algebraic]` attribute, lines
+/// away — instead of to the operator the user wrote.
+pub fn path_spanned(span: Span) -> TokenStream {
+    fn respan(tokens: TokenStream, span: Span) -> TokenStream {
+        tokens
+            .into_iter()
+            .map(|mut tt| {
+                if let TokenTree::Group(g) = &tt {
+                    let mut new = proc_macro2::Group::new(g.delimiter(), respan(g.stream(), span));
+                    new.set_span(span);
+                    tt = TokenTree::Group(new);
+                } else {
+                    tt.set_span(span);
+                }
+                tt
+            })
+            .collect()
+    }
+    respan(path(), span)
 }

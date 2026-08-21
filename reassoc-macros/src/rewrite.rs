@@ -289,7 +289,7 @@ impl VisitMut for Rewriter {
         if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
-            let krate = crate::krate::path();
+            let krate = crate::krate::path_spanned(span);
 
             if is_non_float_constant(&binary.left) && is_non_float_constant(&binary.right) {
                 // Every literal EXCEPT a float one — a denylist, not an

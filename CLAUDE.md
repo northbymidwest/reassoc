@@ -59,10 +59,9 @@ the crate's own tests — the missing reference impls would have been caught far
 sooner this way. What cannot use it, and why: `float.rs` needs `algebraic_*`
 rather than plain operators; `Wrapping<T>` and `Saturating<T>` need one generic
 `impl<T>` rather than an entry per width; and the heterogeneous pairs
-(`Duration * u32`, `Instant + Duration`) need reference combinations that
-`passthrough!`'s per-operator form does not emit, so `ext.rs` has its own
-`hetero!`. `passthrough!`'s per-operator form is still exercised by
-`String + &str` and by `tests/passthrough.rs`.
+(`Duration * u32`, `Instant + Duration`) go through `passthrough!`'s
+per-operator form, which now emits their reference combinations too. `passthrough!`'s per-operator form is
+exercised by every heterogeneous pair, `String + &str` among them.
 
 **The rewriter** (`reassoc-macros/src/rewrite.rs`) is one `VisitMut` shared by
 both entry points in `lib.rs`: `alg!` for a single expression, `#[algebraic]`
@@ -71,7 +70,7 @@ parameters into the `Rewriter`'s two boolean fields.
 
 ## Invariants that look like cleanup opportunities but are not
 
-**Trait output is a type parameter, never an associated type.** `trait AlgMul<B,
+**Trait output is a type parameter, never an associated type.** `trait MulRhs<Lhs,
 O>` — not `type Out`. With an associated type, rustc cannot invert the
 projection, so `let s = 0.0;` in a function returning `f32` defaults the literal
 to `f64` and fails with `E0271`. Both the associated-type and
@@ -102,54 +101,92 @@ associated consts and `const fn` methods. `ops::*` are not `const fn`, so rewrit
 there fails with `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
-**Every dispatch impl takes its right operand as `B: Operand<T>`, and that is
-a diagnostic decision, not an abstraction.** Each operand type used to get four
-`Alg*` impls per operator — the `&` combinations of both sides. That left each
-type with more than one candidate impl, so rustc could not infer `B`; the
-failure stayed the unresolved root bound `AlgAdd<u32, _>` and reported *that*
-trait's message: "`u8` can't be used with `+`", advising `passthrough!(u8)`.
-Both claims are false for every mixed-operand case — the left type is opted in
-already, and the advice would not have compiled.
-
-With one candidate per operand type, the impl is selected, `O` resolves, and
-the reported obligation becomes the nested `u32: Operand<u8>` — whose
-`on_unimplemented` rustc then honours, blaming the operand with "expected
-`u8`, found `u32`". This is why `impls/float.rs`, `passthrough!`,
-`#[derive(Passthrough)]`, and `impls/ext.rs` all take the same shape:
+**Two traits per operator, and the shape of each is load-bearing for
+diagnostics.** `MulRhs<Lhs, O>` is where opting in happens; `MulOut<O>` states
+what the operator yields. `ops::mul` requires both:
 
 ```rust
-impl<B: Operand<$t>> AlgAdd<B, $t> for $t     // and one more for `&$t`
+pub fn mul<A: MulOut<O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O { b.mul_rhs(a) }
 ```
 
-Splitting any of them back into per-reference impls silently restores the
-misdirecting message for that family. `tests/ui/mismatched_operands.rs` pins
-all of them — float widths, integer widths, signedness, int-against-float,
-`Wrapping`, the heterogeneous `Duration * u32`, and an opted-in user type.
+Four separate decisions are encoded there, each measured, each reverting to a
+worse diagnostic if undone.
 
-Two alternatives were measured and rejected. A marker trait as an
-*unsatisfiable where-clause* on an intercept impl (`impl AlgAdd<f64, f64> for
-f32 where f32: MixedFloat<f64>`) does not work: a where-clause naming only
-concrete types is evaluated at the impl definition, so the crate itself fails
-to build. Making it generic defers that check, but then `O` stays ambiguous,
-rustc reports the root obligation, and the marker's message is discarded
-entirely — even with the root trait's own `on_unimplemented` removed.
-`on_unimplemented` is read from whichever obligation rustc *reports*, so
-improving a message can mean changing impl shape rather than attribute text.
+*The operand trait is keyed on the LEFT type.* A right-keyed trait
+(`Operand<T>`, meaning "yields a `T`") forces one `Alg*` impl per opt-in, and
+two opt-ins for one type then overlap: `passthrough!(Vec3)` gives `impl<B:
+Operand<Vec3>> AlgMul<B, Vec3> for Vec3` and `passthrough!(mul: Vec3, f32 =>
+Vec3)` gives `impl<B: Operand<f32>> AlgMul<B, Vec3> for Vec3` — same `Self`,
+same output, `E0119`. Keying on the left type makes both plain impls of
+`MulRhs<Vec3, Vec3>`, which never collide. This is also what gives the
+heterogeneous pairs their reference combinations.
 
-Exact `E0308` is unreachable. It needs a single impl with a *concrete* `B`,
-which is precisely what supporting `&T` on the right forbids.
+*One candidate per operand type.* Each type used to get four `Alg*` impls per
+operator, the `&` combinations of both sides. With more than one candidate rustc
+cannot infer the right-hand type, so the failure stays the unresolved root bound
+and reports *that* trait's message: "`u8` can't be used with `+`", advising
+`passthrough!(u8)` for a type already opted in. Both claims false.
 
-**`passthrough!`'s per-operator form stays concrete.** `passthrough!(mul: A, B
-=> O)` emits one impl with `B` spelled out, and emits no reference
-combinations — unchanged. Making it generic over `Operand<B>` would require
-`B` to have been opted in separately, breaking every existing caller whose
-right-hand type is their own. `impls/ext.rs` therefore has its own `hetero!`
-for the built-in heterogeneous pairs, which does take `Operand<$b>`, so
-`Duration * u64` reports "expected `u32`, found `u64`".
+*The operand bound hangs off `B`, not `A`.* `A: AlgAdd<B, O>` implies the
+operand bound, but rustc anchors the error on the argument the bound is attached
+to — the *left* one, where plain Rust points at the right. Naming `B: AddRhs<A,
+O>` moves the caret onto the operand that is actually wrong. This is also why
+the `Alg*` traits are gone: keeping them as a second bound emitted the same
+error twice.
 
-**Do not add mixed-width impls** to make `f32 + f64` or `u8 + u32` compile.
-Rust has no implicit numeric coercion by design, and an impl would insert the
+*`MulOut` exists to resolve `O` when the operand bound fails.* Without it the
+output stays an inference variable, rustc suppresses the return-type `E0308`,
+and its own `help: you can convert a u8 to a u32` goes with it. Its two blanket
+impls — `impl<A> MulOut<A> for A` and `impl<A> MulOut<A> for &A` — say an
+operator yields the type it was applied to, which covers every same-type
+operator and every heterogeneous pair whose output is its left operand
+(`Duration * u32` is a `Duration`). Only a pair whose output differs from its
+left operand needs a line, and the crate contains exactly one:
+`passthrough!(mul out u32 => Duration);`. Do not make `passthrough!` emit these
+per type — two opt-ins for one type would then emit the same impl twice, and a
+specific impl would collide with the blanket besides.
+
+The assumption is a footgun, so the per-operator form asserts it. Each
+`passthrough!(mul: A, B => O)` emits a `const _` block instantiating a generic
+function bounded by `A: MulOut<O>`. Without it, a pair like
+`passthrough!(mul: Vec3, Vec3 => f32)` compiles fine and then fails at some
+distant use site with "cannot multiply `Vec3` by `Vec3`" — for an operator the
+user plainly implemented. With it, the error lands on the `passthrough!` line
+and names the missing declaration verbatim. `MulOut`'s `on_unimplemented` is
+written for exactly this case, which the blanket impls make the only way it can
+fail. `tests/ui/undeclared_output.rs` pins it.
+
+`tests/ui/mismatched_operands.rs` pins the wording and the spans across every
+family: float widths, integer widths, signedness, int-against-float, `Wrapping`,
+the heterogeneous `Duration * u32`, an opted-in user type, and a type never
+opted in.
+
+**Generated code is respanned onto the operator.** `quote_spanned!` only spans
+the literal tokens it writes; an interpolated stream keeps the spans it already
+had, so `krate::path()` at `Span::call_site()` made rustc anchor "required by a
+bound introduced by this call" on the `#[algebraic]` attribute, lines from the
+code. `krate::path_spanned(op.span())` fixes it.
+
+**Alternatives measured and rejected.** A marker trait as an *unsatisfiable
+where-clause* on an intercept impl (`impl AlgAdd<f64, f64> for f32 where f32:
+MixedFloat<f64>`) does not work: a where-clause naming only concrete types is
+evaluated at the impl definition, so the crate itself fails to build. Making it
+generic defers that check, but then `O` stays ambiguous, rustc reports the root
+obligation, and the marker's message is discarded entirely — even with the root
+trait's own `on_unimplemented` removed. `on_unimplemented` is read from
+whichever obligation rustc *reports*, so improving a message can mean changing
+impl shape rather than attribute text.
+
+**Do not add mixed-width impls** to make `f32 + f64` or `u8 + u32` compile. Rust
+has no implicit numeric coercion by design, and an impl would insert the
 conversion the language deliberately refuses.
+
+**The gaps against plain Rust are documented in the README** and are not
+oversights. The operand error is `E0277` where rustc's is `E0308`: `E0308` is a
+unification failure, which needs one impl per type with the right-hand type
+spelled out concretely — exactly what accepting `&T` on the right forbids.
+Diagnostic ordering follows from the same gap, since the error we cannot emit is
+the one rustc prints first.
 
 **Generated code uses absolute paths** (`::reassoc::ops::add`) and never emits
 parentheses around operands.
@@ -221,6 +258,7 @@ a needlessly high floor forces downstream upgrades for no reason.
 
 ## Background
 
-`docs/superpowers/specs/` holds the design document, including the reasoning
-behind the dispatch shape and the alternatives that were measured and rejected.
-Read it before changing the dispatch layer.
+`docs/superpowers/specs/` holds the original design document, including the
+alternatives measured and rejected at the time. Read it before changing the
+dispatch layer — but note it predates the operand/output split described above
+and still describes the single `Alg*` trait per operator.

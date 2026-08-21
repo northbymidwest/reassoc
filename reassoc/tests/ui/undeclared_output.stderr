@@ -1,0 +1,46 @@
+error[E0277]: `*` on `Vec3` has no declared output `f32` — add `reassoc::passthrough!(mul out Vec3 => f32);`
+  --> tests/ui/undeclared_output.rs:21:19
+   |
+21 | passthrough!(mul: Vec3, Vec3 => f32);
+   |                   ^^^^ output not declared as `f32`
+   |
+help: the trait `MulOut<f32>` is not implemented for `Vec3`
+  --> tests/ui/undeclared_output.rs:11:1
+   |
+11 | struct Vec3([f32; 3]);
+   | ^^^^^^^^^^^
+   = note: the output is assumed to be `Vec3` itself, which covers every same-type operator and pairs like `Duration * u32`
+   = note: declare it once beside the opt-in, and this goes away
+   = note: if `Vec3` is a generic type parameter, none of this applies: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
+help: the following other types implement trait `MulOut<O>`
+  --> src/traits.rs
+   |
+   |           impl<A> $out_trait<A> for &A {}
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&A` implements `MulOut<A>`
+...
+   | / declare_op_trait!(
+   | |     MulRhs,
+   | |     MulOut,
+   | |     mul_rhs,
+   | |     "cannot multiply `{Lhs}` by `{Self}`",
+   | |     "`*` on `{Self}` has no declared output `{O}` — add `reassoc::passthrough!(mul out {Self} => {O});`"
+   | | );
+   | |_- in this macro invocation
+   |
+  ::: src/macros.rs
+   |
+   |           impl $crate::traits::MulOut<$o> for $a {}
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `MulOut<Duration>`
+   |           impl $crate::traits::MulOut<$o> for &$a {}
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&u32` implements `MulOut<Duration>`
+   |
+  ::: src/impls/ext.rs
+   |
+   |   passthrough!(mul out u32 => Duration);
+   |   ------------------------------------- in this macro invocation
+note: required by a bound in `output_declared`
+  --> tests/ui/undeclared_output.rs:21:1
+   |
+21 | passthrough!(mul: Vec3, Vec3 => f32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `output_declared`
+   = note: this error originates in the macro `passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)
