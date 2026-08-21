@@ -141,20 +141,28 @@ impls — `impl<A> MulOut<A> for A` and `impl<A> MulOut<A> for &A` — say an
 operator yields the type it was applied to, which covers every same-type
 operator and every heterogeneous pair whose output is its left operand
 (`Duration * u32` is a `Duration`). Only a pair whose output differs from its
-left operand needs a line, and the crate contains exactly one:
-`passthrough!(mul out u32 => Duration);`. Do not make `passthrough!` emit these
-per type — two opt-ins for one type would then emit the same impl twice, and a
-specific impl would collide with the blanket besides.
+left operand needs an impl of its own. Do not make `passthrough!` emit these
+unconditionally — a specific impl collides with the blanket every time the
+output *is* the left operand, which is nearly always.
 
-The assumption is a footgun, so the per-operator form asserts it. Each
-`passthrough!(mul: A, B => O)` emits a `const _` block instantiating a generic
-function bounded by `A: MulOut<O>`. Without it, a pair like
-`passthrough!(mul: Vec3, Vec3 => f32)` compiles fine and then fails at some
-distant use site with "cannot multiply `Vec3` by `Vec3`" — for an operator the
-user plainly implemented. With it, the error lands on the `passthrough!` line
-and names the missing declaration verbatim. `MulOut`'s `on_unimplemented` is
-written for exactly this case, which the blanket impls make the only way it can
-fail. `tests/ui/undeclared_output.rs` pins it.
+Deciding that needs a type comparison, which `macro_rules!` cannot do over two
+`$ty` fragments, so `passthrough!`'s per-operator rules delegate to
+`declare_output!` — a proc macro in `reassoc-macros` that compares the two types
+as written and emits the impls only when they differ. Leaving the decision to
+the user was tried and is worse: a dot product declared as `passthrough!(mul:
+Vec3, Vec3 => f32)` then compiles and fails at some distant use site with
+"cannot multiply `Vec3` by `Vec3`", for an operator plainly implemented.
+
+The comparison is syntactic, so naming the output through an alias of the left
+operand (`=> V3` where `type V3 = Vec3`) reads as a difference and produces
+`E0119` on the `passthrough!` line. That is the whole of the residual gap, and
+the error points at the right place.
+
+`declare_output!` takes the crate path as its first argument because a proc
+macro cannot write `$crate`, and `passthrough!` is invoked from inside `reassoc`
+itself by `impls/int.rs`. `tests/passthrough.rs::an_output_that_is_not_the_left_operand`
+pins the behaviour; `tests/ui/pass/api_compiles.rs` pins that it compiles with
+nothing extra written.
 
 `tests/ui/mismatched_operands.rs` pins the wording and the spans across every
 family: float widths, integer widths, signedness, int-against-float, `Wrapping`,

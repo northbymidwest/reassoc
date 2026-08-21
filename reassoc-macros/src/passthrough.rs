@@ -2,7 +2,7 @@
 //! definition, rather than with a separate `passthrough!` invocation.
 
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{ToTokens, quote};
 use syn::{DeriveInput, Ident};
 
 /// One arithmetic operator, in every spelling this macro needs.
@@ -179,4 +179,62 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
     } else {
         Ok((chosen, with_refs))
     }
+}
+
+/// `declare_output!($crate, MulOut, A, O)` — state that `A`'s operator yields
+/// `O`, but only when `O` is not `A` itself.
+///
+/// `passthrough!` cannot make this call: `macro_rules!` cannot compare two
+/// `$ty` fragments, and emitting the impl unconditionally would collide with
+/// the blanket `impl<A> MulOut<A> for A` every time the output *is* the left
+/// operand — which is nearly always. So the decision moves here, where the two
+/// types can be compared as written.
+///
+/// Comparison is syntactic, which is exact for every spelling that reaches this
+/// macro except an alias: `passthrough!(mul: Vec3, Vec3 => V3)` where
+/// `type V3 = Vec3` reads as a differing output and emits an impl that collides
+/// with the blanket. The error names the `passthrough!` line, and spelling the
+/// output the same way as the left operand resolves it.
+///
+/// The crate path arrives as an argument because a proc macro cannot write
+/// `$crate`, and `passthrough!` is invoked from inside `reassoc` itself.
+pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
+    struct Args {
+        krate: syn::Path,
+        trait_ident: Ident,
+        left: syn::Type,
+        output: syn::Type,
+    }
+
+    impl syn::parse::Parse for Args {
+        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+            let krate = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let trait_ident = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let left = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let output = input.parse()?;
+            Ok(Args {
+                krate,
+                trait_ident,
+                left,
+                output,
+            })
+        }
+    }
+
+    let Args {
+        krate,
+        trait_ident,
+        left,
+        output,
+    } = syn::parse2(input)?;
+    if left.to_token_stream().to_string() == output.to_token_stream().to_string() {
+        return Ok(TokenStream::new());
+    }
+    Ok(quote! {
+        impl #krate::traits::#trait_ident<#output> for #left {}
+        impl #krate::traits::#trait_ident<#output> for &#left {}
+    })
 }

@@ -8,6 +8,17 @@ use quote::ToTokens;
 use syn::parse::Parser;
 use syn::visit_mut::VisitMut;
 
+/// Declare what an operator yields for a left-hand type, when it is not that
+/// type itself. Not part of the public API: `passthrough!` calls it.
+#[doc(hidden)]
+#[proc_macro]
+pub fn declare_output(input: TokenStream) -> TokenStream {
+    match passthrough::expand_declare_output(input.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
 /// Rewrite arithmetic operators in a single expression to algebraic dispatch.
 #[proc_macro]
 pub fn alg(input: TokenStream) -> TokenStream {

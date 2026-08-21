@@ -137,4 +137,6 @@ pub mod traits;
 mod impls;
 mod macros;
 
+#[doc(hidden)]
+pub use reassoc_macros::declare_output;
 pub use reassoc_macros::{Passthrough, alg, algebraic};

@@ -7,11 +7,6 @@ use core::time::Duration;
 // Every heterogeneous pair now goes through the public macro, reference
 // combinations included: keying the right-operand trait on the left type means
 // these no longer compete with any same-type opt-in.
-// The one pair in the crate whose output is not its left operand: `u32 *
-// Duration` yields a `Duration`. Everything else is covered by the blanket
-// impls on the `*Out` traits.
-passthrough!(mul out u32 => Duration);
-
 passthrough!(add: Duration, Duration => Duration);
 passthrough!(sub: Duration, Duration => Duration);
 passthrough!(mul: Duration, u32 => Duration);

@@ -76,21 +76,27 @@ naming `passthrough!`.
 `Duration * u64` reports ``cannot multiply `Duration` by `u64` `` — the operator
 takes a `u32`, and the note says to cast.
 
-**One assumption is worth knowing about.** An operator is assumed to yield its
-left operand's type — true of every same-type operator and of pairs like
-`Duration * u32`. A pair that breaks it, such as a dot product
-`passthrough!(mul: Vec3, Vec3 => f32)`, must say so with
-`passthrough!(mul out Vec3 => f32);` beside it. Forgetting is a compile error on
-the `passthrough!` line itself, naming the line to add — not a confusing failure
-later on:
+**One assumption is worth knowing about**, though it is not usually yours to
+manage. An operator is taken to yield its left operand's type — true of every
+same-type operator and of pairs like `Duration * u32`. A pair that breaks it,
+such as a dot product, needs to say so; `passthrough!` says it for you, by
+comparing the two types as written:
 
-```text
-error[E0277]: `*` on `Vec3` has no declared output `f32` — add
-              `reassoc::passthrough!(mul out Vec3 => f32);`
-  --> src/lib.rs:10:19
-   |
-10 | passthrough!(mul: Vec3, Vec3 => f32);
-   |                   ^^^^ output not declared as `f32`
+```rust
+passthrough!(mul: Ray, Ray => f64);   // output differs — declared for you
+passthrough!(mul: Ray, f64 => Ray);   // output is the left operand — nothing to declare
+```
+
+The comparison is syntactic, which is exact for every spelling that reaches the
+macro except one: naming the output through an alias of the left operand
+(`=> V3` where `type V3 = Vec3`) reads as a difference and produces an
+`E0119` on the `passthrough!` line. Spelling both the same way resolves it.
+
+Implementing `MulRhs` by hand rather than through `passthrough!` skips that
+inference, so declare the output yourself when it is not the left operand:
+
+```rust
+passthrough!(mul out Ray => f64);
 ```
 
 **Two other cases are unaffected by any of this** and behave as they always

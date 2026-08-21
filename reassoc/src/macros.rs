@@ -99,14 +99,11 @@ macro_rules! passthrough {
         }
     };
     (no_refs add: $a:ty, $b:ty => $o:ty) => {
-        // The output is assumed to be the left operand unless declared
-        // otherwise, so catch a pair that never declared its own here, at the
-        // opt-in, rather than at some distant use site where the message would
-        // claim the operator is not implemented at all.
-        const _: () = {
-            fn output_declared<A: $crate::traits::AddOut<O>, O>() {}
-            let _ = output_declared::<$a, $o>;
-        };
+        // Declares the output when it is not the left operand — a dot
+        // product, say. Emits nothing in the ordinary case, where the blanket
+        // impl already covers it. `macro_rules!` cannot tell the two apart, so
+        // the comparison happens in the proc macro.
+        $crate::declare_output!($crate, AddOut, $a, $o);
 
         impl $crate::traits::AddRhs<$a, $o> for $b {
             #[inline(always)]
@@ -140,14 +137,11 @@ macro_rules! passthrough {
         }
     };
     (no_refs sub: $a:ty, $b:ty => $o:ty) => {
-        // The output is assumed to be the left operand unless declared
-        // otherwise, so catch a pair that never declared its own here, at the
-        // opt-in, rather than at some distant use site where the message would
-        // claim the operator is not implemented at all.
-        const _: () = {
-            fn output_declared<A: $crate::traits::SubOut<O>, O>() {}
-            let _ = output_declared::<$a, $o>;
-        };
+        // Declares the output when it is not the left operand — a dot
+        // product, say. Emits nothing in the ordinary case, where the blanket
+        // impl already covers it. `macro_rules!` cannot tell the two apart, so
+        // the comparison happens in the proc macro.
+        $crate::declare_output!($crate, SubOut, $a, $o);
 
         impl $crate::traits::SubRhs<$a, $o> for $b {
             #[inline(always)]
@@ -181,14 +175,11 @@ macro_rules! passthrough {
         }
     };
     (no_refs mul: $a:ty, $b:ty => $o:ty) => {
-        // The output is assumed to be the left operand unless declared
-        // otherwise, so catch a pair that never declared its own here, at the
-        // opt-in, rather than at some distant use site where the message would
-        // claim the operator is not implemented at all.
-        const _: () = {
-            fn output_declared<A: $crate::traits::MulOut<O>, O>() {}
-            let _ = output_declared::<$a, $o>;
-        };
+        // Declares the output when it is not the left operand — a dot
+        // product, say. Emits nothing in the ordinary case, where the blanket
+        // impl already covers it. `macro_rules!` cannot tell the two apart, so
+        // the comparison happens in the proc macro.
+        $crate::declare_output!($crate, MulOut, $a, $o);
 
         impl $crate::traits::MulRhs<$a, $o> for $b {
             #[inline(always)]
@@ -222,14 +213,11 @@ macro_rules! passthrough {
         }
     };
     (no_refs div: $a:ty, $b:ty => $o:ty) => {
-        // The output is assumed to be the left operand unless declared
-        // otherwise, so catch a pair that never declared its own here, at the
-        // opt-in, rather than at some distant use site where the message would
-        // claim the operator is not implemented at all.
-        const _: () = {
-            fn output_declared<A: $crate::traits::DivOut<O>, O>() {}
-            let _ = output_declared::<$a, $o>;
-        };
+        // Declares the output when it is not the left operand — a dot
+        // product, say. Emits nothing in the ordinary case, where the blanket
+        // impl already covers it. `macro_rules!` cannot tell the two apart, so
+        // the comparison happens in the proc macro.
+        $crate::declare_output!($crate, DivOut, $a, $o);
 
         impl $crate::traits::DivRhs<$a, $o> for $b {
             #[inline(always)]
@@ -263,14 +251,11 @@ macro_rules! passthrough {
         }
     };
     (no_refs rem: $a:ty, $b:ty => $o:ty) => {
-        // The output is assumed to be the left operand unless declared
-        // otherwise, so catch a pair that never declared its own here, at the
-        // opt-in, rather than at some distant use site where the message would
-        // claim the operator is not implemented at all.
-        const _: () = {
-            fn output_declared<A: $crate::traits::RemOut<O>, O>() {}
-            let _ = output_declared::<$a, $o>;
-        };
+        // Declares the output when it is not the left operand — a dot
+        // product, say. Emits nothing in the ordinary case, where the blanket
+        // impl already covers it. `macro_rules!` cannot tell the two apart, so
+        // the comparison happens in the proc macro.
+        $crate::declare_output!($crate, RemOut, $a, $o);
 
         impl $crate::traits::RemRhs<$a, $o> for $b {
             #[inline(always)]

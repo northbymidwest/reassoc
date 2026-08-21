@@ -208,6 +208,34 @@ fn std_wrappers_accept_reference_operands() {
     assert_eq!(mul(&3u32, d), Duration::from_secs(6));
 }
 
+/// An operator whose output is not its left operand.
+///
+/// `passthrough!` compares the two types as written and declares the output
+/// only when they differ — the blanket assumption covers the ordinary case, and
+/// declaring it there too would collide with it. Nothing extra is written here,
+/// which is the point.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Ray([f64; 2]);
+
+impl core::ops::Mul for Ray {
+    type Output = f64;
+    fn mul(self, o: Ray) -> f64 {
+        self.0[0] * o.0[0] + self.0[1] * o.0[1]
+    }
+}
+
+passthrough!(mul: Ray, Ray => f64);
+
+#[allow(clippy::needless_borrows_for_generic_args)] // borrows are deliberate
+#[test]
+fn an_output_that_is_not_the_left_operand() {
+    let (u, v) = (Ray([1.0, 2.0]), Ray([3.0, 4.0]));
+    assert_eq!(mul(u, v), 11.0);
+    assert_eq!(mul(&u, v), 11.0);
+    assert_eq!(mul(u, &v), 11.0);
+    assert_eq!(mul(&u, &v), 11.0);
+}
+
 /// A non-`Copy` type opts out of the reference impls.
 #[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
 #[passthrough(add, no_refs)]

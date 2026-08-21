@@ -41,7 +41,8 @@ fn main() {
     assert_eq!(summed, Vec2(4.0, 6.0));
 }
 
-// The same pair, declared correctly: the output line is all it needs.
+// An operator whose output is not its left operand. `passthrough!` works that
+// out from the types as written; nothing extra is needed here.
 #[derive(Clone, Copy)]
 struct Dot([f32; 2]);
 impl core::ops::Mul for Dot {
@@ -50,5 +51,4 @@ impl core::ops::Mul for Dot {
         self.0[0] * o.0[0] + self.0[1] * o.0[1]
     }
 }
-reassoc::passthrough!(mul out Dot => f32);
 reassoc::passthrough!(mul: Dot, Dot => f32);

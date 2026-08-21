@@ -2,6 +2,26 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.3.1 — unreleased
+
+### Fixed
+
+- **`passthrough!` works out an operator's output type instead of demanding it.**
+  0.3.0 required `passthrough!(mul out Vec3 => f32);` beside any pair whose
+  output is not its left operand — a dot product, say — and made omitting it a
+  compile error. The per-operator form now compares the two types as written and
+  declares the output itself, so the extra line is gone. Nothing to migrate:
+  writing it as well as the automatic one is a duplicate impl, but only a pair
+  with a differing output could have had one, and only for as long as 0.3.0 has
+  been out.
+
+  The comparison is syntactic, so naming the output through an alias of the left
+  operand (`=> V3` where `type V3 = Vec3`) reads as a difference and produces
+  `E0119` on the `passthrough!` line. Spelling both the same way resolves it.
+
+  `passthrough!(mul out A => O)` remains, for `MulRhs` implemented by hand
+  rather than through `passthrough!`.
+
 ## 0.3.0 — 2026-08-21
 
 Breaking, and entirely about diagnostics. A type error inside `alg!` or
