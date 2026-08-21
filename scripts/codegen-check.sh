@@ -35,10 +35,31 @@ scalar_in() {
 }
 DIRECT_SCALAR="$(scalar_in dot_direct)"
 SUGAR_SCALAR="$(scalar_in dot_sugar)"
+PLAIN_SCALAR="$(scalar_in dot_plain)"
+
+# Negative control: dot_plain has no #[algebraic] attribute, so plain IEEE
+# addition applies — which is non-associative, so the compiler is not
+# allowed to reassociate/vectorize its reduction. If the compiler merged it
+# with dot_sugar anyway, either the algebraic path is inert or something
+# unrelated is reassociating plain float math; either way the assertions
+# above are no longer proving anything.
+if grep -qE '^_?dot_sugar = _?dot_plain' "$ASM" || grep -qE '^_?dot_plain = _?dot_sugar' "$ASM"; then
+  echo "codegen-check: FAIL dot_plain matches dot_sugar: plain IEEE is being" >&2
+  echo "  reassociated, or the algebraic path is inert; this check can no longer discriminate" >&2
+  exit 1
+fi
+
+# dot_plain must be strictly more scalar than dot_sugar. If it isn't, the
+# negative control isn't actually negative and the guard proves nothing.
+if [ "$PLAIN_SCALAR" -le "$SUGAR_SCALAR" ]; then
+  echo "codegen-check: FAIL dot_plain has $PLAIN_SCALAR scalar adds, not more than dot_sugar's $SUGAR_SCALAR" >&2
+  echo "  the negative control failed to stay scalar; this check can no longer discriminate" >&2
+  exit 1
+fi
 
 # An alias line means the compiler merged them: the strongest possible pass.
 if grep -qE '^_?dot_sugar = _?dot_direct' "$ASM"; then
-  echo "codegen-check: PASS (functions merged - byte identical)"
+  echo "codegen-check: PASS (functions merged - byte identical; negative control scalar adds plain=$PLAIN_SCALAR)"
   exit 0
 fi
 
@@ -47,4 +68,4 @@ if [ "$SUGAR_SCALAR" -gt "$DIRECT_SCALAR" ]; then
   exit 1
 fi
 
-echo "codegen-check: PASS (vectorized; scalar adds sugar=$SUGAR_SCALAR direct=$DIRECT_SCALAR)"
+echo "codegen-check: PASS (vectorized; scalar adds sugar=$SUGAR_SCALAR direct=$DIRECT_SCALAR plain=$PLAIN_SCALAR)"

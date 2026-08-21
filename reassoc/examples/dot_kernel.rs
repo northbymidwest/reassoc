@@ -24,7 +24,34 @@ pub fn dot_sugar(a: &[f32], b: &[f32]) -> f32 {
     sum
 }
 
+/// Negative control: no macro, plain IEEE arithmetic.
+///
+/// This function must NOT vectorize its reduction — strict IEEE addition is
+/// non-associative, so the compiler is not allowed to reassociate it. It
+/// exists so the guard can prove it discriminates: if this compiles the same
+/// as `dot_sugar`, then either the algebraic path stopped working or
+/// something is reassociating plain float math, and either way the other
+/// assertions have become meaningless.
+///
+/// The loop shape must match `dot_sugar` exactly (same compound assignment,
+/// same iteration) so the only variable between them is the `#[algebraic]`
+/// attribute.
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn dot_plain(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0f32;
+    for i in 0..a.len().min(b.len()) {
+        sum += a[i] * b[i];
+    }
+    sum
+}
+
 fn main() {
     let v = [1.0f32, 2.0, 3.0, 4.0];
-    println!("{} {}", dot_direct(&v, &v), dot_sugar(&v, &v));
+    println!(
+        "{} {} {}",
+        dot_direct(&v, &v),
+        dot_sugar(&v, &v),
+        dot_plain(&v, &v)
+    );
 }
