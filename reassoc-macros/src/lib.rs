@@ -24,9 +24,25 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.to_compile_error().into(),
     };
 
-    let mut func = match syn::parse::<syn::ItemFn>(item) {
+    let mut func = match syn::parse::<syn::ItemFn>(item.clone()) {
         Ok(func) => func,
-        Err(err) => return err.to_compile_error().into(),
+        Err(err) => {
+            // Parsing as `ItemFn` fails for two very different reasons: the
+            // item genuinely isn't a function (e.g. `#[algebraic] impl
+            // Foo { .. }`), or it is a function with a real syntax error in
+            // it. Only the first case gets an authored message; for the
+            // second, syn's own error already points at the actual
+            // problem, and overriding it would make that diagnosis worse.
+            return match syn::parse::<syn::Item>(item) {
+                Ok(syn::Item::Fn(_)) | Err(_) => err,
+                Ok(_) => syn::Error::new(
+                    err.span(),
+                    "`#[algebraic]` applies to functions; it cannot be applied to this item",
+                ),
+            }
+            .to_compile_error()
+            .into();
+        }
     };
 
     // The dispatch functions `#[algebraic]` generates calls into

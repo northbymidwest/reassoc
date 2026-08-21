@@ -1,0 +1,5 @@
+error: `#[algebraic]` applies to functions; it cannot be applied to this item
+ --> tests/ui/impl_block_rejected.rs:6:1
+  |
+6 | impl Foo {
+  | ^^^^
