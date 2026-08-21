@@ -11,7 +11,7 @@ macro_rules! declare_op_trait {
         #[diagnostic::on_unimplemented(
             message = $msg,
             label = "no `reassoc` impl for `{Self}`",
-            note = "wrap this expression in `plain!(..)` to use ordinary operators,",
+            note = "wrap this expression in `strict!(..)` to use ordinary operators,",
             note = "or opt the type in once with `reassoc::passthrough!({Self});`"
         )]
         pub trait $trait_name<B, O> {

@@ -12,11 +12,11 @@ fn main() {
     let _bad = alg!(((a + b)) * c);
 
     // None of these may lint: any paren here is one the macro generated.
-    let _p1 = alg!(plain!(a + b));
-    let _p2 = alg!(a * plain!(b + c));
-    let _p3 = alg!(plain!(a + b) * c);
+    let _p1 = alg!(strict!(a + b));
+    let _p2 = alg!(a * strict!(b + c));
+    let _p3 = alg!(strict!(a + b) * c);
     let mut m = a;
-    alg!(m += plain!(b + c));
+    alg!(m += strict!(b + c));
     alg!(m += b * c);
     let _p4 = alg!(-a * b);
 }

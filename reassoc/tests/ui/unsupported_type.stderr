@@ -11,7 +11,7 @@ help: the trait `AlgMul<_, _>` is not implemented for `Odd`
   |
 1 | struct Odd;
   | ^^^^^^^^^^
-  = note: wrap this expression in `plain!(..)` to use ordinary operators,
+  = note: wrap this expression in `strict!(..)` to use ordinary operators,
   = note: or opt the type in once with `reassoc::passthrough!(Odd);`
   = help: the following other types implement trait `AlgMul<B, O>`:
             `&f32` implements `AlgMul<&f32, f32>`

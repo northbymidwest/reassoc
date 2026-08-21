@@ -96,14 +96,14 @@ impl VisitMut for Rewriter {
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         if let Expr::Macro(mac) = expr {
-            let is_plain = mac
+            let is_strict = mac
                 .mac
                 .path
                 .segments
                 .last()
-                .is_some_and(|segment| segment.ident == "plain");
+                .is_some_and(|segment| segment.ident == "strict");
 
-            if is_plain {
+            if is_strict {
                 // Emit the contents verbatim, without descending: this
                 // subtree is explicitly opted out of algebraic semantics.
                 //
@@ -114,26 +114,26 @@ impl VisitMut for Rewriter {
                 // into user code — the same class of bug already fixed
                 // twice for generated binary/compound-assignment operands.
                 if let Ok(mut inner) = mac.mac.parse_body::<Expr>() {
-                    // `plain!(plain!(x))` and `plain!(x)` both mean "do not
-                    // rewrite this", so peel directly nested `plain!`
+                    // `strict!(strict!(x))` and `strict!(x)` both mean "do
+                    // not rewrite this", so peel directly nested `strict!`
                     // wrappers here rather than leaving the inner one in
-                    // the output. Left alone, that inner `plain!` would
-                    // survive into the emitted tokens and need `plain` in
+                    // the output. Left alone, that inner `strict!` would
+                    // survive into the emitted tokens and need `strict` in
                     // scope at the call site to resolve — defeating the
                     // point of stripping it at rewrite time in the first
                     // place. This is shallow by design: once inside a
-                    // `plain!` body, everything is verbatim, so a `plain!`
-                    // that isn't directly wrapping this one (e.g. `plain!(a
-                    // + plain!(b))`) is an ordinary nested invocation and
+                    // `strict!` body, everything is verbatim, so a `strict!`
+                    // that isn't directly wrapping this one (e.g. `strict!(a
+                    // + strict!(b))`) is an ordinary nested invocation and
                     // legitimately needs the import.
                     while let Expr::Macro(inner_mac) = &inner {
-                        let inner_is_plain = inner_mac
+                        let inner_is_strict = inner_mac
                             .mac
                             .path
                             .segments
                             .last()
-                            .is_some_and(|segment| segment.ident == "plain");
-                        if !inner_is_plain {
+                            .is_some_and(|segment| segment.ident == "strict");
+                        if !inner_is_strict {
                             break;
                         }
                         match inner_mac.mac.parse_body::<Expr>() {
@@ -143,7 +143,7 @@ impl VisitMut for Rewriter {
                     }
                     let span = mac.mac.path.segments.last().unwrap().ident.span();
                     *expr = syn::parse2(quote_spanned! {span=> #inner })
-                        .expect("plain! body must re-parse");
+                        .expect("strict! body must re-parse");
                 }
             }
             // Either way, do not rewrite inside a macro invocation: syn

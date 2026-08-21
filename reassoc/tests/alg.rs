@@ -115,13 +115,13 @@ fn compound_assignment_actually_dispatches() {
 }
 
 #[test]
-fn plain_blocks_are_emitted_verbatim() {
+fn strict_blocks_are_emitted_verbatim() {
     let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
     // If this were rewritten, it would still equal 0.0 numerically, so assert
-    // on the structure instead: plain! must strip to its contents and compile.
-    assert_eq!(alg!(plain!((t - sum) - y)), 0.0);
-    // A plain! subtree nested inside rewritten arithmetic.
-    assert_eq!(alg!(t * plain!(sum + y)), 9.0);
+    // on the structure instead: strict! must strip to its contents and compile.
+    assert_eq!(alg!(strict!((t - sum) - y)), 0.0);
+    // A strict! subtree nested inside rewritten arithmetic.
+    assert_eq!(alg!(t * strict!(sum + y)), 9.0);
 }
 
 // This passes structurally: syn's VisitMut cannot descend into a macro's
@@ -139,20 +139,20 @@ fn other_macros_are_not_descended_into() {
 }
 
 #[test]
-fn nested_plain_layers_are_all_peeled() {
+fn nested_strict_layers_are_all_peeled() {
     let (a, b) = (3.0f32, 2.0f32);
-    // `plain!(plain!(x))` means the same thing as `plain!(x)`: both inner
-    // `plain!`s must be stripped at rewrite time, or the surviving one
-    // would need `plain` imported at the call site to resolve.
-    assert_eq!(alg!(plain!(plain!(a + b))), 5.0);
-    assert_eq!(alg!(plain!(plain!(plain!(a - b)))), 1.0);
+    // `strict!(strict!(x))` means the same thing as `strict!(x)`: both inner
+    // `strict!`s must be stripped at rewrite time, or the surviving one
+    // would need `strict` imported at the call site to resolve.
+    assert_eq!(alg!(strict!(strict!(a + b))), 5.0);
+    assert_eq!(alg!(strict!(strict!(strict!(a - b)))), 1.0);
 }
 
 #[test]
-fn qualified_plain_path_is_recognized() {
+fn qualified_strict_path_is_recognized() {
     let (a, b) = (3.0f32, 2.0f32);
-    // `plain!` is matched by its final path segment, so the fully
+    // `strict!` is matched by its final path segment, so the fully
     // qualified form works too. This test pins that documented behavior
-    // in `reassoc::plain!`'s doc comment so the two cannot drift apart.
-    assert_eq!(alg!(reassoc::plain!(a + b)), 5.0);
+    // in `reassoc::strict!`'s doc comment so the two cannot drift apart.
+    assert_eq!(alg!(reassoc::strict!(a + b)), 5.0);
 }

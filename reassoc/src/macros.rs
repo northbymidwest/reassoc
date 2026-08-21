@@ -54,20 +54,20 @@ macro_rules! passthrough {
 ///
 /// # Limitations
 ///
-/// `alg!` and `#[algebraic]` recognize `plain!` **by name**: any macro
-/// invocation whose final path segment is `plain` is treated as this macro,
+/// `alg!` and `#[algebraic]` recognize `strict!` **by name**: any macro
+/// invocation whose final path segment is `strict` is treated as this macro,
 /// with no hygiene or path check behind that match. The qualified form
-/// (`reassoc::plain!(..)`) is recognized the same way, by its final segment.
+/// (`reassoc::strict!(..)`) is recognized the same way, by its final segment.
 ///
-/// If another macro named `plain` is in scope, `alg!`/`#[algebraic]`
+/// If another macro named `strict` is in scope, `alg!`/`#[algebraic]`
 /// intercepts it too: it splices that macro's *unexpanded* body into the
 /// output instead of invoking it. This cannot be detected or fixed from a
 /// proc macro on stable Rust — there is no way to resolve which macro a
 /// name refers to before rewriting. Do not bring an unrelated macro named
-/// `plain` into scope inside `alg!` or `#[algebraic]`; rename it, or move
+/// `strict` into scope inside `alg!` or `#[algebraic]`; rename it, or move
 /// that code outside the rewritten scope.
 #[macro_export]
-macro_rules! plain {
+macro_rules! strict {
     ($e:expr) => {
         $e
     };

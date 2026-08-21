@@ -1,13 +1,13 @@
 error[E0369]: cannot add `Dispatched` to `Dispatched`
-  --> tests/ui/plain_opts_out.rs:17:19
+  --> tests/ui/strict_opts_out.rs:17:20
    |
-17 |     alg!(plain!(w + w));
-   |                 - ^ - Dispatched
-   |                 |
-   |                 Dispatched
+17 |     alg!(strict!(w + w));
+   |                  - ^ - Dispatched
+   |                  |
+   |                  Dispatched
    |
 note: an implementation of `Add` might be missing for `Dispatched`
-  --> tests/ui/plain_opts_out.rs:7:1
+  --> tests/ui/strict_opts_out.rs:7:1
    |
  7 | struct Dispatched(f32);
    | ^^^^^^^^^^^^^^^^^ must implement `Add`

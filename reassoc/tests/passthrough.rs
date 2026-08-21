@@ -1,6 +1,6 @@
 use core::time::Duration;
 use reassoc::ops::{add, mul};
-use reassoc::{passthrough, plain};
+use reassoc::{passthrough, strict};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Vec3(f32, f32, f32);
@@ -51,8 +51,8 @@ fn heterogeneous_passthrough_covers_one_operator() {
 }
 
 #[test]
-fn plain_is_an_identity_macro() {
+fn strict_is_an_identity_macro() {
     let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
-    assert_eq!(plain!((t - sum) - y), 0.0);
-    assert_eq!(plain!(Duration::from_secs(1)), Duration::from_secs(1));
+    assert_eq!(strict!((t - sum) - y), 0.0);
+    assert_eq!(strict!(Duration::from_secs(1)), Duration::from_secs(1));
 }
