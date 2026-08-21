@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.2.4 — 2026-08-21
 
 ### Added
 
@@ -19,6 +19,12 @@ Notable changes per release. Dates are the publish date.
 - `alg!` no longer descends into nested items, matching `#[algebraic]`'s
   default. Previously unreachable, since a bare expression cannot contain an
   item; it becomes reachable with the block form.
+- The test suite gained complex expressions — Horner, a 3x3 determinant,
+  bilinear interpolation, complex and matrix multiply, Catmull-Rom — checked
+  three ways: exact equivalence against the plain form on exactly-representable
+  inputs, compile-time dispatch proof via a type with no `std::ops`, and a
+  hand-written `algebraic_*` reference. Mis-mapping one operator fails five of
+  the six new tests; the previous `a + b` shaped tests caught none of it.
 
 ## 0.2.3 — 2026-08-21
 
