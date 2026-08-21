@@ -202,3 +202,59 @@ fn qualified_strict_path_is_recognized() {
     // the rewriter is strict!-aware.
     assert_eq!(alg!(reassoc::strict!(a + b)), 5.0);
 }
+
+// ---- block form ----
+
+/// `alg!` also takes a braced block, for rewriting part of a function rather
+/// than all of it. `Dispatched` has no `std::ops`, so these compile only
+/// because the block's contents were rewritten.
+#[test]
+fn block_form_rewrites_statements() {
+    let (x, y, z) = (Dispatched(2.0), Dispatched(3.0), Dispatched(4.0));
+    assert_eq!(alg! { x + y + z }, Dispatched(9.0));
+    assert_eq!(
+        alg! {
+            let a = x * y;
+            a + z
+        },
+        Dispatched(10.0)
+    );
+}
+
+#[test]
+fn block_form_covers_loops_and_compound_assignment() {
+    let v = [1.0f32, 2.0, 3.0];
+    let got = alg! {
+        let mut s = 0.0;
+        for x in &v {
+            s += x * x;
+        }
+        s
+    };
+    assert_eq!(got, 14.0);
+}
+
+/// The point of the block form: only what it encloses is rewritten.
+#[test]
+fn block_form_leaves_the_rest_of_the_function_alone() {
+    let a = Dispatched(2.0);
+    // Outside the block, `Dispatched` has no operators at all — so anything
+    // here would fail to compile if the block leaked.
+    let outside = a;
+    let inside = alg! {
+        let b = outside * outside;
+        b + outside
+    };
+    assert_eq!(inside, Dispatched(6.0));
+}
+
+/// `strict!` still opts out inside a block.
+#[test]
+fn block_form_honours_strict() {
+    let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
+    let got = alg! {
+        let c = strict!((t - sum) - y);
+        c + t
+    };
+    assert_eq!(got, 3.0);
+}

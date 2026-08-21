@@ -13,10 +13,16 @@ pub struct Rewriter {
 
 impl Rewriter {
     /// Scope used by `alg!`, which only ever sees a single expression.
+    /// Scope used by `alg!`, for both an expression and a braced block.
+    ///
+    /// Matches `#[algebraic]`'s default: closure bodies in, nested items out.
+    /// A nested item reads like a standalone definition wherever it appears,
+    /// so it opts in with its own attribute rather than inheriting from an
+    /// enclosing `alg!` block.
     pub fn expression_scope() -> Self {
         Rewriter {
             closures: true,
-            items: true,
+            items: false,
         }
     }
 

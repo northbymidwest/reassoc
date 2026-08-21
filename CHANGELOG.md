@@ -2,6 +2,24 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- `alg!` now accepts a braced block, so part of a function can be rewritten
+  rather than all of it: `alg! { let mut s = 0.0; for x in v { s += x * x; } s }`.
+  It takes statements, loops and compound assignment, and evaluates to the
+  block's value. There is no `algebraic { .. }` form without the `!` — Rust
+  reads a bare identifier before a brace as a struct literal, so no macro can
+  claim that syntax, and one crate cannot export `algebraic` as both an
+  attribute and a function-like macro.
+
+### Changed
+
+- `alg!` no longer descends into nested items, matching `#[algebraic]`'s
+  default. Previously unreachable, since a bare expression cannot contain an
+  item; it becomes reachable with the block form.
+
 ## 0.2.3 — 2026-08-21
 
 ### Fixed

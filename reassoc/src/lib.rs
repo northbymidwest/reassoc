@@ -58,6 +58,29 @@
 //! # }
 //! ```
 //!
+//! # Rewriting part of a function
+//!
+//! [`alg!`] takes a braced block as well as a single expression, for when only
+//! some of a function should be rewritten:
+//!
+//! ```
+//! use reassoc::alg;
+//!
+//! fn weighted(v: &[f32], k: f32) -> f32 {
+//!     let scaled: Vec<f32> = v.iter().map(|x| x * k).collect(); // untouched
+//!     alg! {
+//!         let mut sum = 0.0;
+//!         for x in &scaled { sum += x * x; }
+//!         sum
+//!     }
+//! }
+//! # assert_eq!(weighted(&[1.0, 2.0], 3.0), 45.0);
+//! ```
+//!
+//! Note there is no `algebraic { .. }` form without the `!`: Rust reads a bare
+//! identifier before a brace as a struct literal, so no macro can claim that
+//! syntax.
+//!
 //! # Types
 //!
 //! Floats dispatch to algebraic operators; integers, references, and the

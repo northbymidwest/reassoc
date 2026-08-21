@@ -124,6 +124,21 @@ reassoc = "0.1"
 ```
 
 - `alg!(expr)` — rewrite one expression.
+- `alg! { .. }` — rewrite a block, for part of a function rather than all of
+  it. Takes statements, loops and compound assignment, and evaluates to the
+  block's value:
+
+  ```rust
+  # use reassoc::alg;
+  # fn f(v: &[f32], k: f32) -> f32 {
+  let scaled: Vec<f32> = v.iter().map(|x| x * k).collect();  // untouched
+  alg! {
+      let mut sum = 0.0;
+      for x in &scaled { sum += x * x; }
+      sum
+  }
+  # }
+  ```
 - `#[algebraic]` — rewrite a whole function.
 - `strict!(expr)` — opt a subexpression back out to strict IEEE.
 - `passthrough!(Ty)` — opt your own type into the dispatch layer.

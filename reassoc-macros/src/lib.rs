@@ -5,17 +5,34 @@ mod scope;
 
 use proc_macro::TokenStream;
 use quote::ToTokens;
+use syn::parse::Parser;
 use syn::visit_mut::VisitMut;
 
 /// Rewrite arithmetic operators in a single expression to algebraic dispatch.
 #[proc_macro]
 pub fn alg(input: TokenStream) -> TokenStream {
-    let mut expr = match syn::parse::<syn::Expr>(input) {
-        Ok(expr) => expr,
-        Err(err) => return err.to_compile_error().into(),
-    };
-    rewrite::Rewriter::expression_scope().visit_expr_mut(&mut expr);
-    expr.to_token_stream().into()
+    // An expression first, so the single-expression form behaves exactly as it
+    // always has and never picks up braces it did not ask for.
+    if let Ok(mut expr) = syn::parse::<syn::Expr>(input.clone()) {
+        rewrite::Rewriter::expression_scope().visit_expr_mut(&mut expr);
+        return expr.to_token_stream().into();
+    }
+
+    // Otherwise a sequence of statements. Note the braces of `alg! { .. }` are
+    // the macro's own delimiters and never reach us, so this parses the body
+    // without them (`Block::parse_within`) and supplies the braces on output —
+    // which also keeps the result usable anywhere a value is expected.
+    match syn::Block::parse_within.parse(input) {
+        Ok(stmts) => {
+            let mut block = syn::Block {
+                brace_token: syn::token::Brace::default(),
+                stmts,
+            };
+            rewrite::Rewriter::expression_scope().visit_block_mut(&mut block);
+            block.to_token_stream().into()
+        }
+        Err(err) => err.to_compile_error().into(),
+    }
 }
 
 /// Rewrite arithmetic operators throughout a function body.
