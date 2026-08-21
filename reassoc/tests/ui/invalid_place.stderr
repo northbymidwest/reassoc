@@ -1,0 +1,5 @@
+error: invalid left-hand side of compound assignment
+ --> tests/ui/invalid_place.rs:5:12
+  |
+5 |     alg!(a + b += x);
+  |            ^

@@ -2,7 +2,7 @@ use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 use syn::visit_mut::{self, VisitMut};
-use syn::{BinOp, Expr};
+use syn::{BinOp, Expr, UnOp};
 
 pub struct Rewriter {
     /// Descend into closure bodies.
@@ -44,6 +44,26 @@ fn dispatch_fn(op: &BinOp) -> Option<&'static str> {
         BinOp::Div(_) => Some("div"),
         BinOp::Rem(_) => Some("rem"),
         _ => None,
+    }
+}
+
+/// Checks whether an expression is a plausible left-hand side for a
+/// compound assignment.
+///
+/// Native Rust rejects `a + b += x` outright (`E0067`); without this check
+/// our rewrite would silently accept it and mutate a discarded temporary
+/// instead. This is deliberately permissive rather than a precise place-
+/// expression checker: `Expr::Macro` is always accepted, since a macro can
+/// expand to a place and we have no way to tell without expanding it — a
+/// false negative here just falls through to the compiler's own place
+/// check downstream, while a false positive would reject valid code.
+fn is_place_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Path(_) | Expr::Field(_) | Expr::Index(_) | Expr::Macro(_) => true,
+        Expr::Unary(unary) => matches!(unary.op, UnOp::Deref(_)),
+        Expr::Paren(inner) => is_place_expr(&inner.expr),
+        Expr::Group(inner) => is_place_expr(&inner.expr),
+        _ => false,
     }
 }
 
@@ -92,23 +112,35 @@ impl VisitMut for Rewriter {
                 })
                 .expect("generated dispatch call must parse");
             } else if let Some(name) = dispatch_fn_assign(&binary.op) {
-                let func = syn::Ident::new(name, Span::call_site());
-                // Strip parens from both operands: from the place so the
-                // `&mut` binding below doesn't wrap it in a redundant
-                // group, and from the RHS for the same reason as the
-                // non-assigning arm above.
-                let left = unparen(&binary.left);
-                let right = unparen(&binary.right);
-                // Bind the place through a `&mut` temporary so it is
-                // evaluated exactly once; a naive `place = f(place, rhs)`
-                // rewrite would evaluate `place` twice.
-                *expr = syn::parse2(quote_spanned! {span=>
-                    {
-                        let __reassoc_place = &mut #left;
-                        *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, #right);
-                    }
-                })
-                .expect("generated compound assignment must parse");
+                if !is_place_expr(&binary.left) {
+                    // Mirror rustc's E0067: `a + b += x` is not a place,
+                    // and letting it through would silently mutate a
+                    // discarded temporary instead of erroring.
+                    let err = syn::Error::new_spanned(
+                        &*binary.left,
+                        "invalid left-hand side of compound assignment",
+                    );
+                    *expr = syn::parse2(err.to_compile_error())
+                        .expect("compile_error! must parse as an expression");
+                } else {
+                    let func = syn::Ident::new(name, Span::call_site());
+                    // Strip parens from both operands: from the place so
+                    // the `&mut` binding below doesn't wrap it in a
+                    // redundant group, and from the RHS for the same
+                    // reason as the non-assigning arm above.
+                    let left = unparen(&binary.left);
+                    let right = unparen(&binary.right);
+                    // Bind the place through a `&mut` temporary so it is
+                    // evaluated exactly once; a naive `place = f(place,
+                    // rhs)` rewrite would evaluate `place` twice.
+                    *expr = syn::parse2(quote_spanned! {span=>
+                        {
+                            let __reassoc_place = &mut #left;
+                            *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, #right);
+                        }
+                    })
+                    .expect("generated compound assignment must parse");
+                }
             }
         }
     }

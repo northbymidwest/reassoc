@@ -68,3 +68,48 @@ fn compound_assignment_evaluates_the_place_expression_once() {
     assert_eq!(v[1], 12.0);
     assert_eq!(calls.get(), 1, "place expression must be evaluated exactly once");
 }
+
+/// A type that implements the dispatch traits but NOT `std::ops`.
+///
+/// This makes the rewrite observable: `alg!(w * w)` and `alg!(w += w)`
+/// compile only because they become `::reassoc::ops::*` calls. Plain
+/// `w * w` or `w += w` would fail with E0369/E0368. Without this, every
+/// test in this file would still pass if the rewriter were a no-op, since
+/// native `f32` operators produce identical values.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Dispatched(f32);
+
+macro_rules! impl_dispatched {
+    ($trait_name:ident, $method:ident, $op:tt) => {
+        impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
+            fn $method(self, rhs: Dispatched) -> Dispatched {
+                Dispatched(self.0 $op rhs.0)
+            }
+        }
+    };
+}
+impl_dispatched!(AlgAdd, alg_add, +);
+impl_dispatched!(AlgSub, alg_sub, -);
+impl_dispatched!(AlgMul, alg_mul, *);
+impl_dispatched!(AlgDiv, alg_div, /);
+impl_dispatched!(AlgRem, alg_rem, %);
+
+#[test]
+fn binary_operators_actually_dispatch() {
+    let (a, b) = (Dispatched(6.0), Dispatched(3.0));
+    assert_eq!(alg!(a + b), Dispatched(9.0));
+    assert_eq!(alg!(a - b), Dispatched(3.0));
+    assert_eq!(alg!(a * b), Dispatched(18.0));
+    assert_eq!(alg!(a / b), Dispatched(2.0));
+    assert_eq!(alg!(a % b), Dispatched(0.0));
+}
+
+#[test]
+fn compound_assignment_actually_dispatches() {
+    let mut w = Dispatched(6.0);
+    let x = Dispatched(3.0);
+    alg!(w += x);
+    assert_eq!(w, Dispatched(9.0));
+    alg!(w *= x);
+    assert_eq!(w, Dispatched(27.0));
+}
