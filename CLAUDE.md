@@ -88,7 +88,10 @@ in `tests/alg.rs` / `tests/attribute.rs` — it implements only the `*Rhs` trait
 so rewriting is observable at compile time. The three scope UI cases
 (`closures_false_*`, `items_default_*`, `items_true_skip_*`) are must-fail
 tests for this reason. Before trusting a new guard, neuter the thing it guards
-and watch it fail.
+and watch it fail — and read every `.stderr` you bless: five must-fail cases
+once named a removed trait and passed for several releases on "cannot find
+trait", pinning nothing. `tests/ui.rs::must_fail_cases_fail_for_the_stated_reason`
+now rejects any snapshot whose error is an unresolved name.
 
 `tests/ui/pass/` exists partly to force trybuild to use `cargo build`: lints
 that fire during codegen, `arithmetic_overflow` among them, are invisible under

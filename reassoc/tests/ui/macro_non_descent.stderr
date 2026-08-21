@@ -1,5 +1,18 @@
-error[E0405]: cannot find trait `AlgAdd` in module `reassoc::traits`
-  --> tests/ui/macro_non_descent.rs:14:23
+error[E0369]: cannot add `Dispatched` to `Dispatched`
+  --> tests/ui/macro_non_descent.rs:25:36
    |
-14 | impl reassoc::traits::AlgAdd<Dispatched, Dispatched> for Dispatched {
-   |                       ^^^^^^ not found in `reassoc::traits`
+25 |     let _ = alg!(format!("{}", { w + w; 0 }));
+   |                                  - ^ - Dispatched
+   |                                  |
+   |                                  Dispatched
+   |
+note: an implementation of `Add` might be missing for `Dispatched`
+  --> tests/ui/macro_non_descent.rs:12:1
+   |
+12 | struct Dispatched(f32);
+   | ^^^^^^^^^^^^^^^^^ must implement `Add`
+note: the trait `Add` must be implemented
+  --> $RUST/core/src/ops/arith.rs
+   |
+   | pub const trait Add<Rhs = Self> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

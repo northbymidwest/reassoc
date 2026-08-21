@@ -2,6 +2,26 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- **`strict!` takes a statement block.** `strict! { let y = term - c; let t =
+  sum + y; c = (t - sum) - y; sum = t; }` — the Kahan step it exists for is
+  several statements, and the macro only ever accepted one expression. A single
+  expression is still passed through unwrapped, so nothing changes for existing
+  uses and `unused_braces` stays quiet.
+
+### Fixed
+
+- **Five must-fail UI cases had been pinning nothing since 0.3.0.** They named
+  `AlgAdd`/`AlgMul`, removed in that release, and passed on "cannot find
+  trait" instead of the `E0369` they exist to show. They now name the `*Rhs`
+  traits and fail for the stated reason, and a new test rejects any `.stderr`
+  whose error is an unresolved name, so this cannot recur silently. Among them
+  are the three scope cases that are the only evidence `closures = false`,
+  `items = false` and `skip` do anything; all three do.
+
 ## 0.3.4 — 2026-08-21
 
 ### Documentation

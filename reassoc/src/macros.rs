@@ -127,10 +127,11 @@ macro_rules! passthrough {
 /// Marks an expression as strictly IEEE, using ordinary operators instead of
 /// algebraic dispatch.
 ///
-/// An identity macro. It works as an escape hatch inside `alg!` and
-/// `#[algebraic]` only because the rewriter never descends into any macro's
-/// token stream — `strict!` is not matched by name. Like any macro it must be
-/// in scope: `use reassoc::strict;` or `reassoc::strict!(..)`.
+/// An identity macro, taking an expression or a brace-delimited statement
+/// sequence. It works as an escape hatch inside `alg!` and `#[algebraic]` only
+/// because the rewriter never descends into any macro's token stream —
+/// `strict!` is not matched by name. Like any macro it must be in scope:
+/// `use reassoc::strict;` or `reassoc::strict!(..)`.
 ///
 /// This exists to protect algorithms that depend on exact rounding — most
 /// importantly compensated summation, where `(t - sum) - y` is algebraically
@@ -139,5 +140,13 @@ macro_rules! passthrough {
 macro_rules! strict {
     ($e:expr) => {
         $e
+    };
+    // A statement sequence, with or without a tail expression:
+    // `strict! { let y = term - c; let t = sum + y; .. }`. The braces are the
+    // macro's own delimiters, so the body arrives as bare statements and is
+    // given a block to live in. Tried after the expression arm, so a single
+    // expression is never wrapped and `unused_braces` has nothing to say.
+    ($($t:tt)*) => {
+        { $($t)* }
     };
 }

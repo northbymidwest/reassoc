@@ -11,9 +11,9 @@ use reassoc::alg;
 /// it must not, so the native `+` operator is left for rustc to reject.
 struct Dispatched(f32);
 
-impl reassoc::traits::AlgAdd<Dispatched, Dispatched> for Dispatched {
-    fn alg_add(self, rhs: Dispatched) -> Dispatched {
-        Dispatched(self.0 + rhs.0)
+impl reassoc::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
+    fn add_rhs(self, lhs: Dispatched) -> Dispatched {
+        Dispatched(lhs.0 + self.0)
     }
 }
 

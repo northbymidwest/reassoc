@@ -1,5 +1,18 @@
-error[E0405]: cannot find trait `AlgMul` in module `reassoc::traits`
-  --> tests/ui/items_default_excludes_nested_fn.rs:11:23
+error[E0369]: cannot multiply `Dispatched` by `Dispatched`
+  --> tests/ui/items_default_excludes_nested_fn.rs:20:11
    |
-11 | impl reassoc::traits::AlgMul<Dispatched, Dispatched> for Dispatched {
-   |                       ^^^^^^ not found in `reassoc::traits`
+20 |         v * v
+   |         - ^ - Dispatched
+   |         |
+   |         Dispatched
+   |
+note: an implementation of `Mul` might be missing for `Dispatched`
+  --> tests/ui/items_default_excludes_nested_fn.rs:9:1
+   |
+ 9 | struct Dispatched(f32);
+   | ^^^^^^^^^^^^^^^^^ must implement `Mul`
+note: the trait `Mul` must be implemented
+  --> $RUST/core/src/ops/arith.rs
+   |
+   | pub const trait Mul<Rhs = Self> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

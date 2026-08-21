@@ -41,6 +41,19 @@ fn unary_negation_behaves_natively() {
     assert_eq!(alg!(-a * a), -4.0);
 }
 
+/// `strict!` takes a brace-delimited statement sequence as well as a single
+/// expression, because the thing it exists for — a Kahan step — is several
+/// statements. The braces are the macro's own delimiters, so the body arrives
+/// as bare statements and is given a block to live in.
+#[test]
+fn strict_accepts_a_statement_block() {
+    let (a, b) = (2.0f64, 3.0);
+    let tail = alg!(strict! { let t = a + b; t * 2.0 });
+    let mut s = a;
+    alg!(strict! { s += b; s *= 2.0; });
+    assert_eq!((tail, s), (10.0, 10.0));
+}
+
 #[test]
 fn rewrites_compound_assignment() {
     let mut s = 0.0f32;
