@@ -2,6 +2,69 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.3.0 — 2026-08-21
+
+Breaking, and entirely about diagnostics. A type error inside `alg!` or
+`#[algebraic]` now reads like the same error in plain Rust. See
+[`docs/diagnostics.md`](docs/diagnostics.md).
+
+### Changed
+
+- **BREAKING: the dispatch traits are replaced.** `AlgAdd`/`AlgSub`/`AlgMul`/
+  `AlgDiv`/`AlgRem` are gone, and each operator now has two traits in their
+  place: `AddRhs<Lhs, O>`, where opting in happens, and `AddOut<O>`, stating
+  what the operator yields. `RefOperand` and `AlgNeg` are unchanged. The
+  `passthrough_refs!` helper is gone too — `#[doc(hidden)]`, but it was
+  exported; `passthrough!` no longer needs a second macro. Code that only uses
+  `alg!`, `#[algebraic]`, `passthrough!`, or `#[derive(Passthrough)]` needs no
+  changes.
+  Code that implemented `AlgAdd` and friends by hand must implement `AddRhs`
+  instead — note the operands are reversed, since the trait is implemented on
+  the *right*-hand type: `fn add_rhs(self, lhs: Lhs) -> O`.
+- **A mismatched operand is blamed on the mismatch.** Every case used to
+  produce the same sentence, naming the left type: `alg!(a + b)` with
+  `a: u8, b: u32` said ``` `u8` can't be used with `+` ``` and advised
+  `passthrough!(u8)` — for a type already opted in. It now says
+  ``` cannot add `u32` to `u8` ```, with the caret on `b`, matching rustc.
+  This covers float widths, integer widths, signedness, int-against-float,
+  `Wrapping`/`Saturating`, heterogeneous pairs, and opted-in user types.
+- **`Duration * u64` names `u32`**, the type the operator actually takes,
+  rather than blaming `Duration`.
+
+### Added
+
+- **Reference operands for heterogeneous pairs.** `Vec3 * &f32`,
+  `&Duration * u32` and the rest now work; the per-operator `passthrough!` form
+  has never emitted them.
+- **A type can carry same-type and heterogeneous operators at once.**
+  `passthrough!(Vec3)` alongside `passthrough!(mul: Vec3, f32 => Vec3)` was an
+  `E0119` conflict waiting to happen under any generic form of the second; the
+  operand trait is now keyed on the left type, so the two never overlap.
+- **`passthrough!(mul out A => O)`**, for a pair whose output is not its left
+  operand — a dot product, say. An operator is otherwise assumed to yield the
+  type it was applied to, which covers every same-type operator and pairs like
+  `Duration * u32`. Omitting it where it is needed is a compile error on the
+  `passthrough!` line naming the missing declaration, not a confusing failure
+  at a use site.
+- `docs/diagnostics.md`, with a worked example, the two remaining gaps against
+  plain Rust and why they are structural, and a case-by-case comparison.
+- `tests/ui/mismatched_operands.rs` and `tests/ui/undeclared_output.rs` pin the
+  wording and the spans.
+
+### Fixed
+
+- **Errors no longer point at the `#[algebraic]` attribute.** `quote_spanned!`
+  spans only the tokens it writes, so the generated crate path kept
+  `Span::call_site()` and rustc anchored "required by a bound introduced by
+  this call" on the attribute, lines away from the code.
+- **The return-type `E0308` survives a bad operand**, carrying rustc's own
+  `help: you can convert a u8 to a u32`.
+
+### Unchanged
+
+- Release codegen is byte-identical to hand-written algebraic calls; the
+  assembly guard passes unmodified.
+
 ## 0.2.5 — 2026-08-21
 
 ### Fixed
