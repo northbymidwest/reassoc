@@ -82,6 +82,20 @@ will delete it.
   calls — roughly 40% more instructions in a tight loop. Release builds are
   byte-identical to hand-written algebraic calls; correctness is unaffected
   either way.
+- Non-`Copy` types cannot use compound assignment. `*place = ops::add(*place,
+  ..)` moves out of a `&mut`, so `s += "x"` on an owned `String` (or any
+  non-`Copy` `passthrough!` type) fails to compile with `E0507` and a garbled
+  suggestion from rustc. Binary operators (`s = s + "x"`) are unaffected;
+  only compound assignment goes through the `&mut` place.
+- Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
+  b: T) -> T { a * b }` fails with `E0277`, because dispatch needs a concrete
+  type to find an `Alg*` impl for. The diagnostic suggests
+  `reassoc::passthrough!(T)`, which does not apply — `passthrough!` opts in a
+  concrete type, not a type parameter.
+- A renamed dependency breaks the macros. Generated code expands to the
+  absolute path `::reassoc::ops::*`, so `myalg = { package = "reassoc" }`
+  fails with `E0433: cannot find `reassoc` in the crate root`. Depend on it
+  under its real name.
 
 ## `no_std`
 
