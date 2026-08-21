@@ -1,6 +1,6 @@
 #![deny(unused_parens)]
 
-use reassoc::{alg, algebraic};
+use reassoc::{alg, algebraic, strict};
 
 // Exercises the same generated-paren hazard through `#[algebraic]`: binary
 // ops, compound assignment, `strict!`, and a closure. None of these may

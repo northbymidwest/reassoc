@@ -45,27 +45,25 @@ macro_rules! passthrough {
     };
 }
 
-/// Marks an expression as strictly IEEE. Inside `alg!` or `#[algebraic]` the
-/// rewriter emits its contents verbatim and does not descend into it.
+/// Marks an expression as strictly IEEE, using ordinary operators instead of
+/// algebraic dispatch.
+///
+/// This is an ordinary identity macro — it expands to its argument
+/// unchanged. It works as an escape hatch inside `alg!`/`#[algebraic]` only
+/// because those rewriters never descend into *any* macro invocation's
+/// token stream (they cannot tell arithmetic from an opaque macro body
+/// without expanding it, and a false positive there would be worse than a
+/// false negative). `strict!(..)` is not special-cased or matched by name;
+/// it just happens to be a macro, so its contents are left with native
+/// operator semantics like any other macro's would be.
 ///
 /// This exists to protect algorithms that depend on exact rounding — most
 /// importantly compensated summation, where `(t - sum) - y` is algebraically
 /// zero and reassociation would delete it.
 ///
-/// # Limitations
-///
-/// `alg!` and `#[algebraic]` recognize `strict!` **by name**: any macro
-/// invocation whose final path segment is `strict` is treated as this macro,
-/// with no hygiene or path check behind that match. The qualified form
-/// (`reassoc::strict!(..)`) is recognized the same way, by its final segment.
-///
-/// If another macro named `strict` is in scope, `alg!`/`#[algebraic]`
-/// intercepts it too: it splices that macro's *unexpanded* body into the
-/// output instead of invoking it. This cannot be detected or fixed from a
-/// proc macro on stable Rust — there is no way to resolve which macro a
-/// name refers to before rewriting. Do not bring an unrelated macro named
-/// `strict` into scope inside `alg!` or `#[algebraic]`; rename it, or move
-/// that code outside the rewritten scope.
+/// Being an ordinary macro, it must be in scope like any other: import it
+/// (`use reassoc::strict;`) or invoke it by a path that resolves
+/// (`reassoc::strict!(..)`).
 #[macro_export]
 macro_rules! strict {
     ($e:expr) => {

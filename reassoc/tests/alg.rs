@@ -1,4 +1,4 @@
-use reassoc::alg;
+use reassoc::{alg, strict};
 
 #[test]
 fn rewrites_binary_operators() {
@@ -118,7 +118,8 @@ fn compound_assignment_actually_dispatches() {
 fn strict_blocks_are_emitted_verbatim() {
     let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
     // If this were rewritten, it would still equal 0.0 numerically, so assert
-    // on the structure instead: strict! must strip to its contents and compile.
+    // on the structure instead: strict! must not be descended into, and its
+    // (identity-macro) expansion must compile with native operators.
     assert_eq!(alg!(strict!((t - sum) - y)), 0.0);
     // A strict! subtree nested inside rewritten arithmetic.
     assert_eq!(alg!(t * strict!(sum + y)), 9.0);
@@ -141,9 +142,10 @@ fn other_macros_are_not_descended_into() {
 #[test]
 fn nested_strict_layers_are_all_peeled() {
     let (a, b) = (3.0f32, 2.0f32);
-    // `strict!(strict!(x))` means the same thing as `strict!(x)`: both inner
-    // `strict!`s must be stripped at rewrite time, or the surviving one
-    // would need `strict` imported at the call site to resolve.
+    // `strict!(strict!(x))` means the same thing as `strict!(x)`: the
+    // rewriter never descends into `strict!`'s body at all, so nesting is
+    // resolved by ordinary macro expansion (`strict!` is an identity macro)
+    // rather than by anything the rewriter does.
     assert_eq!(alg!(strict!(strict!(a + b))), 5.0);
     assert_eq!(alg!(strict!(strict!(strict!(a - b)))), 1.0);
 }
@@ -151,8 +153,10 @@ fn nested_strict_layers_are_all_peeled() {
 #[test]
 fn qualified_strict_path_is_recognized() {
     let (a, b) = (3.0f32, 2.0f32);
-    // `strict!` is matched by its final path segment, so the fully
-    // qualified form works too. This test pins that documented behavior
-    // in `reassoc::strict!`'s doc comment so the two cannot drift apart.
+    // The rewriter does not match `strict!` by name or path at all — it
+    // skips descending into *every* macro invocation. So the fully
+    // qualified form works exactly the same as the plain one; this test
+    // exists to pin that down as a regression guard now that nothing in
+    // the rewriter is strict!-aware.
     assert_eq!(alg!(reassoc::strict!(a + b)), 5.0);
 }

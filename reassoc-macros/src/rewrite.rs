@@ -106,63 +106,20 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        if let Expr::Macro(mac) = expr {
-            let is_strict = mac
-                .mac
-                .path
-                .segments
-                .last()
-                .is_some_and(|segment| segment.ident == "strict");
-
-            if is_strict {
-                // Emit the contents verbatim, without descending: this
-                // subtree is explicitly opted out of algebraic semantics.
-                //
-                // No wrapping parens here: a macro's expansion is already
-                // atomic at its call site (rustc protects it with invisible
-                // delimiters), so parens would be redundant in every
-                // position this can land in and would leak `unused_parens`
-                // into user code — the same class of bug already fixed
-                // twice for generated binary/compound-assignment operands.
-                if let Ok(mut inner) = mac.mac.parse_body::<Expr>() {
-                    // `strict!(strict!(x))` and `strict!(x)` both mean "do
-                    // not rewrite this", so peel directly nested `strict!`
-                    // wrappers here rather than leaving the inner one in
-                    // the output. Left alone, that inner `strict!` would
-                    // survive into the emitted tokens and need `strict` in
-                    // scope at the call site to resolve — defeating the
-                    // point of stripping it at rewrite time in the first
-                    // place. This is shallow by design: once inside a
-                    // `strict!` body, everything is verbatim, so a `strict!`
-                    // that isn't directly wrapping this one (e.g. `strict!(a
-                    // + strict!(b))`) is an ordinary nested invocation and
-                    // legitimately needs the import.
-                    while let Expr::Macro(inner_mac) = &inner {
-                        let inner_is_strict = inner_mac
-                            .mac
-                            .path
-                            .segments
-                            .last()
-                            .is_some_and(|segment| segment.ident == "strict");
-                        if !inner_is_strict {
-                            break;
-                        }
-                        match inner_mac.mac.parse_body::<Expr>() {
-                            Ok(next) => inner = next,
-                            Err(_) => break,
-                        }
-                    }
-                    let span = mac.mac.path.segments.last().unwrap().ident.span();
-                    *expr = syn::parse2(quote_spanned! {span=> #inner })
-                        .expect("strict! body must re-parse");
-                }
-            }
-            // Either way, do not rewrite inside a macro invocation: syn
-            // hands us a macro's body as an opaque token stream, and we
-            // deliberately never parse into it to look for arithmetic. A
-            // false positive there (e.g. rewriting inside `format!`'s
-            // format string) would be far worse than the false negative of
-            // leaving genuine arithmetic inside an unrelated macro alone.
+        if let Expr::Macro(_) = expr {
+            // Do not rewrite inside a macro invocation: syn hands us a
+            // macro's body as an opaque token stream, and we deliberately
+            // never parse into it to look for arithmetic. A false positive
+            // there (e.g. rewriting inside `format!`'s format string) would
+            // be far worse than the false negative of leaving genuine
+            // arithmetic inside an unrelated macro alone.
+            //
+            // `strict!` needs no special handling here: it is an ordinary
+            // identity macro (`reassoc::macros::strict`), and this same
+            // non-descent rule is exactly what leaves its contents with
+            // native operator semantics instead of dispatch calls. Matching
+            // it by name here would only add a name-collision hazard for no
+            // benefit.
             return;
         }
 

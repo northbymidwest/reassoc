@@ -1,4 +1,4 @@
-use reassoc::alg;
+use reassoc::{alg, strict};
 
 /// A type that implements the dispatch traits but NOT `std::ops`. `alg!`
 /// makes `w + w` compile only by rewriting it into a `::reassoc::ops::add`

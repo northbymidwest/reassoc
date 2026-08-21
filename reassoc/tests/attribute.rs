@@ -1,10 +1,13 @@
-use reassoc::algebraic;
+use reassoc::{algebraic, strict};
 
-// `strict!` is used unqualified inside `kahan` below but deliberately not
-// imported: the rewriter recognizes and strips it purely by its final path
-// segment before the token stream ever reaches rustc's name resolution, so
-// there is nothing left that would need `strict` in scope (mirrored by
-// `reassoc/tests/alg.rs`, which does not import it either).
+// `strict` must be imported to use `strict!` unqualified below: it is an
+// ordinary identity macro, not something the rewriter recognizes by name,
+// so it needs to resolve at the call site exactly like any other macro.
+// This import also guards the regression it once triggered: the rewriter
+// used to consume `strict!` invocations before rustc's name resolution ran,
+// which made importing the very macro you use here fire `unused_imports`
+// under `-D warnings`. If that ever comes back, `cargo clippy --workspace
+// --all-targets -- -D warnings` fails on this file.
 
 #[algebraic]
 fn dot(a: &[f32], b: &[f32]) -> f32 {
