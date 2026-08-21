@@ -114,7 +114,8 @@ took two attempts, which is rather the point. A transposed operand or a
 error will find it for you.
 
 Note that `-p0` stays an ordinary unary minus in both versions: Rust 1.98
-ships no `algebraic_neg`, so there is nothing to rewrite it to.
+ships no `algebraic_neg`, so there is nothing to rewrite it to, and IEEE
+negation is exact anyway.
 
 ## Usage
 
@@ -209,12 +210,13 @@ will delete it.
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
   have. Primitive `+=` is RHS-first natively and matches.
-- Non-`Copy` types cannot use compound assignment at all. `*place =
-  ops::add(*place, ..)` moves out of a `&mut`, so `s += "x"` on an owned
-  `String` (or any non-`Copy` `passthrough!` type) fails with `E0507` and a
-  garbled suggestion from rustc (`a +.clone()= b`). Binary operators
-  (`s = s + "x"`) are unaffected; only compound assignment goes through the
-  `&mut` place.
+- Compound assignment on a non-`Copy` value works for a local or a field of
+  one (`s += "x"` on an owned `String` moves and reassigns), but not for a
+  field reached through a reference or an indexed element: those go through
+  `*place = ops::add(*place, ..)`, which moves out of a `&mut`, so
+  `self.name += "!"` fails with `E0507` and a garbled suggestion from rustc.
+  Native `+=` uses `AddAssign` and has no such restriction. Binary operators
+  (`s = s + "x"`) are unaffected.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —

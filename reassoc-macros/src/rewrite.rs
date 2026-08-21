@@ -45,8 +45,20 @@ impl Rewriter {
 /// in the user's source, so they are left in place for rustc to lint —
 /// stripping them too would silently swallow a real diagnostic.
 fn unparen(expr: &Expr) -> &Expr {
+    let expr = ungroup(expr);
     if let Expr::Paren(inner) = expr {
-        return &inner.expr;
+        return ungroup(&inner.expr);
+    }
+    expr
+}
+
+/// Strips invisible groups — the delimiters a `macro_rules!` `$e:expr`
+/// fragment arrives in. They are not parentheses: no lint sees them, and
+/// every check below must look through them, or a literal passed through a
+/// macro stops being recognised as one.
+fn ungroup(mut expr: &Expr) -> &Expr {
+    while let Expr::Group(inner) = expr {
+        expr = &inner.expr;
     }
     expr
 }
@@ -81,6 +93,18 @@ fn is_place_expr(expr: &Expr) -> bool {
         Expr::Unary(unary) => matches!(unary.op, UnOp::Deref(_)),
         Expr::Paren(inner) => is_place_expr(&inner.expr),
         Expr::Group(inner) => is_place_expr(&inner.expr),
+        _ => false,
+    }
+}
+
+/// A place that is free to evaluate twice: a bare path, or a field chain
+/// rooted in one. Anything with an index, a deref, or a call in it is
+/// evaluated once through a `&mut` binding instead.
+fn is_simple_place(expr: &Expr) -> bool {
+    match ungroup(expr) {
+        Expr::Path(_) => true,
+        Expr::Field(field) => is_simple_place(&field.base),
+        Expr::Paren(inner) => is_simple_place(&inner.expr),
         _ => false,
     }
 }
@@ -214,22 +238,6 @@ impl VisitMut for Rewriter {
         visit_mut::visit_trait_item_mut(self, item);
     }
 
-    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
-        // Method resolution needs a concrete receiver type. A rewritten call
-        // returns an inference variable, and if its operands are unanchored
-        // literals nothing pins it — `alg!((1.0 * 2.0).sqrt())` fails with
-        // `E0282`. Leaving a constant receiver alone costs nothing: it folds
-        // to the same value either way, and it infers exactly as plain Rust
-        // does. A receiver with variables in it has a known type, so it is
-        // still rewritten as usual.
-        if !is_constant_expr(&call.receiver) {
-            self.visit_expr_mut(&mut call.receiver);
-        }
-        for arg in &mut call.args {
-            self.visit_expr_mut(arg);
-        }
-    }
-
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         if let Expr::Macro(_) = expr {
             // Do not rewrite inside a macro invocation: syn hands us a
@@ -263,28 +271,6 @@ impl VisitMut for Rewriter {
         // Rewrite children first, so nested operators are already converted
         // by the time we rebuild this node.
         visit_mut::visit_expr_mut(self, expr);
-
-        if let Expr::Unary(unary) = expr {
-            if matches!(unary.op, syn::UnOp::Neg(_)) && !is_any_literal(&unary.expr) {
-                // Routed through a same-type dispatch function, not because
-                // there is an `algebraic_neg` — there isn't — but because the
-                // operand of a minus may be a rewritten call whose type is
-                // still an inference variable. `-x` needs `Neg` resolved
-                // against a known type; `ops::neg(x)` instead unifies `T` with
-                // the expected type and pushes it back into the operand.
-                //
-                // Never over a literal: `-128i8` would become `neg(128i8)`,
-                // and `128` does not fit in an `i8`.
-                let span = unary.op.span();
-                let krate = crate::krate::path();
-                let operand = unparen(&unary.expr);
-                *expr = syn::parse2(quote_spanned! {span=>
-                    #krate::ops::neg(#operand)
-                })
-                .expect("generated negation must parse");
-            }
-            return;
-        }
 
         if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
@@ -377,15 +363,32 @@ impl VisitMut for Rewriter {
                     // statement. Binding through a `match` scrutinee
                     // extends them across the whole expansion, restoring
                     // native drop timing for a Drop-carrying RHS.
-                    *expr = syn::parse2(quote_spanned! {span=>
-                        match #right {
-                            __reassoc_rhs_9f2c1a => {
-                                let __reassoc_place_9f2c1a = &mut #left;
-                                *__reassoc_place_9f2c1a =
-                                    #krate::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
+                    *expr = if is_simple_place(left) {
+                        // A path or field chain has no side effects and can be
+                        // named twice, so assign through it directly. This
+                        // avoids taking `&mut` on the place, which a `static
+                        // mut` forbids (edition 2024 denies it outright) and
+                        // which forces a `Copy` read of a non-`Copy` value;
+                        // `s = add(s, rhs)` moves and reassigns instead, so a
+                        // non-`Copy` local can use `+=` after all.
+                        syn::parse2(quote_spanned! {span=>
+                            match #right {
+                                __reassoc_rhs_9f2c1a => {
+                                    #left = #krate::ops::#func(#left, __reassoc_rhs_9f2c1a);
+                                }
                             }
-                        }
-                    })
+                        })
+                    } else {
+                        syn::parse2(quote_spanned! {span=>
+                            match #right {
+                                __reassoc_rhs_9f2c1a => {
+                                    let __reassoc_place_9f2c1a = &mut #left;
+                                    *__reassoc_place_9f2c1a =
+                                        #krate::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
+                                }
+                            }
+                        })
+                    }
                     .expect("generated compound assignment must parse");
                 }
             }
@@ -428,32 +431,6 @@ fn is_non_float_constant(expr: &Expr) -> bool {
         }
         _ => false,
     }
-}
-
-/// True when the whole subtree is a compile-time constant of any kind.
-///
-/// Used only for method receivers, where resolution needs a concrete type.
-fn is_constant_expr(expr: &Expr) -> bool {
-    match unparen(expr) {
-        Expr::Lit(_) => true,
-        Expr::Unary(unary) => {
-            matches!(unary.op, syn::UnOp::Neg(_)) && is_constant_expr(&unary.expr)
-        }
-        Expr::Binary(binary) => {
-            dispatch_fn(&binary.op).is_some()
-                && is_constant_expr(&binary.left)
-                && is_constant_expr(&binary.right)
-        }
-        _ => false,
-    }
-}
-
-/// True for any literal, ignoring parentheses.
-///
-/// Negation over one is left alone: `-128i8` rewritten as `neg(128i8)` would
-/// not compile, because `128` is out of range for `i8`.
-fn is_any_literal(expr: &Expr) -> bool {
-    matches!(unparen(expr), Expr::Lit(_))
 }
 
 /// `f32`, `f64`, and any future `f<N>` — matched by shape rather than a fixed

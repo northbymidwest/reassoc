@@ -74,14 +74,33 @@ fn arithmetic_compound_assignment_is_rewritten() {
 }
 
 // ---------------------------------------------------------------------------
-// Rewritten for anchoring only: unary minus
+// Untouched: unary minus
 // ---------------------------------------------------------------------------
 
+/// There is no `algebraic_neg`, and negation is left alone. It used to be
+/// routed through a same-type `ops::neg` to anchor `-(3.0 * 2.0)`, which the
+/// `*Out` blanket impls now do on their own; the detour broke `-x` for
+/// `x: &f64`, which is what every `.iter().map(|x| -x)` produces.
 #[algebraic]
 fn unary_minus(a: Dispatched, x: f64) -> (f64, f64, i8) {
-    // Routed through `ops::neg`, a plain `Neg` — there is no `algebraic_neg`.
     let _ = a;
     (-x, -(3.0 * 2.0), -128i8)
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Pair(f64, f64);
+impl core::ops::Neg for &Pair {
+    type Output = Pair;
+    fn neg(self) -> Pair {
+        Pair(-self.0, -self.1)
+    }
+}
+
+#[algebraic]
+fn negate_references(x: &f64, p: &Pair, v: &[f64]) -> (f64, Pair, f64) {
+    // `Neg` on a reference yields the value, never the reference: nothing
+    // same-typed could have accepted these.
+    (-x, -p, v.iter().map(|x| -x).sum())
 }
 
 #[test]
@@ -90,6 +109,87 @@ fn unary_minus_matches_native() {
     assert_eq!(n, -4.0);
     assert_eq!(c, -6.0); // used to fail to compile: E0282
     assert_eq!(m, i8::MIN); // a negative literal is never rewritten
+    assert_eq!(
+        negate_references(&2.0, &Pair(1.0, -2.0), &[1.0, 2.0]),
+        (-2.0, Pair(-1.0, 2.0), -3.0)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Compound assignment on places of every shape
+// ---------------------------------------------------------------------------
+
+static mut TICKS: u32 = 0;
+
+/// Non-`Copy` on purpose, and `core`-only so this test runs without `alloc`.
+#[derive(Debug, PartialEq)]
+struct Tally(u32);
+impl core::ops::Add<u32> for Tally {
+    type Output = Tally;
+    fn add(self, n: u32) -> Tally {
+        Tally(self.0 + n)
+    }
+}
+reassoc::passthrough!(no_refs add: Tally, u32 => Tally);
+
+// The assignment inside the RHS block is the point of the test: it proves the
+// RHS runs before the place is read, exactly as native `+=` orders them.
+#[allow(unused_assignments, clippy::blocks_in_conditions)]
+#[algebraic]
+fn compound_places(v: &mut [f64], mut s: Tally) -> (u32, f64, f64, Tally) {
+    // A `static mut` place. Edition 2024 denies `&mut` to one, so the rewrite
+    // must assign through the path rather than borrow it.
+    let ticks = unsafe {
+        TICKS += 1;
+        TICKS
+    };
+    // A non-`Copy` local: moved out and reassigned, never read through `&mut`.
+    s += 1;
+    // Index places still go through `&mut` (IndexMut), and can read themselves.
+    v[0] += v[1];
+    v[1] += v[1];
+    // The RHS is evaluated before the place, as native `+=` does.
+    let mut a = 1.0;
+    a += {
+        a = 5.0;
+        1.0
+    };
+    (ticks, a, v[0], s)
+}
+
+#[allow(unused_assignments, clippy::blocks_in_conditions)]
+fn compound_places_native() -> f64 {
+    let mut a = 1.0;
+    a += {
+        a = 5.0;
+        1.0
+    };
+    a
+}
+
+#[test]
+fn compound_assignment_on_every_kind_of_place() {
+    let mut v = [1.0, 2.0];
+    let (ticks, a, v0, s) = compound_places(&mut v, Tally(1));
+    assert_eq!(ticks, 1);
+    assert_eq!(a, compound_places_native());
+    assert_eq!((v0, v[1]), (3.0, 4.0));
+    assert_eq!(s, Tally(2));
+}
+
+/// A literal that arrives through a `macro_rules!` `$e:expr` is wrapped in an
+/// invisible group. The rewriter must look through it, or `-128i8` passed
+/// that way becomes `neg(128i8)` and fails to compile.
+macro_rules! negate {
+    ($e:expr) => {
+        alg!(-$e)
+    };
+}
+
+#[test]
+fn literals_passed_through_a_macro_are_still_literals() {
+    use reassoc::alg;
+    assert_eq!(negate!(128i8), i8::MIN);
 }
 
 // ---------------------------------------------------------------------------

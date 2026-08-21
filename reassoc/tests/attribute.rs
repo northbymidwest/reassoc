@@ -392,16 +392,12 @@ fn byte_literal_arithmetic_still_evaluates() {
     assert_eq!(byte_literals_are_not_rewritten(), 128);
 }
 
-/// Float constants ARE rewritten. Making that work needed unary minus routed
-/// through `ops::neg`: without it, the operand of a minus could be a rewritten
-/// call whose type was still an inference variable, and `alg!(-(3.0 * 2.0))`
-/// failed with `E0282`. A random-expression corpus found it.
-///
-/// It const-folds either way, so nothing is lost; and rewriting it costs a
-/// type anchor. `ops::mul(3.0, 2.0)` returns a variable that unsuffixed float
-/// literals cannot pin, so a unary minus over it — which is never rewritten —
-/// has nothing to resolve `Neg` against. `alg!(-(3.0 * 2.0))` used to fail
-/// with `E0282`; a random-expression corpus found it.
+/// Float constants ARE rewritten, and a minus over one must still infer.
+/// `alg!(-(3.0 * 2.0))` once failed with `E0282`: `ops::mul(3.0, 2.0)`
+/// returned a bare inference variable that nothing pinned. A random-expression
+/// corpus found it. The `*Out` blanket impls now resolve that variable to the
+/// operand's own type, so plain `Neg` has something to resolve against and no
+/// special handling of unary minus is needed.
 #[test]
 fn constants_under_a_minus_still_infer() {
     // These used to fail to compile.

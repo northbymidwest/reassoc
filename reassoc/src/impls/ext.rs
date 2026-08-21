@@ -15,11 +15,20 @@ passthrough!(div: Duration, u32 => Duration);
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-    use crate::passthrough;
     use alloc::string::String;
 
-    // `no_refs`: `String` is not `Copy`, and `&str` is already a reference.
-    passthrough!(no_refs add: String, &str => String);
+    use crate::traits::AddRhs;
+
+    // `String + &str` natively, but also `String + &String`, which works only
+    // because rustc deref-coerces the operand once the impl is unique — a step
+    // a generic dispatch function never takes. One impl over `AsRef<str>`
+    // accepts every reference the native operator would have coerced.
+    impl<T: ?Sized + AsRef<str>> AddRhs<String, String> for &T {
+        #[inline(always)]
+        fn add_rhs(self, lhs: String) -> String {
+            lhs + self.as_ref()
+        }
+    }
 }
 
 #[cfg(feature = "std")]
@@ -31,6 +40,7 @@ mod std_impls {
 
     passthrough!(add: Instant, Duration => Instant);
     passthrough!(sub: Instant, Duration => Instant);
+    passthrough!(sub: Instant, Instant => Duration);
     passthrough!(add: SystemTime, Duration => SystemTime);
     passthrough!(sub: SystemTime, Duration => SystemTime);
 }

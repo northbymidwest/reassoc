@@ -14,6 +14,21 @@ fn duration_heterogeneous_pairs_work_in_core() {
 fn string_concatenation_works() {
     let s = String::from("a");
     assert_eq!(add(s, "b"), "ab");
+    // Native `String + &String` works only because rustc deref-coerces the
+    // operand once the impl is unique; a generic dispatch function never
+    // does, so these need impls of their own.
+    let other = String::from("b");
+    assert_eq!(add(String::from("a"), &other), "ab");
+    let boxed: Box<str> = "b".into();
+    assert_eq!(add(String::from("a"), &boxed), "ab");
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn instant_minus_instant_is_a_duration() {
+    use reassoc::ops::sub;
+    let t = std::time::Instant::now();
+    assert_eq!(sub(t, t), Duration::ZERO);
 }
 
 #[cfg(feature = "std")]

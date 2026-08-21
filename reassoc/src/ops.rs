@@ -3,7 +3,7 @@
 //! the underlying operator directly.
 
 use crate::traits::{
-    AddOut, AddRhs, AlgNeg, DivOut, DivRhs, MulOut, MulRhs, RemOut, RemRhs, SubOut, SubRhs,
+    AddOut, AddRhs, DivOut, DivRhs, MulOut, MulRhs, RemOut, RemRhs, SubOut, SubRhs,
 };
 
 // The operand bound hangs off `B`, deliberately. A bound on `A` makes rustc
@@ -35,12 +35,4 @@ pub fn div<A: DivOut<O>, B: DivRhs<A, O>, O>(a: A, b: B) -> O {
 #[inline(always)]
 pub fn rem<A: RemOut<O>, B: RemRhs<A, O>, O>(a: A, b: B) -> O {
     b.rem_rhs(a)
-}
-
-/// Unary negation. Same-type on purpose: `T` unifies with the expected type
-/// and flows backwards into the operand, which is what lets a constant
-/// subexpression under a minus infer at all.
-#[inline(always)]
-pub fn neg<T: AlgNeg>(a: T) -> T {
-    a.alg_neg()
 }

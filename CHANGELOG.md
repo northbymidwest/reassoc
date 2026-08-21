@@ -2,6 +2,35 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+A systematic review against plain Rust: every item below is code the language
+accepts that the macro did not.
+
+### Fixed
+
+- **Negating a reference.** `-x` with `x: &f64` — what every
+  `.iter().map(|x| -x)` produces — and `-v` for a type implementing `Neg` on
+  `&Self` both failed. Negation routed through a same-type `ops::neg` to anchor
+  `-(3.0 * 2.0)`; the `*Out` blanket impls already do that, so the detour is
+  gone and `-` is left alone. `ops::neg` and `AlgNeg` are removed.
+- **`Instant - Instant`** yields a `Duration` natively and now here.
+- **`String + &String`** (and `+ &Box<str>`, anything `AsRef<str>`), which
+  natively works only through deref coercion of the operand.
+- **`static mut TICKS: u32; unsafe { TICKS += 1 }`**, which edition 2024
+  rejected under rewriting because the expansion took `&mut` on the place. A
+  bare path or field chain is now assigned through directly. This also lets a
+  non-`Copy` local use `+=` (`s += "x"` on a `String`); a field behind `&mut`
+  or an indexed element still cannot.
+- **Literals passed through a `macro_rules!` `$e:expr`** arrive wrapped in an
+  invisible group the rewriter did not look through: `-$e` with `$e = 128i8`
+  failed to compile, and `$e + 1` with `$e = 255u8` compiled and panicked at
+  runtime instead of being rejected by `arithmetic_overflow`.
+- **A method call on a constant float expression**, `(1.0 * 2.0).sqrt()`, was
+  special-cased out of rewriting to dodge an `E0282`. No longer necessary; it
+  now fails with the same `E0689` plain Rust gives, and `(2.0f64 * 8.0).sqrt()`
+  is dispatched like everything else.
+
 ## 0.3.1 — 2026-08-21
 
 ### Fixed

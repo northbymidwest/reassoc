@@ -94,6 +94,27 @@ place first makes any RHS that reads it fail to borrow-check, rejecting valid
 code like `s += s * k` and `a[0] += a[1]`. It also matches Rust's own
 RHS-then-place order.
 
+**A simple place is assigned through, not borrowed.** When the place is a bare
+path or a field chain rooted in one, the rewrite is `a = ops::add(a, rhs)`
+(inside the same `match` that binds the RHS first). Taking `&mut` on it was
+wrong twice over: edition 2024 denies `&mut` to a `static mut`, so
+`unsafe { TICKS += 1 }` — a classic embedded pattern — became a hard error;
+and reading through `*place` forces `Copy`, where `s = add(s, rhs)` simply
+moves and reassigns, so a non-`Copy` local can use `+=`. Index, deref, and
+call-rooted places keep the `&mut` binding so they are evaluated once.
+
+**Unary minus is not rewritten, and the rewriter looks through invisible
+groups.** Negation used to route through a same-type `ops::neg` to anchor
+`-(3.0 * 2.0)`; the `*Out` blanket impls resolve that on their own, and the
+detour rejected `-x` for `x: &f64`, which is what every `.iter().map(|x| -x)`
+produces. The constant-method-receiver special case went for the same reason:
+`(1.0 * 2.0).sqrt()` now fails with native `E0689` instead of being silently
+left un-dispatched. A literal arriving through a `macro_rules!` `$e:expr` is
+wrapped in `Expr::Group`; `unparen` strips those before its one paren layer,
+or `-$e` with `$e = 128i8` becomes `neg(128i8)` and `$e + 1` with `$e = 255u8`
+hides `arithmetic_overflow`. `tests/ui/group_literal_overflow.rs` pins the
+second.
+
 **Const positions are never rewritten** — array-repeat lengths, `TypeArray`
 lengths, `const`/`static` items, inline `const { .. }` blocks, const generic
 arguments, enum discriminants, and — at `ImplItem`/`TraitItem` granularity —
