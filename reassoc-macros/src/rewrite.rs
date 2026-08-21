@@ -100,12 +100,31 @@ impl VisitMut for Rewriter {
         }
     }
 
+    // `[expr; len]`'s `len` is evaluated in a const context (it must be,
+    // since it fixes the array's type); `ops::*` are not `const fn`, so
+    // rewriting arithmetic there trades working code for E0015. This is the
+    // default-scope case that needs no opt-in at all: `[0.0f32; 4 * 2]`
+    // sits inside an ordinary function body, indistinguishable from any
+    // other `Expr::Repeat` except for which of its two children is const.
+    // Only the element expression is an ordinary runtime position.
+    fn visit_expr_repeat_mut(&mut self, expr_repeat: &mut syn::ExprRepeat) {
+        self.visit_expr_mut(&mut expr_repeat.expr);
+    }
+
     fn visit_item_mut(&mut self, item: &mut syn::Item) {
         if !self.items {
             return;
         }
         if has_skip_attribute(item) {
             strip_skip_attribute(item);
+            return;
+        }
+        // `const`/`static` initializers, and `const fn` bodies, are const
+        // contexts; `ops::*` are not `const fn`, so rewriting inside any of
+        // these would trade working code for E0015. Leave them untouched
+        // rather than trying to distinguish which sub-expressions are
+        // actually evaluated at const time.
+        if is_const_context(item) {
             return;
         }
         visit_mut::visit_item_mut(self, item);
@@ -164,19 +183,46 @@ impl VisitMut for Rewriter {
                     // reason as the non-assigning arm above.
                     let left = unparen(&binary.left);
                     let right = unparen(&binary.right);
-                    // Bind the place through a `&mut` temporary so it is
-                    // evaluated exactly once; a naive `place = f(place,
-                    // rhs)` rewrite would evaluate `place` twice.
+                    // Evaluate the RHS into a temporary *before* borrowing
+                    // the place mutably, for two reasons:
+                    //
+                    // - Native `a += b` evaluates `b` before it evaluates
+                    //   the place `a` (e.g. `v[idx()] += rhs()` calls
+                    //   `rhs()` before `idx()`). Binding the place first, as
+                    //   this used to, reversed that order relative to
+                    //   native compound assignment.
+                    // - If `#right` reads the place at all (`s += s * k`),
+                    //   borrowing `&mut #left` first makes that read a
+                    //   borrow-check error (E0503) even though the
+                    //   equivalent native `+=` compiles fine. Evaluating
+                    //   the RHS first, while the place is not yet borrowed,
+                    //   avoids that.
+                    //
+                    // The place is still bound through a `&mut` temporary
+                    // so it is evaluated exactly once; a naive `place =
+                    // f(place, rhs)` rewrite would evaluate `place` twice.
                     *expr = syn::parse2(quote_spanned! {span=>
                         {
+                            let __reassoc_rhs = #right;
                             let __reassoc_place = &mut #left;
-                            *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, #right);
+                            *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, __reassoc_rhs);
                         }
                     })
                     .expect("generated compound assignment must parse");
                 }
             }
         }
+    }
+}
+
+/// True for a nested item whose body/initializer is a const context:
+/// `const`, `static`, and `const fn`. `ops::*` are not `const fn`, so
+/// rewriting inside any of these fails with E0015.
+fn is_const_context(item: &syn::Item) -> bool {
+    match item {
+        syn::Item::Const(_) | syn::Item::Static(_) => true,
+        syn::Item::Fn(item_fn) => item_fn.sig.constness.is_some(),
+        _ => false,
     }
 }
 

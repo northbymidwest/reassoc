@@ -75,6 +75,42 @@ fn compound_assignment_evaluates_the_place_expression_once() {
     );
 }
 
+/// Native `place += rhs` evaluates `rhs` before it evaluates `place` (e.g.
+/// `v[idx()] += rhs()` calls `rhs()` first, then `idx()`). The rewritten
+/// form must match, not reverse it. The single-evaluation test above counts
+/// calls, which cannot see a reordering; this test records the order itself.
+#[test]
+fn compound_assignment_evaluates_rhs_before_place_like_native_plus_equals() {
+    use std::cell::RefCell;
+
+    let mut v = [1.0f32, 2.0, 3.0];
+    let log: RefCell<Vec<&'static str>> = RefCell::new(Vec::new());
+    let idx = || {
+        log.borrow_mut().push("place");
+        1usize
+    };
+    let rhs = || {
+        log.borrow_mut().push("rhs");
+        10.0f32
+    };
+
+    // Native compound assignment: establish the expected order first.
+    let mut native = [1.0f32, 2.0, 3.0];
+    native[idx()] += rhs();
+    let native_order = log.borrow().clone();
+    log.borrow_mut().clear();
+
+    alg!(v[idx()] += rhs());
+    let sugar_order = log.borrow().clone();
+
+    assert_eq!(native_order, vec!["rhs", "place"]);
+    assert_eq!(
+        sugar_order, native_order,
+        "alg! must evaluate the RHS before the place, matching native +="
+    );
+    assert_eq!(v, native);
+}
+
 /// A type that implements the dispatch traits but NOT `std::ops`.
 ///
 /// This makes the rewrite observable: `alg!(w * w)` and `alg!(w += w)`

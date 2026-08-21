@@ -29,6 +29,21 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.to_compile_error().into(),
     };
 
+    // The dispatch functions `#[algebraic]` generates calls into
+    // (`reassoc::ops::*`) are not `const fn`, so rewriting a `const fn`'s
+    // body would fail with E0015 blamed on the attribute rather than on
+    // anything the user wrote. Reject it up front with a message that
+    // actually explains why.
+    if let Some(const_token) = func.sig.constness {
+        return syn::Error::new_spanned(
+            const_token,
+            "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \
+             functions it generates (`reassoc::ops::*`) are not `const fn`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
     // `#[algebraic(skip)]` on a nested item is consumed by the enclosing
     // rewriter. Reaching here means it was used at the top level, where it
     // simply means "do nothing".

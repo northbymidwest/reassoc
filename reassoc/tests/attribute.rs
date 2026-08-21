@@ -102,6 +102,95 @@ fn plain_still_works_inside_the_attribute() {
     assert_eq!(kahan(&[1.0, 2.0, 3.0]), 6.0);
 }
 
+// --- Regression tests: compound assignment whose RHS reads the place ---
+//
+// The compound-assignment expansion used to bind `&mut place` before
+// evaluating the RHS, so any RHS that also read the place (directly, or
+// through an overlapping index/field) was a mutable borrow while still
+// live for reading -- E0503 -- even though the equivalent native compound
+// assignment borrow-checks fine. All three cases below are valid Rust
+// outside the macro; they must stay valid through it.
+
+#[algebraic]
+fn decay(mut s: f32, k: f32) -> f32 {
+    s += s * k;
+    s
+}
+
+#[test]
+fn compound_assignment_rhs_may_read_the_place() {
+    // EMA-style accumulator: s += s * k means s = s * (1 + k).
+    assert_eq!(decay(2.0, 0.5), 3.0);
+}
+
+#[algebraic]
+fn fly(a: &mut [f32]) {
+    a[0] += a[1];
+}
+
+#[test]
+fn compound_assignment_rhs_may_read_a_different_index_of_the_same_place() {
+    // FFT-butterfly-style: the place and the RHS are two indices into the
+    // same slice, not just the same identifier.
+    let mut v = [1.0f32, 2.0];
+    fly(&mut v);
+    assert_eq!(v, [3.0, 2.0]);
+}
+
+#[algebraic]
+fn dbl(mut x: f32) -> f32 {
+    x += x;
+    x
+}
+
+#[test]
+fn compound_assignment_rhs_may_be_exactly_the_place() {
+    assert_eq!(dbl(4.0), 8.0);
+}
+
+// --- Regression tests: const contexts must not be rewritten ---
+//
+// `ops::*` are not `const fn`, so any rewritten operator in a const
+// position fails with E0015 blamed on the attribute. These are const
+// contexts the rewriter must leave alone.
+
+// The array-repeat *length* is a const context reachable at the DEFAULT
+// scope, with no opt-in at all -- an ordinary function body, no
+// `items = true`, no nested item. Only `buf[n % buf.len()]`'s index
+// expression is a normal runtime position.
+#[algebraic]
+fn array_repeat_length_is_not_rewritten(n: usize) -> f32 {
+    let buf = [0.0f32; 4 * 2];
+    buf[n % buf.len()]
+}
+
+#[test]
+fn array_repeat_length_stays_const() {
+    assert_eq!(array_repeat_length_is_not_rewritten(3), 0.0);
+}
+
+#[algebraic(items = true)]
+fn nested_const_is_not_rewritten() -> f32 {
+    const K: f32 = 2.0 * 3.0;
+    K
+}
+
+#[test]
+fn nested_const_item_stays_const() {
+    assert_eq!(nested_const_is_not_rewritten(), 6.0);
+}
+
+#[algebraic(items = true)]
+fn nested_static_is_not_rewritten() -> f32 {
+    static S: f32 = 2.0 * 3.0;
+    S
+}
+
+#[test]
+fn nested_static_item_stays_const() {
+    assert_eq!(nested_static_is_not_rewritten(), 6.0);
+}
+
 // --- Proof that the attribute actually rewrites, not just "passes with f32" ---
 //
 // Every test above uses `f32`, whose native operators already produce the
