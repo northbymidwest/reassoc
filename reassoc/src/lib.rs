@@ -12,3 +12,5 @@ pub mod traits;
 
 mod impls;
 mod macros;
+
+pub use reassoc_macros::alg;
