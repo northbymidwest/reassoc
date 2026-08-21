@@ -2,6 +2,26 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.3.3 — 2026-08-21
+
+No behavioural change. A readability pass and a documentation split.
+
+### Changed
+
+- `passthrough!`'s fifteen near-identical per-operator arms collapse into
+  one-line delegations to three internal rules; `rewrite.rs` loses its
+  duplicated attribute helpers and merges its two dispatch tables. Comments
+  throughout state the decision and a one-line reason; the measured history
+  moves to `docs/design.md`. Every test, UI snapshot and the codegen guard pass
+  unchanged.
+
+### Documentation
+
+- The README's Limitations section moves to `docs/limitations.md`, leaving a
+  summary and a link. `CLAUDE.md` is cut to commands, architecture, one line
+  per invariant, and a pointer to `docs/design.md`, which now holds the
+  evidence behind each.
+
 ## 0.3.2 — 2026-08-21
 
 A systematic review against plain Rust: every item below is code the language
