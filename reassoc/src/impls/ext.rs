@@ -4,9 +4,6 @@ use core::num::{Saturating, Wrapping};
 use core::ops::{Add, Div, Mul, Rem, Sub};
 use core::time::Duration;
 
-// Every heterogeneous pair now goes through the public macro, reference
-// combinations included: keying the right-operand trait on the left type means
-// these no longer compete with any same-type opt-in.
 passthrough!(add: Duration, Duration => Duration);
 passthrough!(sub: Duration, Duration => Duration);
 passthrough!(mul: Duration, u32 => Duration);
@@ -45,57 +42,43 @@ mod std_impls {
     passthrough!(sub: SystemTime, Duration => SystemTime);
 }
 
-/// `Wrapping<T>` and `Saturating<T>` for every inner type at once.
-///
-/// One spoke per operator, generic over `T`, rather than an entry per integer
-/// width. The `where` bound is what makes that possible: it defers to whichever
-/// inner types actually implement the operator, so no list has to be kept in
-/// sync with `core`. `passthrough!` cannot express this — it takes a concrete
-/// type.
+/// `Wrapping<T>` and `Saturating<T>` for every inner type at once: one impl per
+/// operator, generic over `T`, deferring to the wrapper's own `core::ops`
+/// impl. `passthrough!` cannot express this — it takes a concrete type.
 macro_rules! plain_wrapper {
-    ($w:ident) => {
-        plain_wrapper_op!($w, AddRhs, add_rhs, Add, +);
-        plain_wrapper_op!($w, SubRhs, sub_rhs, Sub, -);
-        plain_wrapper_op!($w, MulRhs, mul_rhs, Mul, *);
-        plain_wrapper_op!($w, DivRhs, div_rhs, Div, /);
-        plain_wrapper_op!($w, RemRhs, rem_rhs, Rem, %);
-    };
-}
-
-macro_rules! plain_wrapper_op {
-    ($w:ident, $rhs_trait:ident, $rhs_method:ident, $bound:ident, $op:tt) => {
-        impl<T> $rhs_trait<$w<T>, $w<T>> for $w<T>
+    ($w:ident: $($rhs:ident, $method:ident, $bound:ident, $op:tt);* $(;)?) => {$(
+        impl<T> $rhs<$w<T>, $w<T>> for $w<T>
         where
             $w<T>: $bound<Output = $w<T>>,
         {
             #[inline(always)]
-            fn $rhs_method(self, lhs: $w<T>) -> $w<T> { lhs $op self }
+            fn $method(self, lhs: $w<T>) -> $w<T> { lhs $op self }
         }
-        impl<T> $rhs_trait<$w<T>, $w<T>> for &$w<T>
+        impl<T> $rhs<$w<T>, $w<T>> for &$w<T>
         where
             $w<T>: RefOperand + $bound<Output = $w<T>>,
         {
             #[inline(always)]
-            fn $rhs_method(self, lhs: $w<T>) -> $w<T> { lhs $op RefOperand::reassoc_dup(self) }
+            fn $method(self, lhs: $w<T>) -> $w<T> { lhs $op RefOperand::reassoc_dup(self) }
         }
-        impl<T> $rhs_trait<&$w<T>, $w<T>> for $w<T>
+        impl<T> $rhs<&$w<T>, $w<T>> for $w<T>
         where
             $w<T>: RefOperand + $bound<Output = $w<T>>,
         {
             #[inline(always)]
-            fn $rhs_method(self, lhs: &$w<T>) -> $w<T> { RefOperand::reassoc_dup(lhs) $op self }
+            fn $method(self, lhs: &$w<T>) -> $w<T> { RefOperand::reassoc_dup(lhs) $op self }
         }
-        impl<T> $rhs_trait<&$w<T>, $w<T>> for &$w<T>
+        impl<T> $rhs<&$w<T>, $w<T>> for &$w<T>
         where
             $w<T>: RefOperand + $bound<Output = $w<T>>,
         {
             #[inline(always)]
-            fn $rhs_method(self, lhs: &$w<T>) -> $w<T> {
+            fn $method(self, lhs: &$w<T>) -> $w<T> {
                 RefOperand::reassoc_dup(lhs) $op RefOperand::reassoc_dup(self)
             }
         }
-    };
+    )*};
 }
 
-plain_wrapper!(Wrapping);
-plain_wrapper!(Saturating);
+plain_wrapper!(Wrapping: AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *; DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
+plain_wrapper!(Saturating: AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *; DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);

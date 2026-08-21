@@ -21,11 +21,21 @@
 /// # assert_eq!(add(Vec3(1.0, 2.0, 3.0), Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
 /// # assert_eq!(mul(Scaled(3), 4u32), Scaled(12));
 /// ```
+///
+/// Forms:
+///
+/// - `passthrough!(T)` — all five operators, same-type, with either operand a
+///   reference. Needs `Copy`, since a reference operand is dereferenced.
+/// - `passthrough!(no_refs T)` — the same by value only, for a type that is
+///   not `Copy`.
+/// - `passthrough!(mul: A, B => O)` — one operator for one pair, references
+///   included; `no_refs mul: A, B => O` for the value pair alone, which is also
+///   the form to use when `B` is already a reference such as `&str`.
+/// - `passthrough!(mul out A, B => O)` — declares only what the operator yields,
+///   for an operand trait implemented by hand. The forms above work it out for
+///   themselves.
 #[macro_export]
 macro_rules! passthrough {
-    // Full coverage: same-type, with either operand a reference. Requires
-    // `Copy`, because a reference operand is dereferenced. For a type that is
-    // not `Copy`, use the `no_refs` form below.
     ($t:ty) => {
         $crate::passthrough!(add: $t, $t => $t);
         $crate::passthrough!(sub: $t, $t => $t);
@@ -33,7 +43,6 @@ macro_rules! passthrough {
         $crate::passthrough!(div: $t, $t => $t);
         $crate::passthrough!(rem: $t, $t => $t);
     };
-    // Value operands only, for types that are not `Copy`.
     (no_refs $t:ty) => {
         $crate::passthrough!(no_refs add: $t, $t => $t);
         $crate::passthrough!(no_refs sub: $t, $t => $t);
@@ -41,10 +50,6 @@ macro_rules! passthrough {
         $crate::passthrough!(no_refs div: $t, $t => $t);
         $crate::passthrough!(no_refs rem: $t, $t => $t);
     };
-    // Declares what an operator yields for a left-hand type and right operand,
-    // when that is not the left type itself. The per-operator forms below work
-    // this out for themselves; this is for an operand trait implemented by
-    // hand, which has no other way to say it.
     (out $a:ty, $b:ty => $o:ty) => {
         $crate::passthrough!(add out $a, $b => $o);
         $crate::passthrough!(sub out $a, $b => $o);
@@ -52,234 +57,69 @@ macro_rules! passthrough {
         $crate::passthrough!(div out $a, $b => $o);
         $crate::passthrough!(rem out $a, $b => $o);
     };
-    (add out $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::AddOut<$b, $o> for $a {}
-        impl $crate::traits::AddOut<$b, $o> for &$a {}
-        impl $crate::traits::AddOut<&$b, $o> for $a {}
-        impl $crate::traits::AddOut<&$b, $o> for &$a {}
-    };
-    (sub out $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::SubOut<$b, $o> for $a {}
-        impl $crate::traits::SubOut<$b, $o> for &$a {}
-        impl $crate::traits::SubOut<&$b, $o> for $a {}
-        impl $crate::traits::SubOut<&$b, $o> for &$a {}
-    };
-    (mul out $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::MulOut<$b, $o> for $a {}
-        impl $crate::traits::MulOut<$b, $o> for &$a {}
-        impl $crate::traits::MulOut<&$b, $o> for $a {}
-        impl $crate::traits::MulOut<&$b, $o> for &$a {}
-    };
-    (div out $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::DivOut<$b, $o> for $a {}
-        impl $crate::traits::DivOut<$b, $o> for &$a {}
-        impl $crate::traits::DivOut<&$b, $o> for $a {}
-        impl $crate::traits::DivOut<&$b, $o> for &$a {}
-    };
-    (rem out $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::RemOut<$b, $o> for $a {}
-        impl $crate::traits::RemOut<$b, $o> for &$a {}
-        impl $crate::traits::RemOut<&$b, $o> for $a {}
-        impl $crate::traits::RemOut<&$b, $o> for &$a {}
-    };
-    (add: $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(no_refs add: $a, $b => $o);
-        $crate::declare_output!($crate, AddOut, refs, $a, $b, $o);
 
-        impl $crate::traits::AddRhs<$a, $o> for &$b
+    (add out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out AddOut, $a, $b, $o); };
+    (sub out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out SubOut, $a, $b, $o); };
+    (mul out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out MulOut, $a, $b, $o); };
+    (div out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out DivOut, $a, $b, $o); };
+    (rem out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out RemOut, $a, $b, $o); };
+
+    (add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs AddRhs, AddOut, add_rhs, +, $a, $b, $o); };
+    (sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs SubRhs, SubOut, sub_rhs, -, $a, $b, $o); };
+    (mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs MulRhs, MulOut, mul_rhs, *, $a, $b, $o); };
+    (div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs DivRhs, DivOut, div_rhs, /, $a, $b, $o); };
+    (rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs RemRhs, RemOut, rem_rhs, %, $a, $b, $o); };
+
+    (no_refs add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value AddRhs, AddOut, add_rhs, +, $a, $b, $o); };
+    (no_refs sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value SubRhs, SubOut, sub_rhs, -, $a, $b, $o); };
+    (no_refs mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value MulRhs, MulOut, mul_rhs, *, $a, $b, $o); };
+    (no_refs div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value DivRhs, DivOut, div_rhs, /, $a, $b, $o); };
+    (no_refs rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value RemRhs, RemOut, rem_rhs, %, $a, $b, $o); };
+
+    // Internal. `@out` states the output for a pair; `@value` is one operator
+    // by value; `@refs` adds the three reference combinations on top of it.
+    // `declare_output!` is a proc macro because it has to compare `$a` and `$o`
+    // as written and emit nothing when they match — a specific impl would
+    // collide with the blanket "yields the left type" impl.
+    (@out $out:ident, $a:ty, $b:ty, $o:ty) => {
+        impl $crate::traits::$out<$b, $o> for $a {}
+        impl $crate::traits::$out<$b, $o> for &$a {}
+        impl $crate::traits::$out<&$b, $o> for $a {}
+        impl $crate::traits::$out<&$b, $o> for &$a {}
+    };
+    (@value $rhs:ident, $out:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
+        $crate::declare_output!($crate, $out, no_refs, $a, $b, $o);
+
+        impl $crate::traits::$rhs<$a, $o> for $b {
+            #[inline(always)]
+            fn $method(self, lhs: $a) -> $o { lhs $op self }
+        }
+    };
+    (@refs $rhs:ident, $out:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
+        $crate::passthrough!(@value $rhs, $out, $method, $op, $a, $b, $o);
+        $crate::declare_output!($crate, $out, refs, $a, $b, $o);
+
+        impl $crate::traits::$rhs<$a, $o> for &$b
         where $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn add_rhs(self, lhs: $a) -> $o {
-                lhs + $crate::traits::RefOperand::reassoc_dup(self)
+            fn $method(self, lhs: $a) -> $o {
+                lhs $op $crate::traits::RefOperand::reassoc_dup(self)
             }
         }
-        impl $crate::traits::AddRhs<&$a, $o> for $b
+        impl $crate::traits::$rhs<&$a, $o> for $b
         where $a: $crate::traits::RefOperand {
             #[inline(always)]
-            fn add_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs) + self
+            fn $method(self, lhs: &$a) -> $o {
+                $crate::traits::RefOperand::reassoc_dup(lhs) $op self
             }
         }
-        impl $crate::traits::AddRhs<&$a, $o> for &$b
+        impl $crate::traits::$rhs<&$a, $o> for &$b
         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
             #[inline(always)]
-            fn add_rhs(self, lhs: &$a) -> $o {
+            fn $method(self, lhs: &$a) -> $o {
                 $crate::traits::RefOperand::reassoc_dup(lhs)
-                    + $crate::traits::RefOperand::reassoc_dup(self)
+                    $op $crate::traits::RefOperand::reassoc_dup(self)
             }
-        }
-    };
-    (no_refs add: $a:ty, $b:ty => $o:ty) => {
-        // Declares the output when it is not the left operand — a dot
-        // product, say. Emits nothing in the ordinary case, where the blanket
-        // impl already covers it. `macro_rules!` cannot tell the two apart, so
-        // the comparison happens in the proc macro. The `refs` form above adds
-        // the `&$b` combinations it dispatches.
-        $crate::declare_output!($crate, AddOut, no_refs, $a, $b, $o);
-
-        impl $crate::traits::AddRhs<$a, $o> for $b {
-            #[inline(always)]
-            fn add_rhs(self, lhs: $a) -> $o { lhs + self }
-        }
-    };
-    (sub: $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(no_refs sub: $a, $b => $o);
-        $crate::declare_output!($crate, SubOut, refs, $a, $b, $o);
-
-        impl $crate::traits::SubRhs<$a, $o> for &$b
-        where $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn sub_rhs(self, lhs: $a) -> $o {
-                lhs - $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-        impl $crate::traits::SubRhs<&$a, $o> for $b
-        where $a: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn sub_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs) - self
-            }
-        }
-        impl $crate::traits::SubRhs<&$a, $o> for &$b
-        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn sub_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs)
-                    - $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-    };
-    (no_refs sub: $a:ty, $b:ty => $o:ty) => {
-        // Declares the output when it is not the left operand — a dot
-        // product, say. Emits nothing in the ordinary case, where the blanket
-        // impl already covers it. `macro_rules!` cannot tell the two apart, so
-        // the comparison happens in the proc macro. The `refs` form above adds
-        // the `&$b` combinations it dispatches.
-        $crate::declare_output!($crate, SubOut, no_refs, $a, $b, $o);
-
-        impl $crate::traits::SubRhs<$a, $o> for $b {
-            #[inline(always)]
-            fn sub_rhs(self, lhs: $a) -> $o { lhs - self }
-        }
-    };
-    (mul: $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(no_refs mul: $a, $b => $o);
-        $crate::declare_output!($crate, MulOut, refs, $a, $b, $o);
-
-        impl $crate::traits::MulRhs<$a, $o> for &$b
-        where $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn mul_rhs(self, lhs: $a) -> $o {
-                lhs * $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-        impl $crate::traits::MulRhs<&$a, $o> for $b
-        where $a: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn mul_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs) * self
-            }
-        }
-        impl $crate::traits::MulRhs<&$a, $o> for &$b
-        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn mul_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs)
-                    * $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-    };
-    (no_refs mul: $a:ty, $b:ty => $o:ty) => {
-        // Declares the output when it is not the left operand — a dot
-        // product, say. Emits nothing in the ordinary case, where the blanket
-        // impl already covers it. `macro_rules!` cannot tell the two apart, so
-        // the comparison happens in the proc macro. The `refs` form above adds
-        // the `&$b` combinations it dispatches.
-        $crate::declare_output!($crate, MulOut, no_refs, $a, $b, $o);
-
-        impl $crate::traits::MulRhs<$a, $o> for $b {
-            #[inline(always)]
-            fn mul_rhs(self, lhs: $a) -> $o { lhs * self }
-        }
-    };
-    (div: $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(no_refs div: $a, $b => $o);
-        $crate::declare_output!($crate, DivOut, refs, $a, $b, $o);
-
-        impl $crate::traits::DivRhs<$a, $o> for &$b
-        where $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn div_rhs(self, lhs: $a) -> $o {
-                lhs / $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-        impl $crate::traits::DivRhs<&$a, $o> for $b
-        where $a: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn div_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs) / self
-            }
-        }
-        impl $crate::traits::DivRhs<&$a, $o> for &$b
-        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn div_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs)
-                    / $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-    };
-    (no_refs div: $a:ty, $b:ty => $o:ty) => {
-        // Declares the output when it is not the left operand — a dot
-        // product, say. Emits nothing in the ordinary case, where the blanket
-        // impl already covers it. `macro_rules!` cannot tell the two apart, so
-        // the comparison happens in the proc macro. The `refs` form above adds
-        // the `&$b` combinations it dispatches.
-        $crate::declare_output!($crate, DivOut, no_refs, $a, $b, $o);
-
-        impl $crate::traits::DivRhs<$a, $o> for $b {
-            #[inline(always)]
-            fn div_rhs(self, lhs: $a) -> $o { lhs / self }
-        }
-    };
-    (rem: $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(no_refs rem: $a, $b => $o);
-        $crate::declare_output!($crate, RemOut, refs, $a, $b, $o);
-
-        impl $crate::traits::RemRhs<$a, $o> for &$b
-        where $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn rem_rhs(self, lhs: $a) -> $o {
-                lhs % $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-        impl $crate::traits::RemRhs<&$a, $o> for $b
-        where $a: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn rem_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs) % self
-            }
-        }
-        impl $crate::traits::RemRhs<&$a, $o> for &$b
-        where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn rem_rhs(self, lhs: &$a) -> $o {
-                $crate::traits::RefOperand::reassoc_dup(lhs)
-                    % $crate::traits::RefOperand::reassoc_dup(self)
-            }
-        }
-    };
-    (no_refs rem: $a:ty, $b:ty => $o:ty) => {
-        // Declares the output when it is not the left operand — a dot
-        // product, say. Emits nothing in the ordinary case, where the blanket
-        // impl already covers it. `macro_rules!` cannot tell the two apart, so
-        // the comparison happens in the proc macro. The `refs` form above adds
-        // the `&$b` combinations it dispatches.
-        $crate::declare_output!($crate, RemOut, no_refs, $a, $b, $o);
-
-        impl $crate::traits::RemRhs<$a, $o> for $b {
-            #[inline(always)]
-            fn rem_rhs(self, lhs: $a) -> $o { lhs % self }
         }
     };
 }
@@ -287,22 +127,14 @@ macro_rules! passthrough {
 /// Marks an expression as strictly IEEE, using ordinary operators instead of
 /// algebraic dispatch.
 ///
-/// This is an ordinary identity macro — it expands to its argument
-/// unchanged. It works as an escape hatch inside `alg!`/`#[algebraic]` only
-/// because those rewriters never descend into *any* macro invocation's
-/// token stream (they cannot tell arithmetic from an opaque macro body
-/// without expanding it, and a false positive there would be worse than a
-/// false negative). `strict!(..)` is not special-cased or matched by name;
-/// it just happens to be a macro, so its contents are left with native
-/// operator semantics like any other macro's would be.
+/// An identity macro. It works as an escape hatch inside `alg!` and
+/// `#[algebraic]` only because the rewriter never descends into any macro's
+/// token stream — `strict!` is not matched by name. Like any macro it must be
+/// in scope: `use reassoc::strict;` or `reassoc::strict!(..)`.
 ///
 /// This exists to protect algorithms that depend on exact rounding — most
 /// importantly compensated summation, where `(t - sum) - y` is algebraically
 /// zero and reassociation would delete it.
-///
-/// Being an ordinary macro, it must be in scope like any other: import it
-/// (`use reassoc::strict;`) or invoke it by a path that resolves
-/// (`reassoc::strict!(..)`).
 #[macro_export]
 macro_rules! strict {
     ($e:expr) => {

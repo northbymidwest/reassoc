@@ -1,21 +1,17 @@
 //! Dispatch traits for algebraic arithmetic operators.
 //!
-//! Each trait's output is a type parameter `O` rather than an associated
-//! type. This is load-bearing: it lets inference flow backwards from a
-//! call site's expected return type into an unannotated float literal
-//! operand (e.g. `let s = 0.0;` in a function returning `f32`). An
-//! associated type would break that inference.
+//! Outputs are type parameters, never associated types: that is what lets an
+//! expected return type flow back into an unannotated float literal
+//! (`let s = 0.0;` in a function returning `f32`). The shape of each trait is
+//! load-bearing for diagnostics; see `CLAUDE.md`.
 
 macro_rules! declare_op_trait {
     ($rhs_trait:ident, $out_trait:ident, $rhs_method:ident, $msg:literal,
      $undeclared:literal) => {
         /// The right-hand operand of one operator, for a given left type.
-        ///
-        /// This is where opting in happens, and it is keyed on the *left* type
-        /// rather than on the right one. That is what lets a type carry
-        /// same-type and heterogeneous operators at once: `passthrough!(Vec3)`
-        /// and `passthrough!(mul: Vec3, f32 => Vec3)` add two impls of this
-        /// trait, where two impls of a right-keyed trait would overlap.
+        /// Opting in means implementing this; keying it on the left type is
+        /// what lets `passthrough!(Vec3)` and `passthrough!(mul: Vec3, f32 =>
+        /// Vec3)` coexist.
         #[diagnostic::on_unimplemented(
             message = $msg,
             label = $msg,
@@ -32,23 +28,13 @@ macro_rules! declare_op_trait {
             fn $rhs_method(self, lhs: Lhs) -> O;
         }
 
-        /// What this operator produces for a given left type and right
-        /// operand.
-        ///
-        /// It exists so `O` resolves when the operand bound fails, which keeps
-        /// the return-type `E0308` — and rustc's own `.into()` suggestion —
-        /// alive. The blanket impls below say "an operator yields the type it
-        /// was applied to, whatever is on the right", which is true of every
-        /// same-type operator and of most heterogeneous ones — `Duration *
-        /// u32` is still a `Duration`. Because `B` is free in the blanket, `O`
-        /// is known from the left operand alone, before the right one is even
-        /// looked at.
-        ///
-        /// Only a pair whose output differs from its *left* operand needs an
-        /// impl of its own, and `passthrough!` emits it. Naming `B` here is
-        /// what lets two such pairs coexist on one left type: `Q * Q => f64`
-        /// and `Q * R => f64` are distinct impls, where a trait keyed on the
-        /// left type alone made them the same impl twice.
+        /// What this operator yields for a left type and right operand. The
+        /// blanket impls say "the left type, whatever is on the right"; `B` is
+        /// free there so `O` resolves from the left operand alone, which keeps
+        /// the return-type `E0308` alive when the operand bound fails. Only a
+        /// pair whose output differs from its left operand needs an impl, and
+        /// `passthrough!` emits it; naming `B` lets `Q * Q => f64` and
+        /// `Q * R => f64` be distinct impls.
         #[diagnostic::on_unimplemented(
             message = $undeclared,
             label = "output not declared as `{O}`",
@@ -102,14 +88,11 @@ declare_op_trait!(
     "`%` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(rem out {Self}, {B} => {O});`"
 );
 
-/// Marks a type whose reference operands can be dispatched.
-///
-/// `passthrough!`'s reference impls dereference their operands, so they need
-/// `Copy`. This trait exists purely so that requirement produces a message
-/// naming the way out, rather than a bare `cannot move out of a shared
-/// reference` pointing into a macro expansion. It carries `dup` rather than a
-/// `Copy` supertrait deliberately: with a supertrait, rustc blames `Copy` and
-/// the message below is never shown.
+/// `Copy`, under a name that carries its own message. `passthrough!`'s
+/// reference impls dereference their operands; bounding them on `Copy`
+/// directly gives a bare "cannot move out of a shared reference" inside a
+/// macro expansion, and a `Copy` supertrait makes rustc blame `Copy` instead
+/// of showing the note below.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` must be `Copy` to get `passthrough!`'s reference impls",
     label = "this type is not `Copy`",

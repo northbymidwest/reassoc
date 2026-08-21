@@ -102,20 +102,20 @@ error[E0277]: cannot add `u32` to `u8`
 help: the following other types implement trait `AddRhs<Lhs, O>`
   --> src/macros.rs
    |
-   | /         impl $crate::traits::AddRhs<$a, $o> for &$b
+   |           impl $crate::traits::$rhs<$a, $o> for $b {
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
+...
+   | /         impl $crate::traits::$rhs<$a, $o> for &$b
    | |         where $b: $crate::traits::RefOperand {
    | |____________________________________________^ `&u32` implements `AddRhs<u32, u32>`
 ...
-   | /         impl $crate::traits::AddRhs<&$a, $o> for $b
+   | /         impl $crate::traits::$rhs<&$a, $o> for $b
    | |         where $a: $crate::traits::RefOperand {
    | |____________________________________________^ `u32` implements `AddRhs<&u32, u32>`
 ...
-   | /         impl $crate::traits::AddRhs<&$a, $o> for &$b
+   | /         impl $crate::traits::$rhs<&$a, $o> for &$b
    | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
    | |____________________________________________________________________________^ `&u32` implements `AddRhs<&u32, u32>`
-...
-   |           impl $crate::traits::AddRhs<$a, $o> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
    |
   ::: src/impls/int.rs
    |
@@ -158,20 +158,20 @@ error[E0277]: cannot add `u32` to `i32`
 help: the following other types implement trait `AddRhs<Lhs, O>`
   --> src/macros.rs
    |
-   | /         impl $crate::traits::AddRhs<$a, $o> for &$b
+   |           impl $crate::traits::$rhs<$a, $o> for $b {
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
+...
+   | /         impl $crate::traits::$rhs<$a, $o> for &$b
    | |         where $b: $crate::traits::RefOperand {
    | |____________________________________________^ `&u32` implements `AddRhs<u32, u32>`
 ...
-   | /         impl $crate::traits::AddRhs<&$a, $o> for $b
+   | /         impl $crate::traits::$rhs<&$a, $o> for $b
    | |         where $a: $crate::traits::RefOperand {
    | |____________________________________________^ `u32` implements `AddRhs<&u32, u32>`
 ...
-   | /         impl $crate::traits::AddRhs<&$a, $o> for &$b
+   | /         impl $crate::traits::$rhs<&$a, $o> for &$b
    | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
    | |____________________________________________________________________________^ `&u32` implements `AddRhs<&u32, u32>`
-...
-   |           impl $crate::traits::AddRhs<$a, $o> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
    |
   ::: src/impls/int.rs
    |
@@ -251,34 +251,34 @@ error[E0277]: cannot add `Wrapping<u32>` to `Wrapping<u8>`
 help: the following other types implement trait `AddRhs<Lhs, O>`
   --> src/impls/ext.rs
    |
-   | /         impl<T> $rhs_trait<$w<T>, $w<T>> for $w<T>
+   | /         impl<T> $rhs<$w<T>, $w<T>> for $w<T>
    | |         where
    | |             $w<T>: $bound<Output = $w<T>>,
    | |__________________________________________^ `Wrapping<T>` implements `AddRhs<Wrapping<T>, Wrapping<T>>`
 ...
-   | /         impl<T> $rhs_trait<$w<T>, $w<T>> for &$w<T>
+   | /         impl<T> $rhs<$w<T>, $w<T>> for &$w<T>
    | |         where
    | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
    | |_______________________________________________________^ `&Wrapping<T>` implements `AddRhs<Wrapping<T>, Wrapping<T>>`
 ...
-   | /         impl<T> $rhs_trait<&$w<T>, $w<T>> for $w<T>
+   | /         impl<T> $rhs<&$w<T>, $w<T>> for $w<T>
    | |         where
    | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
    | |_______________________________________________________^ `Wrapping<T>` implements `AddRhs<&Wrapping<T>, Wrapping<T>>`
 ...
-   | /         impl<T> $rhs_trait<&$w<T>, $w<T>> for &$w<T>
+   | /         impl<T> $rhs<&$w<T>, $w<T>> for &$w<T>
    | |         where
    | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
    | |_______________________________________________________^ `&Wrapping<T>` implements `AddRhs<&Wrapping<T>, Wrapping<T>>`
 ...
-   |   plain_wrapper!(Wrapping);
-   |   ------------------------ in this macro invocation
+   |   plain_wrapper!(Wrapping: AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *; DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
+   |   ----------------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
    | pub fn add<A: AddOut<B, O>, B: AddRhs<A, O>, O>(a: A, b: B) -> O {
    |                                ^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `plain_wrapper_op` which comes from the expansion of the macro `plain_wrapper` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `plain_wrapper` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0308]: mismatched types
   --> tests/ui/mismatched_operands.rs:43:5
@@ -308,20 +308,20 @@ error[E0277]: cannot multiply `Duration` by `u64`
 help: the following other types implement trait `MulRhs<Lhs, O>`
   --> src/macros.rs
    |
-   | /         impl $crate::traits::MulRhs<$a, $o> for &$b
+   |           impl $crate::traits::$rhs<$a, $o> for $b {
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u64` implements `MulRhs<u64, u64>`
+...
+   | /         impl $crate::traits::$rhs<$a, $o> for &$b
    | |         where $b: $crate::traits::RefOperand {
    | |____________________________________________^ `&u64` implements `MulRhs<u64, u64>`
 ...
-   | /         impl $crate::traits::MulRhs<&$a, $o> for $b
+   | /         impl $crate::traits::$rhs<&$a, $o> for $b
    | |         where $a: $crate::traits::RefOperand {
    | |____________________________________________^ `u64` implements `MulRhs<&u64, u64>`
 ...
-   | /         impl $crate::traits::MulRhs<&$a, $o> for &$b
+   | /         impl $crate::traits::$rhs<&$a, $o> for &$b
    | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
    | |____________________________________________________________________________^ `&u64` implements `MulRhs<&u64, u64>`
-...
-   |           impl $crate::traits::MulRhs<$a, $o> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u64` implements `MulRhs<u64, u64>`
    |
   ::: src/impls/int.rs
    |

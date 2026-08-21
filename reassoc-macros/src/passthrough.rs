@@ -182,27 +182,16 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
 }
 
 /// `declare_output!($crate, MulOut, refs|no_refs, A, B, O)` — state that
-/// `A`'s operator with a `B` on the right yields `O`, but only when `O` is
-/// not `A` itself.
-///
-/// `passthrough!` cannot make this call: `macro_rules!` cannot compare two
-/// `$ty` fragments, and emitting the impl unconditionally would collide with
-/// the blanket `impl<A, B> MulOut<B, A> for A` every time the output *is* the
-/// left operand — which is nearly always. So the decision moves here, where
-/// the two types can be compared as written.
-///
-/// `no_refs` emits the value pair. `refs` emits only the `&B` combinations,
-/// because the reference-emitting form of `passthrough!` expands the
-/// `no_refs` form first and that call has already emitted the value pair.
-///
-/// Comparison is syntactic, which is exact for every spelling that reaches this
-/// macro except an alias: `passthrough!(mul: Vec3, Vec3 => V3)` where
-/// `type V3 = Vec3` reads as a differing output and emits an impl that collides
-/// with the blanket. The error names the `passthrough!` line, and spelling the
-/// output the same way as the left operand resolves it.
-///
-/// The crate path arrives as an argument because a proc macro cannot write
-/// `$crate`, and `passthrough!` is invoked from inside `reassoc` itself.
+/// `A`'s operator with `B` on the right yields `O`, but only when `O` is not
+/// `A` as written: the blanket "yields the left type" impl already covers that
+/// case and a specific impl would collide with it. `macro_rules!` cannot
+/// compare two `$ty` fragments, hence a proc macro. `no_refs` emits the value
+/// pair; `refs` emits only the `&B` combinations, since the reference form of
+/// `passthrough!` has already expanded `no_refs`. The crate path is an
+/// argument because a proc macro cannot write `$crate` and `passthrough!` is
+/// invoked from inside `reassoc` itself. The comparison is syntactic, so an
+/// alias of the left type (`=> V3` for `type V3 = Vec3`) reads as different
+/// and collides — the error lands on the `passthrough!` line.
 pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
     struct Args {
         krate: syn::Path,

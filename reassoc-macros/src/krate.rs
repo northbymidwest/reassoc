@@ -35,13 +35,10 @@ pub fn path() -> TokenStream {
     quote!(::reassoc)
 }
 
-/// The same path, with every token moved to `span`.
-///
-/// `quote_spanned!` only spans the literal tokens it writes; an interpolated
-/// stream keeps the spans it already had. Leaving the crate path at
-/// `Span::call_site()` makes rustc anchor "required by a bound introduced by
-/// this call" to the macro invocation — the `#[algebraic]` attribute, lines
-/// away — instead of to the operator the user wrote.
+/// The same path with every token moved to `span`. `quote_spanned!` does not
+/// respan interpolated tokens, and a crate path left at the call site makes
+/// rustc anchor "required by a bound introduced by this call" on the
+/// `#[algebraic]` attribute instead of the operator.
 pub fn path_spanned(span: Span) -> TokenStream {
     fn respan(tokens: TokenStream, span: Span) -> TokenStream {
         tokens

@@ -57,12 +57,8 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut func = match syn::parse::<syn::ItemFn>(item.clone()) {
         Ok(func) => func,
         Err(err) => {
-            // Parsing as `ItemFn` fails for two very different reasons: the
-            // item genuinely isn't a function (e.g. `#[algebraic] impl
-            // Foo { .. }`), or it is a function with a real syntax error in
-            // it. Only the first case gets an authored message; for the
-            // second, syn's own error already points at the actual
-            // problem, and overriding it would make that diagnosis worse.
+            // Not a function at all gets an authored message; a function
+            // with a syntax error keeps syn's, which points at the problem.
             return match syn::parse::<syn::Item>(item) {
                 Ok(syn::Item::Fn(_)) | Err(_) => err,
                 Ok(_) => syn::Error::new(
@@ -75,11 +71,8 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // The dispatch functions `#[algebraic]` generates calls into
-    // (`reassoc::ops::*`) are not `const fn`, so rewriting a `const fn`'s
-    // body would fail with E0015 blamed on the attribute rather than on
-    // anything the user wrote. Reject it up front with a message that
-    // actually explains why.
+    // `ops::*` are not `const fn`; rejecting up front beats an E0015 blamed
+    // on the attribute.
     if let Some(const_token) = func.sig.constness {
         return syn::Error::new_spanned(
             const_token,
@@ -90,9 +83,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into();
     }
 
-    // `#[algebraic(skip)]` on a nested item is consumed by the enclosing
-    // rewriter. Reaching here means it was used at the top level, where it
-    // simply means "do nothing".
+    // `skip` at the top level simply means "do nothing".
     if !scope.skip {
         rewrite::Rewriter::from_scope(scope).visit_item_fn_mut(&mut func);
     }
