@@ -180,7 +180,7 @@ why `strict!` works); user types need a one-line opt-in; const positions and
 generic functions are out; compound assignment on a non-`Copy` value behind a
 reference or index does not work; debug builds carry some call overhead.
 
-**[docs/limitations.md](docs/limitations.md)** has each of these in full, with
+**[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with
 the reason behind it.
 
 ## Diagnostics
@@ -194,7 +194,7 @@ Two things differ. The operand error is `E0277` where plain Rust reports
 therefore arrive in a different order. Both follow from one constraint, and
 neither is an oversight.
 
-**[docs/diagnostics.md](docs/diagnostics.md)** has the worked example, the
+**[docs/diagnostics.md](https://github.com/northbymidwest/reassoc/blob/main/docs/diagnostics.md)** has the worked example, the
 reasoning, and a case-by-case comparison against plain Rust.
 
 ## `no_std`

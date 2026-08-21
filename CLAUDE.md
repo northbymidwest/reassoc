@@ -100,3 +100,8 @@ directions across every construct the rewriter emits.
 Two packages, in order: `reassoc-macros` first, then `reassoc` — the facade pins
 `reassoc-macros = "=<version>"`. Bump both together, tag at the published
 commit. See `RELEASING.md`. Dependency floors are the minimum actually required.
+
+README links into `docs/` must be absolute GitHub URLs: crates.io resolves a
+README's relative links against the package directory, and the README lives one
+level above it, so `docs/x.md` renders as `reassoc/docs/x.md` and 404s.
+`LICENSE` stays relative — the package carries its own copy at that path.
