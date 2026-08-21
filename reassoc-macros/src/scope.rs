@@ -13,7 +13,11 @@ impl Default for Scope {
         // Closure bodies are usually where the hot kernel lives, so they are
         // in by default. A nested `fn` reads like a standalone item, so it
         // must opt in.
-        Scope { closures: true, items: false, skip: false }
+        Scope {
+            closures: true,
+            items: false,
+            skip: false,
+        }
     }
 }
 

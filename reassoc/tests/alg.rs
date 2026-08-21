@@ -27,7 +27,9 @@ fn leaves_integer_arithmetic_working() {
 
 #[test]
 fn rewrites_inside_calls_and_indices() {
-    fn twice(x: f32) -> f32 { x * 2.0 }
+    fn twice(x: f32) -> f32 {
+        x * 2.0
+    }
     let (a, b) = (2.0f32, 3.0f32);
     assert_eq!(alg!(twice(a * b)), 12.0);
 }
@@ -66,7 +68,11 @@ fn compound_assignment_evaluates_the_place_expression_once() {
     };
     alg!(v[index()] += 10.0);
     assert_eq!(v[1], 12.0);
-    assert_eq!(calls.get(), 1, "place expression must be evaluated exactly once");
+    assert_eq!(
+        calls.get(),
+        1,
+        "place expression must be evaluated exactly once"
+    );
 }
 
 /// A type that implements the dispatch traits but NOT `std::ops`.

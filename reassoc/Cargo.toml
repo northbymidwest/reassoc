@@ -1,10 +1,15 @@
 [package]
 name = "reassoc"
 description = "Ordinary arithmetic syntax for Rust's algebraic float operators"
+readme = "../README.md"
+license-file = "../LICENSE"
+keywords = ["float", "simd", "fma", "numerics", "macro"]
+categories = ["mathematics", "no-std"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+# `license-file` above ships the LICENSE text in the archive; cargo warns if
+# `license` is also set (only one is needed), so we don't inherit it here.
 repository.workspace = true
 
 [features]

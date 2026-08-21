@@ -9,19 +9,39 @@
 macro_rules! declare_op_trait {
     ($trait_name:ident, $method:ident, $msg:literal) => {
         #[diagnostic::on_unimplemented(
-            message = $msg,
-            label = "no `reassoc` impl for `{Self}`",
-            note = "wrap this expression in `strict!(..)` to use ordinary operators,",
-            note = "or opt the type in once with `reassoc::passthrough!({Self});`"
-        )]
+                    message = $msg,
+                    label = "no `reassoc` impl for `{Self}`",
+                    note = "wrap this expression in `strict!(..)` to use ordinary operators,",
+                    note = "or opt the type in once with `reassoc::passthrough!({Self});`"
+                )]
         pub trait $trait_name<B, O> {
             fn $method(self, rhs: B) -> O;
         }
     };
 }
 
-declare_op_trait!(AlgAdd, alg_add, "`{Self}` can't be used with `+` inside an `#[algebraic]` scope");
-declare_op_trait!(AlgSub, alg_sub, "`{Self}` can't be used with `-` inside an `#[algebraic]` scope");
-declare_op_trait!(AlgMul, alg_mul, "`{Self}` can't be used with `*` inside an `#[algebraic]` scope");
-declare_op_trait!(AlgDiv, alg_div, "`{Self}` can't be used with `/` inside an `#[algebraic]` scope");
-declare_op_trait!(AlgRem, alg_rem, "`{Self}` can't be used with `%` inside an `#[algebraic]` scope");
+declare_op_trait!(
+    AlgAdd,
+    alg_add,
+    "`{Self}` can't be used with `+` inside an `#[algebraic]` scope"
+);
+declare_op_trait!(
+    AlgSub,
+    alg_sub,
+    "`{Self}` can't be used with `-` inside an `#[algebraic]` scope"
+);
+declare_op_trait!(
+    AlgMul,
+    alg_mul,
+    "`{Self}` can't be used with `*` inside an `#[algebraic]` scope"
+);
+declare_op_trait!(
+    AlgDiv,
+    alg_div,
+    "`{Self}` can't be used with `/` inside an `#[algebraic]` scope"
+);
+declare_op_trait!(
+    AlgRem,
+    alg_rem,
+    "`{Self}` can't be used with `%` inside an `#[algebraic]` scope"
+);

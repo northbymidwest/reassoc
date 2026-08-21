@@ -1,9 +1,12 @@
 [package]
 name = "reassoc-macros"
+description = "Proc macros for the reassoc crate. Do not depend on this directly; use reassoc."
+license-file = "../LICENSE"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+# `license-file` above ships the LICENSE text in the archive; cargo warns if
+# `license` is also set (only one is needed), so we don't inherit it here.
 repository.workspace = true
 
 [lib]

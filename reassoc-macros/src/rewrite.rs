@@ -14,13 +14,19 @@ pub struct Rewriter {
 impl Rewriter {
     /// Scope used by `alg!`, which only ever sees a single expression.
     pub fn expression_scope() -> Self {
-        Rewriter { closures: true, items: true }
+        Rewriter {
+            closures: true,
+            items: true,
+        }
     }
 
     /// Scope used by `#[algebraic]`, configured by its `closures`/`items`
     /// parameters.
     pub fn from_scope(scope: crate::scope::Scope) -> Self {
-        Rewriter { closures: scope.closures, items: scope.items }
+        Rewriter {
+            closures: scope.closures,
+            items: scope.items,
+        }
     }
 }
 
@@ -178,7 +184,10 @@ impl VisitMut for Rewriter {
 fn has_skip_attribute(item: &syn::Item) -> bool {
     item_attrs(item).is_some_and(|attrs| {
         attrs.iter().any(|attr| {
-            attr.path().segments.last().is_some_and(|s| s.ident == "algebraic")
+            attr.path()
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "algebraic")
                 && attr
                     .parse_args::<syn::Ident>()
                     .map(|ident| ident == "skip")
@@ -192,7 +201,11 @@ fn has_skip_attribute(item: &syn::Item) -> bool {
 fn strip_skip_attribute(item: &mut syn::Item) {
     if let Some(attrs) = item_attrs_mut(item) {
         attrs.retain(|attr| {
-            !(attr.path().segments.last().is_some_and(|s| s.ident == "algebraic")
+            !(attr
+                .path()
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "algebraic")
                 && attr
                     .parse_args::<syn::Ident>()
                     .map(|ident| ident == "skip")

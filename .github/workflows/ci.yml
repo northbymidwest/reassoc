@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+      - run: cargo test -p reassoc --no-default-features
+      - run: cargo test -p reassoc --no-default-features --features alloc
+      # The guard that catches silent dispatch to plain operators.
+      - run: cargo test -p reassoc --test codegen -- --ignored
+
+  no_std:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi
+      - run: cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - run: cargo build --workspace
+
+  # Compiler-diagnostic tests are pinned: rustc renders the expected .stderr,
+  # so a newer toolchain fails them for reasons unrelated to this crate.
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - run: cargo test -p reassoc --test ui -- --ignored
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Catches publish blockers (missing description, unshipped LICENSE)
+      # before release rather than at `cargo publish` time.
+      - run: cargo package -p reassoc-macros
+      # --exclude-lockfile: reassoc pins reassoc-macros by exact version, which
+      # doesn't exist on crates.io until first publish, so a full `cargo
+      # package` (which resolves a Cargo.lock against the registry) fails here
+      # pre-release. Excluding the lockfile skips that resolution while still
+      # assembling and checking the real archive contents.
+      - run: cargo package -p reassoc --no-verify --exclude-lockfile
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
