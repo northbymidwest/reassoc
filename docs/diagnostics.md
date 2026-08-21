@@ -2,7 +2,9 @@
 
 A type error inside `alg!` or `#[algebraic]` should read like a type error
 outside it. This is where that claim is checked: what matches, what does not,
-and why.
+and why. What the rewrite does not do at all is in
+[limitations.md](limitations.md); the reasoning behind the trait shapes is in
+[design.md](design.md).
 
 ## What matches
 
@@ -111,7 +113,7 @@ Every message above is real `rustc` output. To regenerate the comparison, write
 one file with the mismatches spelled plainly and a second with the same
 expressions inside `alg!`, then build each and read the errors side by side. The
 cases pinned as tests live in [`reassoc/tests/ui/mismatched_operands.rs`](../reassoc/tests/ui/mismatched_operands.rs)
-and [`reassoc/tests/ui/undeclared_output.rs`](../reassoc/tests/ui/undeclared_output.rs);
+and [`reassoc/tests/ui/const_binding_overflow.rs`](../reassoc/tests/ui/const_binding_overflow.rs);
 their `.stderr` files are the current expected output, regenerated with:
 
 ```bash

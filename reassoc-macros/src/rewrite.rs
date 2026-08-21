@@ -1,8 +1,7 @@
 //! The rewriter shared by `alg!` and `#[algebraic]`.
 //!
 //! Every special case below is a measured decision; the history and the
-//! alternatives that were tried live in `CLAUDE.md` under "Invariants that
-//! look like cleanup opportunities but are not".
+//! alternatives that were tried live in `docs/design.md`.
 
 use proc_macro2::Span;
 use quote::quote_spanned;
