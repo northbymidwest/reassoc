@@ -181,10 +181,12 @@ will delete it.
   type to find an `Alg*` impl for. The diagnostic suggests
   `reassoc::passthrough!(T)`, which does not apply — `passthrough!` opts in a
   concrete type, not a type parameter.
-- A renamed dependency breaks the macros. Generated code expands to the
-  absolute path `::reassoc::ops::*`, so `myalg = { package = "reassoc" }`
-  fails with `E0433: cannot find `reassoc` in the crate root`. Depend on it
-  under its real name.
+- A renamed dependency needs a feature. Generated code expands to an absolute
+  path, and a proc macro cannot see the path it was invoked through, so
+  `myalg = { package = "reassoc" }` fails with `E0433` by default. Enable
+  `resolve-crate-name` to make it work — it reads your manifest to find the
+  new name. Off by default because it pulls in a TOML parser (eight crates),
+  which is a poor trade for everyone when renaming is rare.
 
 ## `no_std`
 
