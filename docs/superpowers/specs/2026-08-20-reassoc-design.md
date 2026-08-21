@@ -36,9 +36,9 @@ method-call form is unreadable for anything larger than a single expression.
 
 - Unary negation. There is no `algebraic_neg` in 1.98 (verified); `-x` is left
   untouched.
-- Rewriting inside macro invocations other than `strict!`. The proc macro runs
-  before macro expansion and cannot see through `assert_eq!`/`println!` bodies.
-  Documented limitation.
+- Rewriting inside **any** macro invocation. The proc macro runs before macro
+  expansion and cannot see through a macro's token stream at all. This is why
+  `strict!` works without being special-cased. Documented limitation.
 - `#[algebraic]` on `impl` blocks and `mod`s. Deferred until there is demand.
 - Nightly specialization. Everything here works on stable.
 
@@ -67,10 +67,10 @@ a * b   ->   ::reassoc::ops::mul(a, b)
 The output is a **type parameter**, not an associated type:
 
 ```rust
-pub trait AlgMul<B, O> { fn a_mul(self, b: B) -> O; }
+pub trait AlgMul<B, O> { fn alg_mul(self, rhs: B) -> O; }
 
 #[inline(always)]
-pub fn mul<A: AlgMul<B, O>, B, O>(a: A, b: B) -> O { a.a_mul(b) }
+pub fn mul<A: AlgMul<B, O>, B, O>(a: A, b: B) -> O { a.alg_mul(b) }
 ```
 
 This is not a stylistic choice. Two alternatives were built and rejected
@@ -119,7 +119,7 @@ a language limitation. The cost is one line per type, once:
 
 ```rust
 reassoc::passthrough!(Vec3);
-reassoc::passthrough!(mul: Duration, u32 => Duration);
+reassoc::passthrough!(mul: MyScalar, u32 => MyScalar);
 ```
 
 The compiler points the user straight at it via
@@ -165,8 +165,15 @@ standalone item and should opt in explicitly.
 Unknown parameters are a compile error, not silently ignored.
 
 ### `strict!(expr)`
-Marks a subtree as strictly IEEE. The rewriter emits its contents verbatim and
-does not descend. Defined as an identity macro so it also compiles outside an
+Marks a subtree as strictly IEEE. It is an ordinary identity macro — the
+rewriter does not recognize it by name or special-case it in any way. Its
+contents keep ordinary operator semantics purely because the rewriter never
+descends into a macro invocation.
+
+Consequently `strict!` must be in scope like any macro, either imported or
+path-qualified. An earlier design consumed it during rewriting, which made the
+natural `use reassoc::{algebraic, strict};` spelling emit an unused-import
+warning — a hard error under `#![deny(warnings)]`. Defined as an identity macro so it also compiles outside an
 annotated scope.
 
 Its purpose is *not* type coverage — it protects code that depends on exact
@@ -181,7 +188,7 @@ Opts a type into the dispatch layer using its existing `std::ops` impls.
 
 ```rust
 passthrough!(Vec3);                          // all five ops, same-type
-passthrough!(mul: Duration, u32 => Duration); // one op, heterogeneous
+passthrough!(mul: MyScalar, u32 => MyScalar); // one op, heterogeneous
 ```
 
 The same-type form generates all five impls. The heterogeneous form names a
@@ -192,18 +199,31 @@ single operator, because heterogeneous types rarely implement all five —
 
 - Binary `+ - * / %` become `::reassoc::ops::{add,sub,mul,div,rem}` calls,
   always via the absolute path so the macros work regardless of what is in scope.
-- Compound assignment `+= -= *= /= %=` becomes a read-modify-write. Place
-  expressions are bound once through a temporary to preserve evaluation
-  semantics:
+- Compound assignment `+= -= *= /= %=` becomes a read-modify-write. **The
+  right-hand side is bound first**, then the place, matching Rust's own
+  RHS-then-place evaluation order for primitive `+=`:
   ```rust
-  v[f()] += x;
+  v[f()] += g();
   // ->
-  { let __p = &mut v[f()]; *__p = ::reassoc::ops::add(*__p, x); }
+  {
+      let __rhs = g();
+      let __p = &mut v[f()];
+      *__p = ::reassoc::ops::add(*__p, __rhs);
+  }
   ```
-  Without this, `f()` would be evaluated twice.
+  Binding the place once prevents `f()` from being evaluated twice. Binding the
+  RHS *first* is equally load-bearing: taking `&mut` on the place before
+  evaluating the RHS makes any RHS that reads the place fail to borrow-check,
+  rejecting valid code such as `s += s * k` (an EMA accumulator) and
+  `a[0] += a[1]` (an FFT butterfly).
+- Const positions are never rewritten: the `len` of an array-repeat
+  expression, and `const`/`static` items. `::reassoc::ops::*` are not
+  `const fn`, so rewriting there would fail with `E0015` blamed on the
+  attribute. `#[algebraic]` on a `const fn` is rejected with an authored
+  error.
 - Unary `-` untouched (no `algebraic_neg`).
-- `strict!(..)` contents emitted verbatim, no descent.
-- Other macro invocations not descended into.
+- No macro invocation is descended into, `strict!` included. Nothing is
+  matched by name.
 - Spans are preserved so type errors point at the original operator.
 
 ## Testing strategy
