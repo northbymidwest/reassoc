@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+  --> tests/ui/const_binding_overflow.rs:11:5
+   |
+11 |     x + 1
+   |     ^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
+   |
+   = note: `#[deny(arithmetic_overflow)]` on by default

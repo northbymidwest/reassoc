@@ -194,11 +194,12 @@ will delete it.
   — which rules it out, since references are ubiquitous in iterator-based
   numeric code. If `min_specialization` ever stabilizes, the opt-in can go with
   no such tradeoff.
-- Integer arithmetic on compile-time-known values that are not literals — say
-  `let x: u8 = 255; x + 1` — is not seen by rustc's `arithmetic_overflow` lint
-  once rewritten, so it wraps or panics at runtime instead of being rejected.
-  Literal operands are left unrewritten precisely so the lint still fires;
-  covering the const-propagated case too would mean not rewriting integer
+- Integer arithmetic whose operands are *both* compile-time-known non-literals
+  — `let x: u8 = 255; let y: u8 = 1; x + y` — is not seen by rustc's
+  `arithmetic_overflow` lint once rewritten, so it wraps or panics at runtime
+  instead of being rejected. An operation with a literal on either side is left
+  native (it cannot be float arithmetic), so `x + 1` and `255u8 + 1` are still
+  rejected; covering the all-variable case would mean not rewriting integer
   arithmetic at all.
 - Const positions are left alone, so arithmetic there keeps ordinary operator
   semantics: `const`/`static` initialisers, inline `const { .. }` blocks, array

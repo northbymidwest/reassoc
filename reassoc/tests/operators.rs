@@ -144,7 +144,11 @@ fn compound_places(v: &mut [f64], mut s: Tally) -> (u32, f64, f64, Tally) {
         TICKS
     };
     // A non-`Copy` local: moved out and reassigned, never read through `&mut`.
-    s += 1;
+    // A variable on the right, not a literal — a literal operand proves the
+    // operation is not float arithmetic and is left native, where this type
+    // has no `AddAssign`.
+    let one = 1u32;
+    s += one;
     // Index places still go through `&mut` (IndexMut), and can read themselves.
     v[0] += v[1];
     v[1] += v[1];

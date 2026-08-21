@@ -277,18 +277,26 @@ impl VisitMut for Rewriter {
             let span = binary.op.span();
             let krate = crate::krate::path_spanned(span);
 
-            if is_non_float_constant(&binary.left) && is_non_float_constant(&binary.right) {
-                // Every literal EXCEPT a float one — a denylist, not an
-                // allowlist, and deliberately so.
+            if is_non_float_constant(&binary.left) || is_non_float_constant(&binary.right) {
+                // A non-float literal on EITHER side proves the operation is
+                // not float arithmetic — Rust never converts an integer to a
+                // float implicitly, so `x + 1` with `x: f64` does not compile
+                // natively and would not compile dispatched either. Leaving it
+                // native therefore costs nothing, and buys two things.
                 //
-                // `arithmetic_overflow` and `unconditional_panic` are
-                // deny-by-default and fire on compile-time-evaluable INTEGER
-                // arithmetic. Rewriting to a call hides the constants, so
-                // `255u8 + 1` would compile and wrap to 0 instead of being
-                // rejected. Integers dispatch to plain operators anyway, so
-                // skipping them forfeits nothing.
+                // First, rustc's deny-by-default `arithmetic_overflow` and
+                // `unconditional_panic` lints keep seeing it. They fire on
+                // compile-time-evaluable integer arithmetic; a call hides the
+                // constants, so `255u8 + 1` — or `let x: u8 = 255; x + 1` —
+                // would compile and wrap to 0 instead of being rejected. Either
+                // side being a literal keeps the whole operation in view.
                 //
-                // Floats are a different matter. Neither lint applies to them
+                // Second, the bulk of integer arithmetic in real code — index
+                // offsets, counters, lengths — never enters dispatch at all and
+                // keeps its exact native meaning, `+=` through `AddAssign`
+                // included.
+                //
+                // Floats are the opposite case. Neither lint applies to them
                 // (`1.0/0.0` is inf, not a panic), and the algebraic operators
                 // are meaningfully non-deterministic even on constants — that
                 // freedom is the whole point of them, and the reference
@@ -300,8 +308,8 @@ impl VisitMut for Rewriter {
                 // exactly like integers (`b'\xff' + b'\x01'`), and an
                 // allowlist silently missed them. Any literal kind added later
                 // is likewise excluded by default, which fails safe — the worst
-                // case is forfeiting dispatch on a constant expression, rather
-                // than hiding a deny-by-default lint.
+                // case is forfeiting dispatch on an expression that cannot be
+                // float arithmetic, rather than hiding a deny-by-default lint.
                 return;
             }
 
@@ -399,7 +407,8 @@ impl VisitMut for Rewriter {
 /// True when the whole subtree is a compile-time constant that is not float
 /// arithmetic, ignoring parentheses and a leading minus.
 ///
-/// Such an operation is left unrewritten so it stays visible to rustc's
+/// An operation with such an operand on either side is left unrewritten: it
+/// cannot be float arithmetic, and staying native keeps it visible to rustc's
 /// deny-by-default `arithmetic_overflow` and `unconditional_panic` lints,
 /// which only fire on arithmetic the compiler can evaluate. Float literals are
 /// deliberately still rewritten: neither lint applies to them, and the

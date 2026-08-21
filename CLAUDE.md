@@ -234,11 +234,17 @@ the one rustc prints first.
 **Generated code uses absolute paths** (`::reassoc::ops::add`) and never emits
 parentheses around operands.
 
-**Integer-literal arithmetic is left unrewritten — integer specifically.**
-`255u8 + 1` must stay visible to rustc's deny-by-default `arithmetic_overflow`
-and `unconditional_panic` lints; rewriting to a call hides the constants and
-turns a compile error into a silent wrap. Integers dispatch to plain operators
-anyway, so nothing is lost.
+**An operation with a non-float literal on either side is left unrewritten.**
+Rust never converts an integer to a float implicitly, so `x + 1` cannot be
+float arithmetic — with `x: f64` it fails natively and dispatched alike — and
+leaving it native costs nothing. It keeps `255u8 + 1` and `let x: u8 = 255;
+x + 1` visible to rustc's deny-by-default `arithmetic_overflow` and
+`unconditional_panic` lints, where a call would hide the constants and turn a
+compile error into a silent wrap; and it keeps the bulk of real integer
+arithmetic — indices, counters, lengths — out of dispatch entirely, with its
+exact native meaning (`+=` through `AddAssign` included). The rule used to
+require a literal on *both* sides; `tests/ui/const_binding_overflow.rs` pins
+the relaxation.
 
 The check is phrased as "not a float literal" rather than "is an integer
 literal": byte literals are `u8` and overflow identically, and an allowlist
@@ -252,9 +258,10 @@ constants — that freedom is their purpose, and the reference declines to
 guarantee anything about the returned value. Do not "simplify" the check to all
 literals; that silently opts float constants out of algebraic semantics.
 
-Residual gap: rustc also lints const-known *non-literal* integer arithmetic
-(`let x: u8 = 255; x + 1`), which the macro cannot preserve without abandoning
-integer rewriting entirely. Documented in the README.
+Residual gap: an operation whose operands are *both* const-known non-literals
+(`let x: u8 = 255; let y: u8 = 1; x + y`) is still rewritten, since nothing
+syntactic distinguishes it from float arithmetic, and rustc's lint no longer
+sees it. Documented in the README.
 
 **Compound assignment binds through a `match`, not a `let`.** A `let` drops the
 RHS's temporaries at the end of its own statement, before the place is

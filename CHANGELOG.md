@@ -31,6 +31,14 @@ accepts that the macro did not.
   The output trait now names the right operand as well, so they are distinct.
   `passthrough!(op out A => O)`, for operand traits implemented by hand, becomes
   `passthrough!(op out A, B => O)`.
+- **An operation with a non-float literal on either side is left native.** It
+  cannot be float arithmetic — Rust never converts an integer to a float — so
+  `x + 1`, `n * 2`, `len - 1`, `i += 1` no longer enter dispatch at all. That
+  closes most of a documented gap: `let x: u8 = 255; x + 1` is rejected by
+  rustc's `arithmetic_overflow` lint again, where a call used to hide it. The
+  rule used to require a literal on both sides. A user type whose `+=` was
+  synthesised from `Add` but has no `AddAssign` now needs one for `s += 1`,
+  exactly as in plain Rust.
 - **The `RefOperand` note** now names the per-operator opt-out spelling
   (`passthrough!(no_refs add: A, B => O)`) alongside the whole-type and derive
   forms, and says that a right-hand operand which is already a reference, such

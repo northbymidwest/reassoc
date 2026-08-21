@@ -100,9 +100,10 @@ passthrough!(mul out Ray, Ray => f64);
 ```
 
 **Two other cases are unaffected by any of this** and behave as they always
-have: integer-literal arithmetic is left unrewritten so rustc's own
-`arithmetic_overflow` lint still fires, and `strict!(..)` opts an expression out
-of dispatch entirely, restoring native errors along with native semantics.
+have: an operation with a non-float literal on either side is left unrewritten
+(it cannot be float arithmetic), so rustc's own `arithmetic_overflow` lint still
+fires on it, and `strict!(..)` opts an expression out of dispatch entirely,
+restoring native errors along with native semantics.
 
 ## Reproducing this
 
