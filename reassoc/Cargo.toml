@@ -1,0 +1,15 @@
+[package]
+name = "reassoc"
+description = "Ordinary arithmetic syntax for Rust's algebraic float operators"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
+
+[dependencies]
