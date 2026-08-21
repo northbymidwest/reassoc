@@ -57,6 +57,27 @@
 //! reassoc::passthrough!(Vec3);
 //! ```
 //!
+//! Or opt in at the definition instead:
+//!
+//! ```
+//! # use core::ops::{Add, Sub, Mul, Div, Rem};
+//! #[derive(Clone, Copy, PartialEq, Debug, reassoc::Passthrough)]
+//! #[passthrough(add, mul)]   // this type implements only these two
+//! struct Metres(f32);
+//!
+//! # impl Add for Metres { type Output = Metres; fn add(self, o: Metres) -> Metres { Metres(self.0 + o.0) } }
+//! # impl Mul for Metres { type Output = Metres; fn mul(self, o: Metres) -> Metres { Metres(self.0 * o.0) } }
+//! # fn main() {
+//! assert_eq!(reassoc::ops::add(Metres(1.5), Metres(2.0)), Metres(3.5));
+//! # }
+//! ```
+//!
+//! Naming a subset matters: an impl whose bound is known unsatisfiable for a
+//! concrete type is a hard error at the definition, so deriving all five for a
+//! type that implements two would not compile.
+//!
+//! `Wrapping<T>` and `Saturating<T>` are covered already and need no opt-in.
+//!
 //! # `no_std`
 //!
 //! The crate is `#![no_std]`. Default features enable `std`; use
@@ -76,4 +97,4 @@ pub mod traits;
 mod impls;
 mod macros;
 
-pub use reassoc_macros::{alg, algebraic};
+pub use reassoc_macros::{Passthrough, alg, algebraic};

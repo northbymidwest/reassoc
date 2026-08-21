@@ -23,6 +23,6 @@ proc-macro = true
 # the full suite passes at syn 3.0.0. `default-features = false` drops syn's
 # `derive` feature, which we never use; `clone-impls` is kept because the
 # rewriter clones `Expr` nodes.
-syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls"] }
+syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
 quote = "1.0"
 proc-macro2 = "1.0"

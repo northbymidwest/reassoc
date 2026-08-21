@@ -1,3 +1,4 @@
+mod passthrough;
 mod rewrite;
 mod scope;
 
@@ -68,4 +69,24 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     func.to_token_stream().into()
+}
+
+/// Opt a type into `reassoc`'s dispatch layer at its definition.
+///
+/// Equivalent to `passthrough!(Ty)`, but written where the type is declared.
+/// Defaults to all five operators; a type implementing only some of them names
+/// the ones it has with `#[passthrough(add, sub, mul)]`.
+///
+/// See [`reassoc::Passthrough`] for a worked example — this crate cannot depend
+/// on `reassoc`, so the example lives there where it can actually be compiled.
+#[proc_macro_derive(Passthrough, attributes(passthrough))]
+pub fn derive_passthrough(input: TokenStream) -> TokenStream {
+    let input = match syn::parse::<syn::DeriveInput>(input) {
+        Ok(input) => input,
+        Err(err) => return err.to_compile_error().into(),
+    };
+    match passthrough::expand(input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
 }

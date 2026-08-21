@@ -105,6 +105,12 @@ reassoc = "0.1"
 - `#[algebraic]` — rewrite a whole function.
 - `strict!(expr)` — opt a subexpression back out to strict IEEE.
 - `passthrough!(Ty)` — opt your own type into the dispatch layer.
+- `#[derive(Passthrough)]` — the same, at the type's definition. Add
+  `#[passthrough(add, mul)]` to name a subset for a type that implements only
+  some operators.
+
+Primitives, references to them, `Duration`, `String`, the std time types, and
+`Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in.
 
 ### Scope
 
@@ -134,9 +140,16 @@ will delete it.
 - `strict!` must be in scope (imported or path-qualified) like any macro. It
   works because the rewriter never descends into macro invocations, not
   because it is special-cased by name.
-- User-defined types need a one-line `passthrough!`. Covering them
-  automatically would require a blanket impl that overlaps the float impls,
-  and stable Rust has no specialization to break the tie.
+- User-defined types need a one-line opt-in, either `passthrough!(Ty)` or
+  `#[derive(Passthrough)]`. Covering them automatically would require a blanket
+  impl that overlaps the float impls, and stable Rust has no specialization to
+  break the tie.
+
+  A single blanket impl dispatching on `TypeId` internally does avoid the
+  overlap and is genuinely zero-cost, but the `'static` bound it needs rejects
+  `&f32` operands — which rules it out, since references are ubiquitous in
+  iterator-based numeric code. If `min_specialization` ever stabilizes, the
+  opt-in can be removed with no such tradeoff.
 - Debug builds (`opt-level = 0`) carry some overhead from un-inlined generic
   calls — roughly 40% more instructions in a tight loop. Release builds are
   byte-identical to hand-written algebraic calls; correctness is unaffected
