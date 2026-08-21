@@ -1,0 +1,11 @@
+error: unnecessary parentheses around function argument
+  --> tests/ui/redundant_parens.rs:12:22
+   |
+12 |     let _bad = alg!(((a + b)) * c);
+   |                      ^^^^^^^
+   |
+note: the lint level is defined here
+  --> tests/ui/redundant_parens.rs:1:9
+   |
+ 1 | #![deny(unused_parens)]
+   |         ^^^^^^^^^^^^^
