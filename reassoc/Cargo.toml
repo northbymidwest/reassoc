@@ -13,3 +13,6 @@ std = ["alloc"]
 alloc = []
 
 [dependencies]
+
+[dev-dependencies]
+trybuild = "1.0.120"
