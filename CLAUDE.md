@@ -109,6 +109,12 @@ and `unconditional_panic` lints; rewriting to a call hides the constants and
 turns a compile error into a silent wrap. Integers dispatch to plain operators
 anyway, so nothing is lost.
 
+The check is phrased as "not a float literal" rather than "is an integer
+literal": byte literals are `u8` and overflow identically, and an allowlist
+missed them. It also inspects the suffix, because `2f64` and `2f32` have no
+decimal point and reach syn as `Lit::Int` — only the suffix marks them as
+floats, and treating them as integers would silently skip dispatch.
+
 Float literals are still rewritten, deliberately. Neither lint applies to them,
 and the algebraic operators are meaningfully non-deterministic even on
 constants — that freedom is their purpose, and the reference declines to

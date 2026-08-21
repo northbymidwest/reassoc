@@ -380,7 +380,19 @@ fn literal_arithmetic_still_evaluates() {
     assert_eq!(literals_are_not_rewritten(), 255);
 }
 
-/// Only INTEGER literals are exempted. Both lints are integer-only —
+/// Byte literals are `u8` and overflow like integers, so they are exempt too.
+/// The must-fail direction is pinned by `tests/ui/byte_literal_overflow.rs`.
+#[algebraic]
+fn byte_literals_are_not_rewritten() -> u8 {
+    b'\x7f' + b'\x01'
+}
+
+#[test]
+fn byte_literal_arithmetic_still_evaluates() {
+    assert_eq!(byte_literals_are_not_rewritten(), 128);
+}
+
+/// Only non-float literals are exempted. Both lints are integer-only —
 /// `1.0 / 0.0` is inf, not a panic — and the algebraic operators are
 /// meaningfully non-deterministic even on constants, so float literals stay
 /// rewritten. This asserts the value; the property that they are dispatched
@@ -390,6 +402,37 @@ fn literal_arithmetic_still_evaluates() {
 fn float_literals_are_still_rewritten() {
     assert_eq!(alg!(2.0f32 * 3.0), 6.0);
     assert_eq!(alg!(2.0f32 * 3.0 + 1.0), 7.0);
+    // `2f64` has no decimal point, so syn reports it as `Lit::Int` with an
+    // `f64` suffix. Only the suffix marks it as a float, and missing that
+    // would silently skip dispatch for an ordinary spelling of a constant.
+    assert_eq!(alg!(2f64 * 3f64), 6.0);
+    assert_eq!(alg!(2f32 * 3f32), 6.0);
+}
+
+/// f64 is not an afterthought: the dispatch layer, the escape hatch and the
+/// scope parameters all behave the same as for f32.
+#[algebraic]
+fn kahan_f64(xs: &[f64]) -> f64 {
+    let mut sum = 0.0;
+    let mut c = 0.0;
+    for &x in xs {
+        let y = x - c;
+        let t = sum + y;
+        c = strict!((t - sum) - y);
+        sum = t;
+    }
+    sum
+}
+
+#[test]
+fn doubles_behave_like_floats() {
+    let mut v = vec![1.0f64];
+    v.extend(core::iter::repeat_n(1e-16f64, 1_000_000));
+    // A naive f64 sum loses every one of the million addends; the
+    // compensation `strict!` protects keeps them.
+    let naive = v.iter().fold(0.0f64, |a, b| a + b);
+    assert_eq!(naive, 1.0);
+    assert!((kahan_f64(&v) - 1.0000000001).abs() < 1e-15);
 }
 
 /// Const positions inside a nested `impl` are const contexts too. An

@@ -246,8 +246,9 @@ impl VisitMut for Rewriter {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
 
-            if is_int_literal(&binary.left) && is_int_literal(&binary.right) {
-                // Integer literals only, and deliberately not float literals.
+            if is_non_float_literal(&binary.left) && is_non_float_literal(&binary.right) {
+                // Every literal EXCEPT a float one — a denylist, not an
+                // allowlist, and deliberately so.
                 //
                 // `arithmetic_overflow` and `unconditional_panic` are
                 // deny-by-default and fire on compile-time-evaluable INTEGER
@@ -262,6 +263,14 @@ impl VisitMut for Rewriter {
                 // freedom is the whole point of them, and the reference
                 // explicitly declines to guarantee anything about the returned
                 // value. So `2.0 * 3.0` is still rewritten.
+                //
+                // Phrasing it as "not a float literal" rather than "is an
+                // integer literal" matters: byte literals are `u8` and overflow
+                // exactly like integers (`b'\xff' + b'\x01'`), and an
+                // allowlist silently missed them. Any literal kind added later
+                // is likewise excluded by default, which fails safe — the worst
+                // case is forfeiting dispatch on a constant expression, rather
+                // than hiding a deny-by-default lint.
                 return;
             }
 
@@ -339,19 +348,40 @@ impl VisitMut for Rewriter {
     }
 }
 
-/// True for an integer literal, or a negated one, ignoring parentheses.
+/// True for any literal that is not a float literal, ignoring parentheses and
+/// a leading unary minus.
 ///
-/// Integer specifically: this exists to keep rustc's deny-by-default
-/// `arithmetic_overflow` / `unconditional_panic` lints able to see the
-/// constants, and those lints apply only to integer arithmetic. Float literals
-/// are still rewritten, because algebraic operators are meaningfully
-/// non-deterministic even on constants.
-fn is_int_literal(expr: &Expr) -> bool {
+/// Stated as a denylist on purpose. The one literal kind that must keep being
+/// rewritten is the float one, because algebraic operators are meaningfully
+/// non-deterministic even on constants. Everything else either cannot do
+/// arithmetic at all, or is integer-like and must stay visible to rustc's
+/// deny-by-default `arithmetic_overflow` / `unconditional_panic` lints —
+/// byte literals being the case an integer-only allowlist missed.
+fn is_non_float_literal(expr: &Expr) -> bool {
     match unparen(expr) {
-        Expr::Lit(lit) => matches!(lit.lit, syn::Lit::Int(_)),
-        Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_int_literal(&unary.expr),
+        Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Float(_) => false,
+            // `2f64` and `2f32` are float literals that syn reports as
+            // `Lit::Int`, because they have no decimal point — only the
+            // suffix distinguishes them. Missing that would silently skip
+            // dispatch for a perfectly ordinary spelling of a float constant.
+            syn::Lit::Int(int) => !is_float_suffix(int.suffix()),
+            _ => true,
+        },
+        Expr::Unary(unary) => {
+            matches!(unary.op, syn::UnOp::Neg(_)) && is_non_float_literal(&unary.expr)
+        }
         _ => false,
     }
+}
+
+/// `f32`, `f64`, and any future `f<N>` — matched by shape rather than by a
+/// fixed list, so a new float width does not silently fall through to the
+/// integer path.
+fn is_float_suffix(suffix: &str) -> bool {
+    suffix
+        .strip_prefix('f')
+        .is_some_and(|width| !width.is_empty() && width.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// True for a nested item whose body/initializer is a const context:

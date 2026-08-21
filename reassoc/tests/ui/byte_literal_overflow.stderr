@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/byte_literal_overflow.rs:6:5
+  |
+6 |     b'\xff' + b'\x01'
+  |     ^^^^^^^^^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default
