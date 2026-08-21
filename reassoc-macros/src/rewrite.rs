@@ -18,6 +18,22 @@ impl Rewriter {
     }
 }
 
+/// Strips redundant grouping parens from an operand, repeatedly.
+///
+/// Grouping parens exist to fix precedence in the original source; once an
+/// operand lands in a generated call's argument position, the call's own
+/// parens and the comma already delimit it, so any surviving `Expr::Paren`
+/// wrapper is dead weight that would round-trip into the emitted tokens and
+/// trip `unused_parens` in the caller's code (or fail their build outright
+/// under `#[deny(warnings)]`). Precedence is unaffected: nothing needs
+/// grouping in argument position.
+fn unparen(mut expr: &Expr) -> &Expr {
+    while let Expr::Paren(inner) = expr {
+        expr = &inner.expr;
+    }
+    expr
+}
+
 /// Maps a binary operator to the dispatch function that replaces it.
 /// Returns `None` for operators we do not touch (comparison, logical,
 /// bitwise, shifts).
@@ -54,8 +70,8 @@ impl VisitMut for Rewriter {
             && let Some(name) = dispatch_fn(&binary.op)
         {
             let func = syn::Ident::new(name, Span::call_site());
-            let left = &binary.left;
-            let right = &binary.right;
+            let left = unparen(&binary.left);
+            let right = unparen(&binary.right);
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
             *expr = syn::parse2(quote_spanned! {span=>

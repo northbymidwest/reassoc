@@ -1,9 +1,3 @@
-// `alg!` rewrites parenthesized subexpressions into function calls, at
-// which point their original grouping parens become syntactically
-// redundant. That's an artifact of macro expansion, not a source-quality
-// issue in the test below, so the lint is silenced here.
-#![allow(unused_parens)]
-
 use reassoc::alg;
 
 #[test]
