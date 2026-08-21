@@ -124,6 +124,11 @@ fn plain_blocks_are_emitted_verbatim() {
     assert_eq!(alg!(t * plain!(sum + y)), 9.0);
 }
 
+// This passes structurally: syn's VisitMut cannot descend into a macro's
+// token stream, so non-descent holds even with no handling code at all.
+// Kept as executable documentation of the guarantee, not as a regression
+// guard — deleting the macro-handling code in rewrite.rs would not make
+// this fail.
 #[test]
 fn other_macros_are_not_descended_into() {
     let a = 2.0f32;
@@ -131,4 +136,23 @@ fn other_macros_are_not_descended_into() {
     // this would fail to compile.
     let s = alg!(format!("{}", a * a));
     assert_eq!(s, "4");
+}
+
+#[test]
+fn nested_plain_layers_are_all_peeled() {
+    let (a, b) = (3.0f32, 2.0f32);
+    // `plain!(plain!(x))` means the same thing as `plain!(x)`: both inner
+    // `plain!`s must be stripped at rewrite time, or the surviving one
+    // would need `plain` imported at the call site to resolve.
+    assert_eq!(alg!(plain!(plain!(a + b))), 5.0);
+    assert_eq!(alg!(plain!(plain!(plain!(a - b)))), 1.0);
+}
+
+#[test]
+fn qualified_plain_path_is_recognized() {
+    let (a, b) = (3.0f32, 2.0f32);
+    // `plain!` is matched by its final path segment, so the fully
+    // qualified form works too. This test pins that documented behavior
+    // in `reassoc::plain!`'s doc comment so the two cannot drift apart.
+    assert_eq!(alg!(reassoc::plain!(a + b)), 5.0);
 }

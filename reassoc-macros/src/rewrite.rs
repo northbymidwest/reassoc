@@ -113,7 +113,34 @@ impl VisitMut for Rewriter {
                 // position this can land in and would leak `unused_parens`
                 // into user code — the same class of bug already fixed
                 // twice for generated binary/compound-assignment operands.
-                if let Ok(inner) = mac.mac.parse_body::<Expr>() {
+                if let Ok(mut inner) = mac.mac.parse_body::<Expr>() {
+                    // `plain!(plain!(x))` and `plain!(x)` both mean "do not
+                    // rewrite this", so peel directly nested `plain!`
+                    // wrappers here rather than leaving the inner one in
+                    // the output. Left alone, that inner `plain!` would
+                    // survive into the emitted tokens and need `plain` in
+                    // scope at the call site to resolve — defeating the
+                    // point of stripping it at rewrite time in the first
+                    // place. This is shallow by design: once inside a
+                    // `plain!` body, everything is verbatim, so a `plain!`
+                    // that isn't directly wrapping this one (e.g. `plain!(a
+                    // + plain!(b))`) is an ordinary nested invocation and
+                    // legitimately needs the import.
+                    while let Expr::Macro(inner_mac) = &inner {
+                        let inner_is_plain = inner_mac
+                            .mac
+                            .path
+                            .segments
+                            .last()
+                            .is_some_and(|segment| segment.ident == "plain");
+                        if !inner_is_plain {
+                            break;
+                        }
+                        match inner_mac.mac.parse_body::<Expr>() {
+                            Ok(next) => inner = next,
+                            Err(_) => break,
+                        }
+                    }
                     let span = mac.mac.path.segments.last().unwrap().ident.span();
                     *expr = syn::parse2(quote_spanned! {span=> #inner })
                         .expect("plain! body must re-parse");

@@ -1,15 +1,15 @@
 error[E0369]: cannot add `Dispatched` to `Dispatched`
-  --> tests/ui/macro_non_descent.rs:20:36
+  --> tests/ui/macro_non_descent.rs:25:36
    |
-20 |     let _ = alg!(format!("{}", { w + w; 0 }));
+25 |     let _ = alg!(format!("{}", { w + w; 0 }));
    |                                  - ^ - Dispatched
    |                                  |
    |                                  Dispatched
    |
 note: an implementation of `Add` might be missing for `Dispatched`
-  --> tests/ui/macro_non_descent.rs:7:1
+  --> tests/ui/macro_non_descent.rs:12:1
    |
- 7 | struct Dispatched(f32);
+12 | struct Dispatched(f32);
    | ^^^^^^^^^^^^^^^^^ must implement `Add`
 note: the trait `Add` must be implemented
   --> $RUST/core/src/ops/arith.rs
