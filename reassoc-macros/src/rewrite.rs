@@ -48,6 +48,20 @@ fn dispatch_fn(op: &BinOp) -> Option<&'static str> {
     }
 }
 
+/// Maps a compound-assignment operator to its dispatch function.
+/// `a += b` parses as `Expr::Binary` with `BinOp::AddAssign`; syn has no
+/// separate assignment-op node.
+fn dispatch_fn_assign(op: &BinOp) -> Option<&'static str> {
+    match op {
+        BinOp::AddAssign(_) => Some("add"),
+        BinOp::SubAssign(_) => Some("sub"),
+        BinOp::MulAssign(_) => Some("mul"),
+        BinOp::DivAssign(_) => Some("div"),
+        BinOp::RemAssign(_) => Some("rem"),
+        _ => None,
+    }
+}
+
 impl VisitMut for Rewriter {
     fn visit_expr_closure_mut(&mut self, closure: &mut syn::ExprClosure) {
         if self.closures {
@@ -66,18 +80,37 @@ impl VisitMut for Rewriter {
         // by the time we rebuild this node.
         visit_mut::visit_expr_mut(self, expr);
 
-        if let Expr::Binary(binary) = expr
-            && let Some(name) = dispatch_fn(&binary.op)
-        {
-            let func = syn::Ident::new(name, Span::call_site());
-            let left = unparen(&binary.left);
-            let right = unparen(&binary.right);
+        if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
-            *expr = syn::parse2(quote_spanned! {span=>
-                ::reassoc::ops::#func(#left, #right)
-            })
-            .expect("generated dispatch call must parse");
+
+            if let Some(name) = dispatch_fn(&binary.op) {
+                let func = syn::Ident::new(name, Span::call_site());
+                let left = unparen(&binary.left);
+                let right = unparen(&binary.right);
+                *expr = syn::parse2(quote_spanned! {span=>
+                    ::reassoc::ops::#func(#left, #right)
+                })
+                .expect("generated dispatch call must parse");
+            } else if let Some(name) = dispatch_fn_assign(&binary.op) {
+                let func = syn::Ident::new(name, Span::call_site());
+                // Strip parens from both operands: from the place so the
+                // `&mut` binding below doesn't wrap it in a redundant
+                // group, and from the RHS for the same reason as the
+                // non-assigning arm above.
+                let left = unparen(&binary.left);
+                let right = unparen(&binary.right);
+                // Bind the place through a `&mut` temporary so it is
+                // evaluated exactly once; a naive `place = f(place, rhs)`
+                // rewrite would evaluate `place` twice.
+                *expr = syn::parse2(quote_spanned! {span=>
+                    {
+                        let __reassoc_place = &mut #left;
+                        *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, #right);
+                    }
+                })
+                .expect("generated compound assignment must parse");
+            }
         }
     }
 }
