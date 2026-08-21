@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.3.2 — 2026-08-21
 
 A systematic review against plain Rust: every item below is code the language
 accepts that the macro did not.
