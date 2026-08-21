@@ -2,6 +2,14 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.3.4 — 2026-08-21
+
+### Documentation
+
+- The README's links into `docs/` are absolute GitHub URLs. crates.io resolves
+  relative links against the package directory, one level below where this
+  README lives, so they 404'd on the crate page in 0.3.3.
+
 ## 0.3.3 — 2026-08-21
 
 No behavioural change. A readability pass and a documentation split.
