@@ -218,6 +218,11 @@ will delete it.
   type to find an `Alg*` impl for. The diagnostic suggests
   `reassoc::passthrough!(T)`, which does not apply — `passthrough!` opts in a
   concrete type, not a type parameter.
+- Operands of different types are rejected, exactly as they are in plain Rust —
+  the language has no implicit numeric coercion, and dispatch does not add one.
+  This covers float widths, integer widths, signedness, and int-against-float
+  alike: `alg!(a + b)` with `a: u8, b: u32` fails with "expected `u8`, found
+  `u32`" pointing at the operand, and a note to cast one with `as`.
 - A renamed dependency needs a feature. Generated code expands to an absolute
   path, and a proc macro cannot see the path it was invoked through, so
   `myalg = { package = "reassoc" }` fails with `E0433` by default. Enable

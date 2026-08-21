@@ -64,6 +64,53 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let krate = crate::krate::path();
 
+    // The right-hand operand is a type parameter bounded by `Operand`, not a
+    // second impl per reference combination. That keeps one `Alg*` candidate
+    // per operand type, which is what lets rustc name both types when they do
+    // not match — see `reassoc::traits::Operand`. The name is deliberately
+    // unlikely to collide with a generic parameter the user already has.
+    let mut rhs_generics = input.generics.clone();
+    rhs_generics.params.insert(
+        0,
+        syn::parse_quote!(__ReassocRhs: #krate::traits::Operand<#name #ty_generics>),
+    );
+    let (rhs_impl_generics, _, _) = rhs_generics.split_for_impl();
+
+    let bounds = |extra: TokenStream| match where_clause {
+        Some(existing) => quote! { #existing, #extra },
+        None => quote! { where #extra },
+    };
+    // `RefOperand` rather than a bare `Copy` bound: it carries an
+    // `on_unimplemented` message naming `no_refs`, where `Copy` alone would
+    // produce an unexplained "cannot move out of a shared reference" pointing
+    // into this expansion.
+    let ref_bound = quote! { #name #ty_generics: #krate::traits::RefOperand };
+
+    // Emitted once for the type, not once per operator.
+    let mut operand_impls = quote! {
+        impl #impl_generics #krate::traits::Operand<#name #ty_generics>
+            for #name #ty_generics
+        #where_clause
+        {
+            #[inline(always)]
+            fn reassoc_operand(self) -> #name #ty_generics { self }
+        }
+    };
+    if with_refs {
+        let ref_bounds = bounds(ref_bound.clone());
+        operand_impls.extend(quote! {
+            impl #impl_generics #krate::traits::Operand<#name #ty_generics>
+                for &#name #ty_generics
+            #ref_bounds
+            {
+                #[inline(always)]
+                fn reassoc_operand(self) -> #name #ty_generics {
+                    #krate::traits::RefOperand::reassoc_dup(self)
+                }
+            }
+        });
+    }
+
     let impls = selected.into_iter().map(|op| {
         let trait_ident = Ident::new(op.trait_name, Span::call_site());
         let method_ident = Ident::new(op.method, Span::call_site());
@@ -76,21 +123,17 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         let op_bound = quote! {
             #name #ty_generics: ::core::ops::#bound_ident<Output = #name #ty_generics>
         };
-        let bounds = |extra: TokenStream| match where_clause {
-            Some(existing) => quote! { #existing, #extra },
-            None => quote! { where #extra },
-        };
         let by_value_bounds = bounds(quote! { #op_bound });
 
         let by_value = quote! {
-            impl #impl_generics
-                #krate::traits::#trait_ident<#name #ty_generics, #name #ty_generics>
+            impl #rhs_impl_generics
+                #krate::traits::#trait_ident<__ReassocRhs, #name #ty_generics>
                 for #name #ty_generics
             #by_value_bounds
             {
                 #[inline(always)]
-                fn #method_ident(self, rhs: #name #ty_generics) -> #name #ty_generics {
-                    self #op_token rhs
+                fn #method_ident(self, rhs: __ReassocRhs) -> #name #ty_generics {
+                    self #op_token #krate::traits::Operand::reassoc_operand(rhs)
                 }
             }
         };
@@ -99,55 +142,29 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             return by_value;
         }
 
-        // Reference operands, so an opted-in type behaves like a built-in one
-        // in iterator code. These dereference, hence the `Copy` bound; a type
-        // that is not `Copy` opts out with `#[passthrough(no_refs)]`.
-        // `RefOperand` rather than a bare `Copy` bound: it carries an
-        // `on_unimplemented` message naming `no_refs`, where `Copy` alone
-        // would produce an unexplained "cannot move out of a shared
-        // reference" pointing into this expansion.
-        let ref_bounds =
-            bounds(quote! { #name #ty_generics: #krate::traits::RefOperand, #op_bound });
+        // A reference on the left, so an opted-in type behaves like a built-in
+        // one in iterator code. This dereferences, hence the `RefOperand`
+        // bound; a type that is not `Copy` opts out with
+        // `#[passthrough(no_refs)]`.
+        let ref_bounds = bounds(quote! { #ref_bound, #op_bound });
         quote! {
             #by_value
 
-            impl #impl_generics
-                #krate::traits::#trait_ident<&#name #ty_generics, #name #ty_generics>
-                for #name #ty_generics
-            #ref_bounds
-            {
-                #[inline(always)]
-                fn #method_ident(self, rhs: &#name #ty_generics) -> #name #ty_generics {
-                    self #op_token #krate::traits::RefOperand::reassoc_dup(rhs)
-                }
-            }
-
-            impl #impl_generics
-                #krate::traits::#trait_ident<#name #ty_generics, #name #ty_generics>
+            impl #rhs_impl_generics
+                #krate::traits::#trait_ident<__ReassocRhs, #name #ty_generics>
                 for &#name #ty_generics
             #ref_bounds
             {
                 #[inline(always)]
-                fn #method_ident(self, rhs: #name #ty_generics) -> #name #ty_generics {
-                    #krate::traits::RefOperand::reassoc_dup(self) #op_token rhs
-                }
-            }
-
-            impl #impl_generics
-                #krate::traits::#trait_ident<&#name #ty_generics, #name #ty_generics>
-                for &#name #ty_generics
-            #ref_bounds
-            {
-                #[inline(always)]
-                fn #method_ident(self, rhs: &#name #ty_generics) -> #name #ty_generics {
+                fn #method_ident(self, rhs: __ReassocRhs) -> #name #ty_generics {
                     #krate::traits::RefOperand::reassoc_dup(self)
-                        #op_token #krate::traits::RefOperand::reassoc_dup(rhs)
+                        #op_token #krate::traits::Operand::reassoc_operand(rhs)
                 }
             }
         }
     });
 
-    Ok(quote! { #(#impls)* })
+    Ok(quote! { #operand_impls #(#impls)* })
 }
 
 /// Reads an optional `#[passthrough(add, mul)]` attribute.

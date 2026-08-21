@@ -23,54 +23,77 @@
 /// ```
 #[macro_export]
 macro_rules! passthrough {
-    // Full coverage: same-type plus all four reference combinations, matching
-    // what the built-in types get. Requires `Copy`, because the reference impls
-    // dereference their operands. For a type that is not `Copy`, use the
-    // `no_refs` form below.
+    // Full coverage: same-type, with either operand a reference. Requires
+    // `Copy`, because a reference operand is dereferenced. For a type that is
+    // not `Copy`, use the `no_refs` form below.
     ($t:ty) => {
-        $crate::passthrough!(no_refs $t);
-        $crate::passthrough_refs!(AlgAdd, alg_add, +, $t);
-        $crate::passthrough_refs!(AlgSub, alg_sub, -, $t);
-        $crate::passthrough_refs!(AlgMul, alg_mul, *, $t);
-        $crate::passthrough_refs!(AlgDiv, alg_div, /, $t);
-        $crate::passthrough_refs!(AlgRem, alg_rem, %, $t);
+        impl $crate::traits::Operand<$t> for $t {
+            #[inline(always)]
+            fn reassoc_operand(self) -> $t {
+                self
+            }
+        }
+        impl $crate::traits::Operand<$t> for &$t
+        where
+            $t: $crate::traits::RefOperand,
+        {
+            #[inline(always)]
+            fn reassoc_operand(self) -> $t {
+                $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+
+        $crate::passthrough_ops!($t, refs);
     };
     // Value operands only, for types that are not `Copy`.
     (no_refs $t:ty) => {
-        $crate::passthrough!(add: $t, $t => $t);
-        $crate::passthrough!(sub: $t, $t => $t);
-        $crate::passthrough!(mul: $t, $t => $t);
-        $crate::passthrough!(div: $t, $t => $t);
-        $crate::passthrough!(rem: $t, $t => $t);
+        impl $crate::traits::Operand<$t> for $t {
+            #[inline(always)]
+            fn reassoc_operand(self) -> $t {
+                self
+            }
+        }
+
+        $crate::passthrough_ops!($t, no_refs);
     };
     (add: $a:ty, $b:ty => $o:ty) => {
         impl $crate::traits::AlgAdd<$b, $o> for $a {
             #[inline(always)]
-            fn alg_add(self, rhs: $b) -> $o { self + rhs }
+            fn alg_add(self, rhs: $b) -> $o {
+                self + rhs
+            }
         }
     };
     (sub: $a:ty, $b:ty => $o:ty) => {
         impl $crate::traits::AlgSub<$b, $o> for $a {
             #[inline(always)]
-            fn alg_sub(self, rhs: $b) -> $o { self - rhs }
+            fn alg_sub(self, rhs: $b) -> $o {
+                self - rhs
+            }
         }
     };
     (mul: $a:ty, $b:ty => $o:ty) => {
         impl $crate::traits::AlgMul<$b, $o> for $a {
             #[inline(always)]
-            fn alg_mul(self, rhs: $b) -> $o { self * rhs }
+            fn alg_mul(self, rhs: $b) -> $o {
+                self * rhs
+            }
         }
     };
     (div: $a:ty, $b:ty => $o:ty) => {
         impl $crate::traits::AlgDiv<$b, $o> for $a {
             #[inline(always)]
-            fn alg_div(self, rhs: $b) -> $o { self / rhs }
+            fn alg_div(self, rhs: $b) -> $o {
+                self / rhs
+            }
         }
     };
     (rem: $a:ty, $b:ty => $o:ty) => {
         impl $crate::traits::AlgRem<$b, $o> for $a {
             #[inline(always)]
-            fn alg_rem(self, rhs: $b) -> $o { self % rhs }
+            fn alg_rem(self, rhs: $b) -> $o {
+                self % rhs
+            }
         }
     };
 }
@@ -101,34 +124,46 @@ macro_rules! strict {
     };
 }
 
-/// The three reference combinations for one operator on a `Copy` type.
+/// The five operators for one type, in the shape that keeps a single `Alg*`
+/// candidate per operand type.
 ///
 /// Not part of the public API surface anyone should call directly; it exists
 /// because `macro_rules!` cannot loop over operators inside another expansion.
+/// Keeping one candidate is what makes a mismatched operand report
+/// `Operand<T>` — see `traits::Operand`.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! passthrough_refs {
-    ($trait_name:ident, $method:ident, $op:tt, $t:ty) => {
-        impl $crate::traits::$trait_name<&$t, $t> for $t
-        where $t: $crate::traits::RefOperand {
+macro_rules! passthrough_ops {
+    ($t:ty, $refs:ident) => {
+        $crate::passthrough_op!(AlgAdd, alg_add, +, $t, $refs);
+        $crate::passthrough_op!(AlgSub, alg_sub, -, $t, $refs);
+        $crate::passthrough_op!(AlgMul, alg_mul, *, $t, $refs);
+        $crate::passthrough_op!(AlgDiv, alg_div, /, $t, $refs);
+        $crate::passthrough_op!(AlgRem, alg_rem, %, $t, $refs);
+    };
+}
+
+/// One operator for one type. See `passthrough_ops!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! passthrough_op {
+    ($trait_name:ident, $method:ident, $op:tt, $t:ty, no_refs) => {
+        impl<B: $crate::traits::Operand<$t>> $crate::traits::$trait_name<B, $t> for $t {
             #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t {
-                self $op $crate::traits::RefOperand::reassoc_dup(rhs)
+            fn $method(self, rhs: B) -> $t {
+                self $op $crate::traits::Operand::reassoc_operand(rhs)
             }
         }
-        impl $crate::traits::$trait_name<$t, $t> for &$t
+    };
+    ($trait_name:ident, $method:ident, $op:tt, $t:ty, refs) => {
+        $crate::passthrough_op!($trait_name, $method, $op, $t, no_refs);
+
+        impl<B: $crate::traits::Operand<$t>> $crate::traits::$trait_name<B, $t> for &$t
         where $t: $crate::traits::RefOperand {
             #[inline(always)]
-            fn $method(self, rhs: $t) -> $t {
-                $crate::traits::RefOperand::reassoc_dup(self) $op rhs
-            }
-        }
-        impl $crate::traits::$trait_name<&$t, $t> for &$t
-        where $t: $crate::traits::RefOperand {
-            #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t {
+            fn $method(self, rhs: B) -> $t {
                 $crate::traits::RefOperand::reassoc_dup(self)
-                    $op $crate::traits::RefOperand::reassoc_dup(rhs)
+                    $op $crate::traits::Operand::reassoc_operand(rhs)
             }
         }
     };

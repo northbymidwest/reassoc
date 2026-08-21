@@ -49,6 +49,31 @@ declare_op_trait!(
     "`{Self}` can't be used with `%` inside an `#[algebraic]` scope"
 );
 
+/// The right-hand operand of a dispatched operator: a `T`, or a `&T`.
+///
+/// This exists for diagnostics, not for abstraction. Every operand type used
+/// to get four `Alg*` impls per operator — the `&` combinations of both sides.
+/// That left each type with more than one candidate impl, so rustc could not
+/// infer the right-hand type, the failure stayed the unresolved root bound
+/// `AlgAdd<u32, _>`, and the message blamed the left operand: "`u8` can't be
+/// used with `+`", advising `passthrough!(u8)`. Both claims were false.
+///
+/// Folding the reference variants in here leaves one candidate per operand
+/// type. The impl is then selected, `O` resolves, and the reported obligation
+/// becomes `u32: Operand<u8>` — whose message below names both types and
+/// points at the operand that is wrong, as rustc's own `E0308` does.
+#[diagnostic::on_unimplemented(
+    message = "expected `{T}`, found `{Self}`",
+    label = "expected `{T}`, found `{Self}`",
+    note = "operands are never converted implicitly, inside an `#[algebraic]` \
+            scope or outside one",
+    note = "if these are numeric types, cast the operand: `.. as {T}`"
+)]
+pub trait Operand<T> {
+    /// Yields the operand by value.
+    fn reassoc_operand(self) -> T;
+}
+
 /// Marks a type whose reference operands can be dispatched.
 ///
 /// `passthrough!`'s reference impls dereference their operands, so they need

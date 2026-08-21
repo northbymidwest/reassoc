@@ -30,6 +30,13 @@ fn reference_operands_dispatch() {
     assert_eq!(mul(&a, &b), 12.0);
     assert_eq!(mul(a, &b), 12.0);
     assert_eq!(mul(&a, b), 12.0);
+
+    // Both widths: the reference variants live inside one `Alg*` impl per
+    // operand type, so each width's four combinations are generated together.
+    let (c, d) = (3.0f64, 4.0f64);
+    assert_eq!(mul(&c, &d), 12.0);
+    assert_eq!(mul(c, &d), 12.0);
+    assert_eq!(mul(&c, d), 12.0);
 }
 
 #[allow(clippy::needless_borrows_for_generic_args)] // borrows are deliberate

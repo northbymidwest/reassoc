@@ -1,29 +1,20 @@
-use crate::traits::{AlgAdd, AlgDiv, AlgMul, AlgRem, AlgSub};
+//! Float impls, the only ones that route to `algebraic_*` rather than to the
+//! plain operators. Everything else in `impls/` goes through `passthrough!`.
+
+use crate::traits::{AlgAdd, AlgDiv, AlgMul, AlgRem, AlgSub, Operand};
 
 macro_rules! alg_float_op {
     ($t:ty, $trait_name:ident, $method:ident, $core_method:ident) => {
-        impl $trait_name<$t, $t> for $t {
+        impl<B: Operand<$t>> $trait_name<B, $t> for $t {
             #[inline(always)]
-            fn $method(self, rhs: $t) -> $t {
-                <$t>::$core_method(self, rhs)
+            fn $method(self, rhs: B) -> $t {
+                <$t>::$core_method(self, rhs.reassoc_operand())
             }
         }
-        impl $trait_name<&$t, $t> for $t {
+        impl<B: Operand<$t>> $trait_name<B, $t> for &$t {
             #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t {
-                <$t>::$core_method(self, *rhs)
-            }
-        }
-        impl $trait_name<$t, $t> for &$t {
-            #[inline(always)]
-            fn $method(self, rhs: $t) -> $t {
-                <$t>::$core_method(*self, rhs)
-            }
-        }
-        impl $trait_name<&$t, $t> for &$t {
-            #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t {
-                <$t>::$core_method(*self, *rhs)
+            fn $method(self, rhs: B) -> $t {
+                <$t>::$core_method(*self, rhs.reassoc_operand())
             }
         }
     };
@@ -31,6 +22,15 @@ macro_rules! alg_float_op {
 
 macro_rules! alg_float {
     ($($t:ty)*) => {$(
+        impl Operand<$t> for $t {
+            #[inline(always)]
+            fn reassoc_operand(self) -> $t { self }
+        }
+        impl Operand<$t> for &$t {
+            #[inline(always)]
+            fn reassoc_operand(self) -> $t { *self }
+        }
+
         alg_float_op!($t, AlgAdd, alg_add, algebraic_add);
         alg_float_op!($t, AlgSub, alg_sub, algebraic_sub);
         alg_float_op!($t, AlgMul, alg_mul, algebraic_mul);

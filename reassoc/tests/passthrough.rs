@@ -199,6 +199,13 @@ fn std_wrappers_accept_reference_operands() {
     assert_eq!(add(&a, &a), Wrapping(6u32));
     assert_eq!(add(&b, Saturating(10u8)), Saturating(255u8));
     assert_eq!(add(&d, &d), Duration::from_secs(4));
+
+    // The heterogeneous pairs take references on either side too, matching
+    // the forward_ref impls `core` provides for them.
+    assert_eq!(mul(&d, 3u32), Duration::from_secs(6));
+    assert_eq!(mul(d, &3u32), Duration::from_secs(6));
+    assert_eq!(mul(&d, &3u32), Duration::from_secs(6));
+    assert_eq!(mul(&3u32, d), Duration::from_secs(6));
 }
 
 /// A non-`Copy` type opts out of the reference impls.
