@@ -35,6 +35,65 @@ Measured on aarch64 at `-O`, the loop above:
 The generated code is byte-identical to hand-written algebraic calls; the
 dispatch layer compiles away entirely in release builds.
 
+## Why not just call the methods?
+
+Because arithmetic stops being readable. Here is Catmull-Rom spline
+interpolation — four control points and one parameter:
+
+```text
+p(t) = 0.5 * ( 2p1 + (-p0+p2)t + (2p0-5p1+4p2-p3)t^2 + (-p0+3p1-3p2+p3)t^3 )
+```
+
+With `reassoc`, the code is the formula:
+
+```rust
+use reassoc::algebraic;
+
+#[algebraic]
+fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+    0.5 * (2.0 * p1
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t * t * t)
+}
+```
+
+The same thing written by hand — 23 method calls, five levels of nesting:
+
+```rust
+fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+    0.5f32.algebraic_mul(
+        2.0f32.algebraic_mul(p1)
+            .algebraic_add((-p0).algebraic_add(p2).algebraic_mul(t))
+            .algebraic_add(
+                2.0f32.algebraic_mul(p0)
+                    .algebraic_sub(5.0f32.algebraic_mul(p1))
+                    .algebraic_add(4.0f32.algebraic_mul(p2))
+                    .algebraic_sub(p3)
+                    .algebraic_mul(t)
+                    .algebraic_mul(t),
+            )
+            .algebraic_add(
+                (-p0).algebraic_add(3.0f32.algebraic_mul(p1))
+                    .algebraic_sub(3.0f32.algebraic_mul(p2))
+                    .algebraic_add(p3)
+                    .algebraic_mul(t)
+                    .algebraic_mul(t)
+                    .algebraic_mul(t),
+            ),
+    )
+}
+```
+
+Both compile to the same machine code. Only one of them can be checked
+against the formula on the page — and getting the second one right by hand
+took two attempts, which is rather the point. A transposed operand or a
+`sub` where an `add` belonged is invisible in that shape, and no compiler
+error will find it for you.
+
+Note that `-p0` stays an ordinary unary minus in both versions: Rust 1.98
+ships no `algebraic_neg`, so there is nothing to rewrite it to.
+
 ## Usage
 
 ```toml
