@@ -2,10 +2,12 @@
 name = "reassoc"
 description = "Ordinary arithmetic syntax for Rust's algebraic float operators"
 readme = "../README.md"
-# `license` is the SPDX identifier crates.io and license scanners read;
-# `license-file` additionally ships the text, since LICENSE lives at the
-# repo root outside both packages.
-license-file = "../LICENSE"
+# `license` (below, workspace-inherited) is the SPDX identifier crates.io
+# and license scanners read. The LICENSE file in this directory ships the
+# text into the archive without needing `license-file`, which would
+# otherwise warn on every build ("only one of license or license-file is
+# necessary"). The canonical copy lives at the repo root; this is a real
+# copy, kept in sync manually — 0BSD's text never changes.
 keywords = ["float", "simd", "fma", "numerics", "macro"]
 categories = ["mathematics", "no-std"]
 version.workspace = true
