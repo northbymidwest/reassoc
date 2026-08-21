@@ -36,7 +36,7 @@ method-call form is unreadable for anything larger than a single expression.
 
 - Unary negation. There is no `algebraic_neg` in 1.98 (verified); `-x` is left
   untouched.
-- Rewriting inside macro invocations other than `plain!`. The proc macro runs
+- Rewriting inside macro invocations other than `strict!`. The proc macro runs
   before macro expansion and cannot see through `assert_eq!`/`println!` bodies.
   Documented limitation.
 - `#[algebraic]` on `impl` blocks and `mod`s. Deferred until there is demand.
@@ -47,7 +47,7 @@ method-call form is unreadable for anything larger than a single expression.
 Two crates; users depend only on the facade.
 
 - **`reassoc`** — `no_std` facade. Owns the dispatch traits, their
-  impls, `passthrough!`, `plain!`, and re-exports the proc macros.
+  impls, `passthrough!`, `strict!`, and re-exports the proc macros.
 - **`reassoc-macros`** — proc macro crate (`syn`, `quote`,
   `proc-macro2`). Owns `alg!` and `#[algebraic]`, sharing one rewriter module.
 
@@ -127,7 +127,7 @@ The compiler points the user straight at it via
 
 ```
 error[E0277]: `Vec3` can't be used with arithmetic inside an `#[algebraic]` scope
-   = note: wrap this expression in `plain!(..)` to use ordinary operators,
+   = note: wrap this expression in `strict!(..)` to use ordinary operators,
    = note: or opt the type in once with `reassoc::passthrough!(Vec3);`
 ```
 
@@ -164,7 +164,7 @@ standalone item and should opt in explicitly.
 
 Unknown parameters are a compile error, not silently ignored.
 
-### `plain!(expr)`
+### `strict!(expr)`
 Marks a subtree as strictly IEEE. The rewriter emits its contents verbatim and
 does not descend. Defined as an identity macro so it also compiles outside an
 annotated scope.
@@ -173,7 +173,7 @@ Its purpose is *not* type coverage — it protects code that depends on exact
 rounding. Compensated summation is the motivating case:
 
 ```rust
-c = plain!((t - sum) - y);   // algebraically zero; reassociation would delete it
+c = strict!((t - sum) - y);   // algebraically zero; reassociation would delete it
 ```
 
 ### `passthrough!`
@@ -202,7 +202,7 @@ single operator, because heterogeneous types rarely implement all five —
   ```
   Without this, `f()` would be evaluated twice.
 - Unary `-` untouched (no `algebraic_neg`).
-- `plain!(..)` contents emitted verbatim, no descent.
+- `strict!(..)` contents emitted verbatim, no descent.
 - Other macro invocations not descended into.
 - Spans are preserved so type errors point at the original operator.
 
