@@ -181,8 +181,8 @@ impl shape rather than attribute text.
 has no implicit numeric coercion by design, and an impl would insert the
 conversion the language deliberately refuses.
 
-**The gaps against plain Rust are documented in the README** and are not
-oversights. The operand error is `E0277` where rustc's is `E0308`: `E0308` is a
+**The gaps against plain Rust are documented in `docs/diagnostics.md`** and are
+not oversights. The operand error is `E0277` where rustc's is `E0308`: `E0308` is a
 unification failure, which needs one impl per type with the right-hand type
 spelled out concretely — exactly what accepting `&T` on the right forbids.
 Diagnostic ordering follows from the same gap, since the error we cannot emit is
