@@ -59,7 +59,7 @@ breaking all integer arithmetic in annotated code. Instead it emits a call into
 a dispatch layer whose implementation the *type checker* selects:
 
 ```rust
-a * b   ->   ::algebraic_sugar::mul(a, b)
+a * b   ->   ::algebraic_sugar::ops::mul(a, b)
 ```
 
 ### Trait shape (load-bearing)
@@ -119,7 +119,7 @@ a language limitation. The cost is one line per type, once:
 
 ```rust
 algebraic_sugar::passthrough!(Vec3);
-algebraic_sugar::passthrough!(Duration, u32 => Duration);
+algebraic_sugar::passthrough!(mul: Duration, u32 => Duration);
 ```
 
 The compiler points the user straight at it via
@@ -159,20 +159,29 @@ rounding. Compensated summation is the motivating case:
 c = plain!((t - sum) - y);   // algebraically zero; reassociation would delete it
 ```
 
-### `passthrough!(Ty)` / `passthrough!(A, B => Out)`
-Generates the five dispatch impls for a type using its `std::ops`
-implementations.
+### `passthrough!`
+Opts a type into the dispatch layer using its existing `std::ops` impls.
+
+```rust
+passthrough!(Vec3);                          // all five ops, same-type
+passthrough!(mul: Duration, u32 => Duration); // one op, heterogeneous
+```
+
+The same-type form generates all five impls. The heterogeneous form names a
+single operator, because heterogeneous types rarely implement all five —
+`Duration * u32` exists, `Duration + u32` does not.
 
 ## Rewrite rules
 
-- Binary `+ - * / %` become `sugar::{add,sub,mul,div,rem}` calls.
+- Binary `+ - * / %` become `::algebraic_sugar::ops::{add,sub,mul,div,rem}` calls,
+  always via the absolute path so the macros work regardless of what is in scope.
 - Compound assignment `+= -= *= /= %=` becomes a read-modify-write. Place
   expressions are bound once through a temporary to preserve evaluation
   semantics:
   ```rust
   v[f()] += x;
   // ->
-  { let __p = &mut v[f()]; *__p = sugar::add(*__p, x); }
+  { let __p = &mut v[f()]; *__p = ::algebraic_sugar::ops::add(*__p, x); }
   ```
   Without this, `f()` would be evaluated twice.
 - Unary `-` untouched (no `algebraic_neg`).
