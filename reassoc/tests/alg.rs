@@ -35,7 +35,7 @@ fn rewrites_inside_calls_and_indices() {
 }
 
 #[test]
-fn does_not_rewrite_unary_negation() {
+fn unary_negation_behaves_natively() {
     // There is no algebraic_neg; this must still compile and behave normally.
     let a = 2.0f32;
     assert_eq!(alg!(-a * a), -4.0);

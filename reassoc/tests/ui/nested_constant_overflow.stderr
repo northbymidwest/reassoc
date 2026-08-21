@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/nested_constant_overflow.rs:5:5
+  |
+5 |     (200u8 + 55) + 1
+  |     ^^^^^^^^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default

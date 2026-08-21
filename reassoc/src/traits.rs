@@ -74,3 +74,25 @@ impl<T: Copy> RefOperand for T {
         *self
     }
 }
+
+/// Negation, dispatched purely so the type checker has something to anchor to.
+///
+/// There is no `algebraic_neg` in Rust 1.98, so this is a plain `Neg` and
+/// always will be. It exists because a rewritten subexpression's type is an
+/// inference variable, and an operator the rewriter does NOT touch has nothing
+/// to resolve against: `alg!(-(3.0 * 2.0))` failed with `E0282` for exactly
+/// that reason. Routing negation through a same-type function lets the
+/// expected type flow backwards into the operand and pin the whole chain.
+///
+/// A single blanket impl suffices — unlike the arithmetic traits there is no
+/// float special case to overlap with, so user types are covered for free.
+pub trait AlgNeg {
+    fn alg_neg(self) -> Self;
+}
+
+impl<T: core::ops::Neg<Output = T>> AlgNeg for T {
+    #[inline(always)]
+    fn alg_neg(self) -> T {
+        -self
+    }
+}

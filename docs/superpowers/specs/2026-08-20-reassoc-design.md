@@ -221,7 +221,13 @@ single operator, because heterogeneous types rarely implement all five —
   `const fn`, so rewriting there would fail with `E0015` blamed on the
   attribute. `#[algebraic]` on a `const fn` is rejected with an authored
   error.
-- Unary `-` untouched (no `algebraic_neg`).
+- Unary `-` becomes `::reassoc::ops::neg`, a same-type function over a blanket
+  `Neg` impl. There is still no `algebraic_neg`; the indirection exists purely
+  so the expected type flows backwards into the operand. Without it,
+  `alg!(-(3.0 * 2.0))` fails with `E0282`: the operand is a rewritten call
+  whose type is an inference variable, and `Neg` has nothing to resolve
+  against. Not applied over a literal — `-128i8` would become `neg(128i8)`,
+  and `128` does not fit in an `i8`.
 - No macro invocation is descended into, `strict!` included. Nothing is
   matched by name.
 - Spans are preserved so type errors point at the original operator.

@@ -2,6 +2,36 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Fixed
+
+- **A rewritten subexpression could leave nothing for the type checker to
+  anchor to.** `alg!(-(3.0 * 2.0))` failed with `E0282`: `ops::mul(3.0, 2.0)`
+  returns a type variable that unsuffixed float literals cannot pin, and unary
+  minus — which was not rewritten — had no type to resolve `Neg` against.
+  Unary minus now routes through `ops::neg`, a same-type function over a
+  blanket `Neg` impl, so the expected type flows backwards into the operand.
+  There is still no `algebraic_neg`; the indirection is purely for inference,
+  and it compiles away — a negating dot product is byte-identical to the
+  hand-written algebraic form. Never applied over a literal, since `-128i8`
+  would become `neg(128i8)` and `128` is out of range for `i8`.
+- **Constant integer arithmetic is now exempted transitively**, so
+  `(200u8 + 55) + 1` reports its overflow. The leaf-level check missed it,
+  because that outer `+` has a binary expression on its left rather than a
+  literal.
+- A constant method receiver is left unrewritten, so `alg!((1.0 * 2.0).sqrt())`
+  reports the same `E0689` that plain Rust does, rather than a confusing
+  `E0282`.
+
+### Added
+
+- A random-expression corpus (`scripts/gen-fuzz-corpus.py`,
+  `tests/fuzz_corpus.rs`). Trees are built with their exact values tracked in
+  rational arithmetic and constrained to dyadic rationals inside f64's exact
+  range, so the rewritten form must equal both the offline value and the plain
+  form bit for bit. It found the `E0282` above on its first run.
+
 ## 0.2.4 — 2026-08-21
 
 ### Added

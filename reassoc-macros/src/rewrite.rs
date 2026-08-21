@@ -214,6 +214,22 @@ impl VisitMut for Rewriter {
         visit_mut::visit_trait_item_mut(self, item);
     }
 
+    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
+        // Method resolution needs a concrete receiver type. A rewritten call
+        // returns an inference variable, and if its operands are unanchored
+        // literals nothing pins it — `alg!((1.0 * 2.0).sqrt())` fails with
+        // `E0282`. Leaving a constant receiver alone costs nothing: it folds
+        // to the same value either way, and it infers exactly as plain Rust
+        // does. A receiver with variables in it has a known type, so it is
+        // still rewritten as usual.
+        if !is_constant_expr(&call.receiver) {
+            self.visit_expr_mut(&mut call.receiver);
+        }
+        for arg in &mut call.args {
+            self.visit_expr_mut(arg);
+        }
+    }
+
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         if let Expr::Macro(_) = expr {
             // Do not rewrite inside a macro invocation: syn hands us a
@@ -248,12 +264,34 @@ impl VisitMut for Rewriter {
         // by the time we rebuild this node.
         visit_mut::visit_expr_mut(self, expr);
 
+        if let Expr::Unary(unary) = expr {
+            if matches!(unary.op, syn::UnOp::Neg(_)) && !is_any_literal(&unary.expr) {
+                // Routed through a same-type dispatch function, not because
+                // there is an `algebraic_neg` — there isn't — but because the
+                // operand of a minus may be a rewritten call whose type is
+                // still an inference variable. `-x` needs `Neg` resolved
+                // against a known type; `ops::neg(x)` instead unifies `T` with
+                // the expected type and pushes it back into the operand.
+                //
+                // Never over a literal: `-128i8` would become `neg(128i8)`,
+                // and `128` does not fit in an `i8`.
+                let span = unary.op.span();
+                let krate = crate::krate::path();
+                let operand = unparen(&unary.expr);
+                *expr = syn::parse2(quote_spanned! {span=>
+                    #krate::ops::neg(#operand)
+                })
+                .expect("generated negation must parse");
+            }
+            return;
+        }
+
         if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
             let krate = crate::krate::path();
 
-            if is_non_float_literal(&binary.left) && is_non_float_literal(&binary.right) {
+            if is_non_float_constant(&binary.left) && is_non_float_constant(&binary.right) {
                 // Every literal EXCEPT a float one — a denylist, not an
                 // allowlist, and deliberately so.
                 //
@@ -355,36 +393,71 @@ impl VisitMut for Rewriter {
     }
 }
 
-/// True for any literal that is not a float literal, ignoring parentheses and
-/// a leading unary minus.
+/// True when the whole subtree is a compile-time constant that is not float
+/// arithmetic, ignoring parentheses and a leading minus.
 ///
-/// Stated as a denylist on purpose. The one literal kind that must keep being
-/// rewritten is the float one, because algebraic operators are meaningfully
-/// non-deterministic even on constants. Everything else either cannot do
-/// arithmetic at all, or is integer-like and must stay visible to rustc's
-/// deny-by-default `arithmetic_overflow` / `unconditional_panic` lints —
-/// byte literals being the case an integer-only allowlist missed.
-fn is_non_float_literal(expr: &Expr) -> bool {
+/// Such an operation is left unrewritten so it stays visible to rustc's
+/// deny-by-default `arithmetic_overflow` and `unconditional_panic` lints,
+/// which only fire on arithmetic the compiler can evaluate. Float literals are
+/// deliberately still rewritten: neither lint applies to them, and the
+/// algebraic operators are meaningfully non-deterministic even on constants.
+///
+/// Stated as a denylist so any literal kind added later is exempt by default,
+/// which fails safe. Byte literals are `u8` and overflow exactly like integers,
+/// and an integer-only allowlist missed them.
+fn is_non_float_constant(expr: &Expr) -> bool {
     match unparen(expr) {
         Expr::Lit(lit) => match &lit.lit {
             syn::Lit::Float(_) => false,
-            // `2f64` and `2f32` are float literals that syn reports as
-            // `Lit::Int`, because they have no decimal point — only the
-            // suffix distinguishes them. Missing that would silently skip
-            // dispatch for a perfectly ordinary spelling of a float constant.
+            // `2f64` and `2f32` have no decimal point and reach syn as
+            // `Lit::Int`; only the suffix marks them as floats.
             syn::Lit::Int(int) => !is_float_suffix(int.suffix()),
             _ => true,
         },
         Expr::Unary(unary) => {
-            matches!(unary.op, syn::UnOp::Neg(_)) && is_non_float_literal(&unary.expr)
+            matches!(unary.op, syn::UnOp::Neg(_)) && is_non_float_constant(&unary.expr)
+        }
+        // Transitive: rustc evaluates a whole constant subtree, so
+        // `(200u8 + 55) + 1` overflows just as `255u8 + 1` does. A
+        // leaf-level check misses it, because that outer `+` has a binary
+        // expression on its left rather than a literal.
+        Expr::Binary(binary) => {
+            dispatch_fn(&binary.op).is_some()
+                && is_non_float_constant(&binary.left)
+                && is_non_float_constant(&binary.right)
         }
         _ => false,
     }
 }
 
-/// `f32`, `f64`, and any future `f<N>` — matched by shape rather than by a
-/// fixed list, so a new float width does not silently fall through to the
-/// integer path.
+/// True when the whole subtree is a compile-time constant of any kind.
+///
+/// Used only for method receivers, where resolution needs a concrete type.
+fn is_constant_expr(expr: &Expr) -> bool {
+    match unparen(expr) {
+        Expr::Lit(_) => true,
+        Expr::Unary(unary) => {
+            matches!(unary.op, syn::UnOp::Neg(_)) && is_constant_expr(&unary.expr)
+        }
+        Expr::Binary(binary) => {
+            dispatch_fn(&binary.op).is_some()
+                && is_constant_expr(&binary.left)
+                && is_constant_expr(&binary.right)
+        }
+        _ => false,
+    }
+}
+
+/// True for any literal, ignoring parentheses.
+///
+/// Negation over one is left alone: `-128i8` rewritten as `neg(128i8)` would
+/// not compile, because `128` is out of range for `i8`.
+fn is_any_literal(expr: &Expr) -> bool {
+    matches!(unparen(expr), Expr::Lit(_))
+}
+
+/// `f32`, `f64`, and any future `f<N>` — matched by shape rather than a fixed
+/// list, so a new float width does not silently fall through.
 fn is_float_suffix(suffix: &str) -> bool {
     suffix
         .strip_prefix('f')

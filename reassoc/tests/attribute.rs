@@ -392,21 +392,38 @@ fn byte_literal_arithmetic_still_evaluates() {
     assert_eq!(byte_literals_are_not_rewritten(), 128);
 }
 
-/// Only non-float literals are exempted. Both lints are integer-only —
-/// `1.0 / 0.0` is inf, not a panic — and the algebraic operators are
-/// meaningfully non-deterministic even on constants, so float literals stay
-/// rewritten. This asserts the value; the property that they are dispatched
-/// is not observable from a test, since a float literal expression folds to
-/// the same constant either way.
+/// Float constants ARE rewritten. Making that work needed unary minus routed
+/// through `ops::neg`: without it, the operand of a minus could be a rewritten
+/// call whose type was still an inference variable, and `alg!(-(3.0 * 2.0))`
+/// failed with `E0282`. A random-expression corpus found it.
+///
+/// It const-folds either way, so nothing is lost; and rewriting it costs a
+/// type anchor. `ops::mul(3.0, 2.0)` returns a variable that unsuffixed float
+/// literals cannot pin, so a unary minus over it — which is never rewritten —
+/// has nothing to resolve `Neg` against. `alg!(-(3.0 * 2.0))` used to fail
+/// with `E0282`; a random-expression corpus found it.
 #[test]
-fn float_literals_are_still_rewritten() {
+fn constants_under_a_minus_still_infer() {
+    // These used to fail to compile.
+    assert_eq!(alg!(-(3.0 * 2.0)), -6.0);
+    assert_eq!(alg!(-((-1.0 * 4.0) / 2.0)), 2.0);
+    // Context still chooses the type; nothing is hardcoded to f64.
+    let narrow: f32 = alg!(-(3.0 * 2.0));
+    assert_eq!(narrow, -6.0f32);
     assert_eq!(alg!(2.0f32 * 3.0), 6.0);
-    assert_eq!(alg!(2.0f32 * 3.0 + 1.0), 7.0);
-    // `2f64` has no decimal point, so syn reports it as `Lit::Int` with an
-    // `f64` suffix. Only the suffix marks it as a float, and missing that
-    // would silently skip dispatch for an ordinary spelling of a constant.
     assert_eq!(alg!(2f64 * 3f64), 6.0);
-    assert_eq!(alg!(2f32 * 3f32), 6.0);
+    let x = 4.0f64;
+    assert_eq!(alg!(x * (3.0 * 2.0) + -(1.0 / 2.0)), 23.5);
+    // A negative literal must survive intact: rewriting it as `neg(128i8)`
+    // would not compile, since 128 is out of range for i8.
+    assert_eq!(alg!(-128i8), i8::MIN);
+    // `+ 0` is deliberate: it makes the minus part of a larger expression,
+    // which is where a naive rewrite would try to negate `128i8`.
+    #[allow(clippy::identity_op)]
+    let boundary = alg!(-128i8 + 0);
+    assert_eq!(boundary, i8::MIN);
+    // Integer constants stay exempt, transitively.
+    assert_eq!(alg!(200u8 + 55), 255);
 }
 
 /// f64 is not an afterthought: the dispatch layer, the escape hatch and the
