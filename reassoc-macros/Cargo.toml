@@ -1,12 +1,14 @@
 [package]
 name = "reassoc-macros"
 description = "Proc macros for the reassoc crate. Do not depend on this directly; use reassoc."
+# `license` is the SPDX identifier crates.io and license scanners read;
+# `license-file` additionally ships the text, since LICENSE lives at the
+# repo root outside both packages.
 license-file = "../LICENSE"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-# `license-file` above ships the LICENSE text in the archive; cargo warns if
-# `license` is also set (only one is needed), so we don't inherit it here.
+license.workspace = true
 repository.workspace = true
 
 [lib]
