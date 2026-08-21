@@ -13,6 +13,7 @@ help: the trait `MulRhs<Odd, Odd>` is not implemented for `Odd`
   | ^^^^^^^^^^
   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
   = note: if these are numeric types, cast one of them; if `Odd` is not opted in yet, add `reassoc::passthrough!(Odd);`, or wrap the expression in `strict!(..)` to use ordinary operators
+  = note: if `Odd` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
   = help: the following other types implement trait `MulRhs<Lhs, O>`:
             `&Duration` implements `MulRhs<&u32, Duration>`
             `&Duration` implements `MulRhs<u32, Duration>`

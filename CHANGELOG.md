@@ -21,6 +21,21 @@ Notable changes per release. Dates are the publish date.
 
   `passthrough!(mul out A => O)` remains, for `MulRhs` implemented by hand
   rather than through `passthrough!`.
+- **The generic-type-parameter note came back.** 0.3.0 moved the "not opted in"
+  advice onto the operand message but dropped the note saying it does not apply
+  to a type parameter, so `#[algebraic]` on a generic function advised
+  `passthrough!(T)` — which cannot work. Exactly the misdirection 0.3.0 set out
+  to remove, in the one case it missed.
+
+### Documentation
+
+- The README's limitations were audited against the code. `Unary - is not
+  rewritten` was simply wrong — it has been rewritten since 0.2.5, through a
+  no-op `ops::neg` that exists to anchor inference — and was not a limitation
+  in the first place, since IEEE negation is exact and there is nothing an
+  `algebraic_neg` could reassociate. Const positions were missing entirely and
+  are now covered. The debug-build overhead figure was stale: measured again,
+  a tight dot-product loop is about 25% over the hand-written form, not 40%.
 
 ## 0.3.0 — 2026-08-21
 

@@ -23,7 +23,10 @@ macro_rules! declare_op_trait {
                     `#[algebraic]` scope or outside one",
             note = "if these are numeric types, cast one of them; if `{Lhs}` is not opted in \
                     yet, add `reassoc::passthrough!({Lhs});`, or wrap the expression in \
-                    `strict!(..)` to use ordinary operators"
+                    `strict!(..)` to use ordinary operators",
+            note = "if `{Lhs}` is a generic type parameter, none of those apply: dispatch is \
+                    resolved per concrete type, so `#[algebraic]` cannot be used in a generic \
+                    function"
         )]
         pub trait $rhs_trait<Lhs, O> {
             fn $rhs_method(self, lhs: Lhs) -> O;
