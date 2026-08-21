@@ -18,6 +18,11 @@ repository.workspace = true
 proc-macro = true
 
 [dependencies]
-syn = { version = "3.0.3", features = ["full", "visit-mut", "parsing", "printing", "proc-macro"] }
-quote = "1.0.47"
-proc-macro2 = "1.0.107"
+# Floors are the minimum we actually require, not the newest published:
+# a needlessly high floor forces downstream upgrades for no reason. Verified
+# the full suite passes at syn 3.0.0. `default-features = false` drops syn's
+# `derive` feature, which we never use; `clone-impls` is kept because the
+# rewriter clones `Expr` nodes.
+syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls"] }
+quote = "1.0"
+proc-macro2 = "1.0"

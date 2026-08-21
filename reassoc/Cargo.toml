@@ -25,4 +25,4 @@ alloc = []
 reassoc-macros = { version = "=0.1.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
-trybuild = "1.0.120"
+trybuild = "1.0"
