@@ -31,6 +31,10 @@ accepts that the macro did not.
   The output trait now names the right operand as well, so they are distinct.
   `passthrough!(op out A => O)`, for operand traits implemented by hand, becomes
   `passthrough!(op out A, B => O)`.
+- **The `RefOperand` note** now names the per-operator opt-out spelling
+  (`passthrough!(no_refs add: A, B => O)`) alongside the whole-type and derive
+  forms, and says that a right-hand operand which is already a reference, such
+  as `&str`, needs it too.
 - **A method call on a constant float expression**, `(1.0 * 2.0).sqrt()`, was
   special-cased out of rewriting to dodge an `E0282`. No longer necessary; it
   now fails with the same `E0689` plain Rust gives, and `(2.0f64 * 8.0).sqrt()`

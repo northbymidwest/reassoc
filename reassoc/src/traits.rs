@@ -113,8 +113,11 @@ declare_op_trait!(
 #[diagnostic::on_unimplemented(
     message = "`{Self}` must be `Copy` to get `passthrough!`'s reference impls",
     label = "this type is not `Copy`",
-    note = "for a type that is not `Copy`, write `passthrough!(no_refs {Self});`",
-    note = "or `#[passthrough(no_refs)]` if you are using the derive"
+    note = "for a type that is not `Copy`, opt out of them: `passthrough!(no_refs {Self});` \
+            for the whole type, `passthrough!(no_refs add: {Self}, Rhs => Out);` for one \
+            operator, or `#[passthrough(no_refs)]` on the derive",
+    note = "this also covers a right-hand operand that is already a reference, such as \
+            `&str`: the reference-emitting form would need a lifetime for it"
 )]
 pub trait RefOperand: Sized {
     /// Copies out of a reference. Implemented only for `Copy` types.
