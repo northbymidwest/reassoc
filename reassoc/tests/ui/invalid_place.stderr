@@ -1,5 +1,7 @@
 error: invalid left-hand side of compound assignment
- --> tests/ui/invalid_place.rs:5:12
+ --> tests/ui/invalid_place.rs:5:5
   |
 5 |     alg!(a + b += x);
-  |            ^
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `alg` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -109,17 +109,27 @@ macro_rules! strict {
 #[macro_export]
 macro_rules! passthrough_refs {
     ($trait_name:ident, $method:ident, $op:tt, $t:ty) => {
-        impl $crate::traits::$trait_name<&$t, $t> for $t {
+        impl $crate::traits::$trait_name<&$t, $t> for $t
+        where $t: $crate::traits::RefOperand {
             #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t { self $op *rhs }
+            fn $method(self, rhs: &$t) -> $t {
+                self $op $crate::traits::RefOperand::reassoc_dup(rhs)
+            }
         }
-        impl $crate::traits::$trait_name<$t, $t> for &$t {
+        impl $crate::traits::$trait_name<$t, $t> for &$t
+        where $t: $crate::traits::RefOperand {
             #[inline(always)]
-            fn $method(self, rhs: $t) -> $t { *self $op rhs }
+            fn $method(self, rhs: $t) -> $t {
+                $crate::traits::RefOperand::reassoc_dup(self) $op rhs
+            }
         }
-        impl $crate::traits::$trait_name<&$t, $t> for &$t {
+        impl $crate::traits::$trait_name<&$t, $t> for &$t
+        where $t: $crate::traits::RefOperand {
             #[inline(always)]
-            fn $method(self, rhs: &$t) -> $t { *self $op *rhs }
+            fn $method(self, rhs: &$t) -> $t {
+                $crate::traits::RefOperand::reassoc_dup(self)
+                    $op $crate::traits::RefOperand::reassoc_dup(rhs)
+            }
         }
     };
 }

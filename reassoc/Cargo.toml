@@ -18,6 +18,8 @@ repository.workspace = true
 
 [features]
 default = ["std"]
+# Forwarded: makes the macros work when this crate is renamed in Cargo.toml.
+resolve-crate-name = ["reassoc-macros/resolve-crate-name"]
 std = ["alloc"]
 alloc = []
 

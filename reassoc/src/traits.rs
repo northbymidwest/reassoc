@@ -12,7 +12,10 @@ macro_rules! declare_op_trait {
                     message = $msg,
                     label = "no `reassoc` impl for `{Self}`",
                     note = "wrap this expression in `strict!(..)` to use ordinary operators,",
-                    note = "or opt the type in once with `reassoc::passthrough!({Self});`"
+                    note = "or opt the type in once with `reassoc::passthrough!({Self});`",
+            note = "if `{Self}` is a generic type parameter, neither applies: dispatch is \
+                    resolved per concrete type, so `#[algebraic]` cannot be used in a \
+                    generic function"
                 )]
         pub trait $trait_name<B, O> {
             fn $method(self, rhs: B) -> O;
@@ -45,3 +48,29 @@ declare_op_trait!(
     alg_rem,
     "`{Self}` can't be used with `%` inside an `#[algebraic]` scope"
 );
+
+/// Marks a type whose reference operands can be dispatched.
+///
+/// `passthrough!`'s reference impls dereference their operands, so they need
+/// `Copy`. This trait exists purely so that requirement produces a message
+/// naming the way out, rather than a bare `cannot move out of a shared
+/// reference` pointing into a macro expansion. It carries `dup` rather than a
+/// `Copy` supertrait deliberately: with a supertrait, rustc blames `Copy` and
+/// the message below is never shown.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` must be `Copy` to get `passthrough!`'s reference impls",
+    label = "this type is not `Copy`",
+    note = "for a type that is not `Copy`, write `passthrough!(no_refs {Self});`",
+    note = "or `#[passthrough(no_refs)]` if you are using the derive"
+)]
+pub trait RefOperand: Sized {
+    /// Copies out of a reference. Implemented only for `Copy` types.
+    fn reassoc_dup(&self) -> Self;
+}
+
+impl<T: Copy> RefOperand for T {
+    #[inline(always)]
+    fn reassoc_dup(&self) -> T {
+        *self
+    }
+}

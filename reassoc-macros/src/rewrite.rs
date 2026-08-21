@@ -245,6 +245,7 @@ impl VisitMut for Rewriter {
         if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
+            let krate = crate::krate::path();
 
             if is_non_float_literal(&binary.left) && is_non_float_literal(&binary.right) {
                 // Every literal EXCEPT a float one — a denylist, not an
@@ -279,7 +280,7 @@ impl VisitMut for Rewriter {
                 let left = unparen(&binary.left);
                 let right = unparen(&binary.right);
                 *expr = syn::parse2(quote_spanned! {span=>
-                    ::reassoc::ops::#func(#left, #right)
+                    #krate::ops::#func(#left, #right)
                 })
                 .expect("generated dispatch call must parse");
             } else if let Some(name) = dispatch_fn_assign(&binary.op) {
@@ -337,7 +338,7 @@ impl VisitMut for Rewriter {
                             __reassoc_rhs_9f2c1a => {
                                 let __reassoc_place_9f2c1a = &mut #left;
                                 *__reassoc_place_9f2c1a =
-                                    ::reassoc::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
+                                    #krate::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
                             }
                         }
                     })

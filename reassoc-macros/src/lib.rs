@@ -1,3 +1,4 @@
+mod krate;
 mod passthrough;
 mod rewrite;
 mod scope;

@@ -17,7 +17,14 @@ repository.workspace = true
 [lib]
 proc-macro = true
 
+[features]
+# Off by default: `proc-macro-crate` pulls in toml parsing (8 crates), which is
+# a poor trade for every consumer when renaming this dependency is rare. Turn
+# it on only if you rename it.
+resolve-crate-name = ["dep:proc-macro-crate"]
+
 [dependencies]
+proc-macro-crate = { version = "3.5", optional = true }
 # Floors are the minimum we actually require, not the newest published: a
 # needlessly high floor forces downstream upgrades for no reason. Verified the
 # full suite passes at syn 3.0.0.

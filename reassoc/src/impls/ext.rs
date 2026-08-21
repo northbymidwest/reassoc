@@ -112,3 +112,41 @@ macro_rules! duration_refs {
 
 duration_refs!(AlgAdd, alg_add, +);
 duration_refs!(AlgSub, alg_sub, -);
+
+/// Reference operands for a heterogeneous pair, e.g. `&Duration * u32`.
+///
+/// `core` provides forward_ref impls for these, so a reference operand works
+/// natively and must work here too. Both sides are `Copy`, which every pair
+/// below satisfies.
+macro_rules! hetero_refs {
+    ($trait_name:ident, $method:ident, $op:tt, $a:ty, $b:ty => $o:ty) => {
+        impl $trait_name<&$b, $o> for $a {
+            #[inline(always)]
+            fn $method(self, rhs: &$b) -> $o { self $op *rhs }
+        }
+        impl $trait_name<$b, $o> for &$a {
+            #[inline(always)]
+            fn $method(self, rhs: $b) -> $o { *self $op rhs }
+        }
+        impl $trait_name<&$b, $o> for &$a {
+            #[inline(always)]
+            fn $method(self, rhs: &$b) -> $o { *self $op *rhs }
+        }
+    };
+}
+
+hetero_refs!(AlgMul, alg_mul, *, Duration, u32 => Duration);
+hetero_refs!(AlgMul, alg_mul, *, u32, Duration => Duration);
+hetero_refs!(AlgDiv, alg_div, /, Duration, u32 => Duration);
+
+#[cfg(feature = "std")]
+mod std_ref_impls {
+    use crate::traits::{AlgAdd, AlgSub};
+    use core::time::Duration;
+    use std::time::{Instant, SystemTime};
+
+    hetero_refs!(AlgAdd, alg_add, +, Instant, Duration => Instant);
+    hetero_refs!(AlgSub, alg_sub, -, Instant, Duration => Instant);
+    hetero_refs!(AlgAdd, alg_add, +, SystemTime, Duration => SystemTime);
+    hetero_refs!(AlgSub, alg_sub, -, SystemTime, Duration => SystemTime);
+}
