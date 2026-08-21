@@ -2,9 +2,7 @@
 
 A type error inside `alg!` or `#[algebraic]` should read like a type error
 outside it. This is where that claim is checked: what matches, what does not,
-and why. What the rewrite does not do at all is in
-[limitations.md](limitations.md); the reasoning behind the trait shapes is in
-[design.md](design.md).
+and why.
 
 ## What matches
 
