@@ -102,10 +102,22 @@ if merged dot_sugar dot_plain; then
   exit 1
 fi
 
-# (3) dot_plain must be strictly more scalar than dot_sugar.
+# (3) dot_plain must be strictly more scalar than dot_sugar. When this
+# fails, the message must not blame whichever side happens to be on the
+# left of the comparison: it can fail either because dot_plain
+# unexpectedly stayed vectorized (the negative control broke) or because
+# dot_sugar unexpectedly went scalar (dispatch regressed). dot_direct is a
+# hand-written reference that never goes through the macro, so it cannot
+# itself regress; comparing dot_sugar against it tells the two apart.
 if [ "$PLAIN_SCALAR" -le "$SUGAR_SCALAR" ]; then
-  echo "codegen-check: FAIL dot_plain has $PLAIN_SCALAR scalar adds, not more than dot_sugar's $SUGAR_SCALAR" >&2
-  echo "  the negative control failed to stay scalar; this check can no longer discriminate" >&2
+  if ! merged dot_sugar dot_direct && [ "$SUGAR_SCALAR" -ne "$DIRECT_SCALAR" ]; then
+    echo "codegen-check: FAIL dot_sugar has $SUGAR_SCALAR scalar adds vs dot_direct's $DIRECT_SCALAR (plain=$PLAIN_SCALAR sugar=$SUGAR_SCALAR)" >&2
+    echo "  dot_sugar stopped being vectorized; dispatch may have fallen back to plain IEEE operators" >&2
+  else
+    echo "codegen-check: FAIL dot_plain has $PLAIN_SCALAR scalar adds, not more than dot_sugar's $SUGAR_SCALAR" >&2
+    echo "  dot_sugar still matches dot_direct, so it is dot_plain that stopped being scalar (its" >&2
+    echo "  plain IEEE reduction may be getting reassociated); this check can no longer discriminate" >&2
+  fi
   exit 1
 fi
 
