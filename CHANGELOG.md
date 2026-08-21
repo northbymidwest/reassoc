@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.2.5 — 2026-08-21
 
 ### Fixed
 
@@ -26,6 +26,10 @@ Notable changes per release. Dates are the publish date.
 
 ### Added
 
+- An audit of the whole operator surface (`tests/operators.rs`), covering what
+  is rewritten, what is not, and that the untouched operators — bitwise,
+  shifts, comparisons, `&&`/`||` short-circuiting, `as`, indexing, ranges, `?`
+  — behave exactly as they do outside the macro.
 - A random-expression corpus (`scripts/gen-fuzz-corpus.py`,
   `tests/fuzz_corpus.rs`). Trees are built with their exact values tracked in
   rational arithmetic and constrained to dyadic rationals inside f64's exact
