@@ -95,6 +95,32 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        if let Expr::Macro(mac) = expr {
+            let is_plain = mac
+                .mac
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == "plain");
+
+            if is_plain {
+                // Emit the contents verbatim, without descending: this
+                // subtree is explicitly opted out of algebraic semantics.
+                if let Ok(inner) = mac.mac.parse_body::<Expr>() {
+                    let span = mac.mac.path.segments.last().unwrap().ident.span();
+                    *expr = syn::parse2(quote_spanned! {span=> (#inner) })
+                        .expect("plain! body must re-parse");
+                }
+            }
+            // Either way, do not rewrite inside a macro invocation: syn
+            // hands us a macro's body as an opaque token stream, and we
+            // deliberately never parse into it to look for arithmetic. A
+            // false positive there (e.g. rewriting inside `format!`'s
+            // format string) would be far worse than the false negative of
+            // leaving genuine arithmetic inside an unrelated macro alone.
+            return;
+        }
+
         // Rewrite children first, so nested operators are already converted
         // by the time we rebuild this node.
         visit_mut::visit_expr_mut(self, expr);

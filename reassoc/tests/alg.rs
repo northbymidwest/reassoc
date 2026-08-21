@@ -113,3 +113,22 @@ fn compound_assignment_actually_dispatches() {
     alg!(w *= x);
     assert_eq!(w, Dispatched(27.0));
 }
+
+#[test]
+fn plain_blocks_are_emitted_verbatim() {
+    let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
+    // If this were rewritten, it would still equal 0.0 numerically, so assert
+    // on the structure instead: plain! must strip to its contents and compile.
+    assert_eq!(alg!(plain!((t - sum) - y)), 0.0);
+    // A plain! subtree nested inside rewritten arithmetic.
+    assert_eq!(alg!(t * plain!(sum + y)), 9.0);
+}
+
+#[test]
+fn other_macros_are_not_descended_into() {
+    let a = 2.0f32;
+    // format! contains arithmetic the rewriter must not touch; if it tried,
+    // this would fail to compile.
+    let s = alg!(format!("{}", a * a));
+    assert_eq!(s, "4");
+}
