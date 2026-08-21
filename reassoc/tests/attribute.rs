@@ -1,4 +1,4 @@
-use reassoc::{algebraic, strict};
+use reassoc::{alg, algebraic, strict};
 
 // `strict` must be imported to use `strict!` unqualified below: it is an
 // ordinary identity macro, not something the rewriter recognizes by name,
@@ -361,4 +361,82 @@ fn dispatch_still_rewrites_non_const_positions_near_const_contexts() {
         dispatch_still_rewrites_around_const_contexts(Dispatched(3.0)),
         Dispatched(27.0)
     );
+}
+
+// ---- regressions found by an independent audit of 0.1.1 ----
+
+/// Literal-only arithmetic is left alone so rustc's deny-by-default
+/// `arithmetic_overflow` / `unconditional_panic` lints still see the
+/// constants. `255u8 + 1` used to compile and wrap to 0 under the attribute
+/// while being a hard error without it. The must-fail direction is pinned by
+/// `tests/ui/literal_overflow.rs`.
+#[algebraic]
+fn literals_are_not_rewritten() -> u8 {
+    200u8 + 55
+}
+
+#[test]
+fn literal_arithmetic_still_evaluates() {
+    assert_eq!(literals_are_not_rewritten(), 255);
+}
+
+/// Const positions inside a nested `impl` are const contexts too. An
+/// associated const and a `const fn` method are `ImplItem`s, not `Item`s, so
+/// the `Item`-level check used to miss them and they failed with E0015.
+struct Consts;
+
+// The nested `impl` is the point: it is what puts an associated const and a
+// `const fn` method behind `visit_item_mut`, where the Item-level check used
+// to miss them.
+#[allow(non_local_definitions)]
+#[algebraic(items = true)]
+fn const_positions_in_nested_impls(x: f32) -> f32 {
+    impl Consts {
+        const K: f32 = 1.0 + 2.0;
+        const fn g() -> f32 {
+            3.0 + 4.0
+        }
+    }
+    x * Consts::K + Consts::g()
+}
+
+#[test]
+fn nested_impl_consts_compile() {
+    assert_eq!(const_positions_in_nested_impls(2.0), 13.0);
+}
+
+/// Compound assignment must keep native evaluation and drop order: the RHS's
+/// temporaries used to drop at the end of the generated `let`, before the
+/// place was evaluated.
+#[test]
+fn compound_assignment_matches_native_order() {
+    use core::cell::RefCell;
+    let log = RefCell::new(Vec::new());
+    struct Guard<'a>(&'a RefCell<Vec<&'static str>>);
+    impl Drop for Guard<'_> {
+        fn drop(&mut self) {
+            self.0.borrow_mut().push("drop");
+        }
+    }
+
+    let order = |rewritten: bool| {
+        log.borrow_mut().clear();
+        let mut v = [0.0f32; 2];
+        let place = || {
+            log.borrow_mut().push("place");
+            0usize
+        };
+        let rhs = || {
+            let _g = Guard(&log);
+            1.0f32
+        };
+        if rewritten {
+            alg!(v[place()] += rhs());
+        } else {
+            v[place()] += rhs();
+        }
+        assert_eq!(v[0], 1.0, "the assignment itself must still happen");
+        log.borrow().clone()
+    };
+    assert_eq!(order(true), order(false), "diverges from native `+=`");
 }

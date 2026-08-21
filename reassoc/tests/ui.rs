@@ -12,4 +12,7 @@
 fn ui() {
     let t = trybuild::TestCases::new();
     t.compile_fail("tests/ui/*.rs");
+    // Must come after: its presence is what makes trybuild use `cargo build`
+    // instead of `cargo check`, without which codegen-time lints never fire.
+    t.pass("tests/ui/pass/*.rs");
 }

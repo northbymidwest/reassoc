@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/literal_overflow.rs:4:5
+  |
+4 |     255u8 + 1
+  |     ^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default

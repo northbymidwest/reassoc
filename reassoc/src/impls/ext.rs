@@ -66,8 +66,61 @@ macro_rules! plain_wrapper_op {
                 self $op rhs
             }
         }
+
+        // Reference operands, so these behave like the primitives in iterator
+        // code. `core` provides forward_ref impls for these types, so a
+        // reference operand works natively and must work here too.
+        impl<T> $trait_name<&$w<T>, $w<T>> for $w<T>
+        where
+            $w<T>: Copy + $bound<Output = $w<T>>,
+        {
+            #[inline(always)]
+            fn $method(self, rhs: &$w<T>) -> $w<T> {
+                self $op *rhs
+            }
+        }
+        impl<T> $trait_name<$w<T>, $w<T>> for &$w<T>
+        where
+            $w<T>: Copy + $bound<Output = $w<T>>,
+        {
+            #[inline(always)]
+            fn $method(self, rhs: $w<T>) -> $w<T> {
+                *self $op rhs
+            }
+        }
+        impl<T> $trait_name<&$w<T>, $w<T>> for &$w<T>
+        where
+            $w<T>: Copy + $bound<Output = $w<T>>,
+        {
+            #[inline(always)]
+            fn $method(self, rhs: &$w<T>) -> $w<T> {
+                *self $op *rhs
+            }
+        }
     };
 }
 
 plain_wrapper!(Wrapping);
 plain_wrapper!(Saturating);
+
+/// Reference operands for `Duration`'s same-type operators, matching the
+/// forward_ref impls `core` provides.
+macro_rules! duration_refs {
+    ($trait_name:ident, $method:ident, $op:tt) => {
+        impl $trait_name<&Duration, Duration> for Duration {
+            #[inline(always)]
+            fn $method(self, rhs: &Duration) -> Duration { self $op *rhs }
+        }
+        impl $trait_name<Duration, Duration> for &Duration {
+            #[inline(always)]
+            fn $method(self, rhs: Duration) -> Duration { *self $op rhs }
+        }
+        impl $trait_name<&Duration, Duration> for &Duration {
+            #[inline(always)]
+            fn $method(self, rhs: &Duration) -> Duration { *self $op *rhs }
+        }
+    };
+}
+
+duration_refs!(AlgAdd, alg_add, +);
+duration_refs!(AlgSub, alg_sub, -);

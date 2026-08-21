@@ -58,7 +58,7 @@ const OPS: [Op; 5] = [
 ];
 
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
-    let selected = selected_ops(&input)?;
+    let (selected, with_refs) = selected_ops(&input)?;
 
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -72,23 +72,69 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         // The `where` bound defers to the type's own `core::ops` impl, which is
         // what lets this work for generic types: without it the body would have
         // no operator to call.
-        let extra_where = quote! {
+        let op_bound = quote! {
             #name #ty_generics: ::core::ops::#bound_ident<Output = #name #ty_generics>
         };
-        let bounds = match where_clause {
-            Some(existing) => quote! { #existing, #extra_where },
-            None => quote! { where #extra_where },
+        let bounds = |extra: TokenStream| match where_clause {
+            Some(existing) => quote! { #existing, #extra },
+            None => quote! { where #extra },
         };
+        let by_value_bounds = bounds(quote! { #op_bound });
 
-        quote! {
+        let by_value = quote! {
             impl #impl_generics
                 ::reassoc::traits::#trait_ident<#name #ty_generics, #name #ty_generics>
                 for #name #ty_generics
-            #bounds
+            #by_value_bounds
             {
                 #[inline(always)]
                 fn #method_ident(self, rhs: #name #ty_generics) -> #name #ty_generics {
                     self #op_token rhs
+                }
+            }
+        };
+
+        if !with_refs {
+            return by_value;
+        }
+
+        // Reference operands, so an opted-in type behaves like a built-in one
+        // in iterator code. These dereference, hence the `Copy` bound; a type
+        // that is not `Copy` opts out with `#[passthrough(no_refs)]`.
+        let ref_bounds = bounds(quote! { #name #ty_generics: ::core::marker::Copy, #op_bound });
+        quote! {
+            #by_value
+
+            impl #impl_generics
+                ::reassoc::traits::#trait_ident<&#name #ty_generics, #name #ty_generics>
+                for #name #ty_generics
+            #ref_bounds
+            {
+                #[inline(always)]
+                fn #method_ident(self, rhs: &#name #ty_generics) -> #name #ty_generics {
+                    self #op_token *rhs
+                }
+            }
+
+            impl #impl_generics
+                ::reassoc::traits::#trait_ident<#name #ty_generics, #name #ty_generics>
+                for &#name #ty_generics
+            #ref_bounds
+            {
+                #[inline(always)]
+                fn #method_ident(self, rhs: #name #ty_generics) -> #name #ty_generics {
+                    *self #op_token rhs
+                }
+            }
+
+            impl #impl_generics
+                ::reassoc::traits::#trait_ident<&#name #ty_generics, #name #ty_generics>
+                for &#name #ty_generics
+            #ref_bounds
+            {
+                #[inline(always)]
+                fn #method_ident(self, rhs: &#name #ty_generics) -> #name #ty_generics {
+                    *self #op_token *rhs
                 }
             }
         }
@@ -103,15 +149,20 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 /// name the ones it has: an impl whose `where` bound is known unsatisfiable for
 /// a concrete type is a hard error at the definition rather than a
 /// lazily-checked one, so generating all five unconditionally would not compile.
-fn selected_ops(input: &DeriveInput) -> syn::Result<Vec<&'static Op>> {
+fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
     let mut chosen: Vec<&'static Op> = Vec::new();
+    let mut with_refs = true;
 
     for attr in &input.attrs {
         if !attr.path().is_ident("passthrough") {
             continue;
         }
-        attr.parse_nested_meta(
-            |meta| match OPS.iter().find(|op| meta.path.is_ident(op.name)) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("no_refs") {
+                with_refs = false;
+                return Ok(());
+            }
+            match OPS.iter().find(|op| meta.path.is_ident(op.name)) {
                 Some(op) => {
                     if !chosen.iter().any(|already| already.name == op.name) {
                         chosen.push(op);
@@ -119,15 +170,15 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<Vec<&'static Op>> {
                     Ok(())
                 }
                 None => Err(meta.error(
-                    "unknown operator; expected one or more of `add`, `sub`, `mul`, `div`, `rem`",
+                    "expected `no_refs` or one or more of `add`, `sub`, `mul`, `div`, `rem`",
                 )),
-            },
-        )?;
+            }
+        })?;
     }
 
     if chosen.is_empty() {
-        Ok(OPS.iter().collect())
+        Ok((OPS.iter().collect(), with_refs))
     } else {
-        Ok(chosen)
+        Ok((chosen, with_refs))
     }
 }

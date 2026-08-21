@@ -87,12 +87,27 @@ RHS-then-place order.
 
 **Const positions are never rewritten** — array-repeat lengths, `TypeArray`
 lengths, `const`/`static` items, inline `const { .. }` blocks, const generic
-arguments, and enum discriminants. `ops::*` are not `const fn`, so rewriting
+arguments, enum discriminants, and — at `ImplItem`/`TraitItem` granularity —
+associated consts and `const fn` methods. `ops::*` are not `const fn`, so rewriting
 there fails with `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
 **Generated code uses absolute paths** (`::reassoc::ops::add`) and never emits
 parentheses around operands.
+
+**Literal-only arithmetic is left unrewritten.** `255u8 + 1` must stay visible
+to rustc's deny-by-default `arithmetic_overflow` and `unconditional_panic`
+lints; rewriting it to a call hides the constants and turns a compile error
+into a silent wrap. It is const-folded anyway, so nothing is lost.
+
+**Compound assignment binds through a `match`, not a `let`.** A `let` drops the
+RHS's temporaries at the end of its own statement, before the place is
+evaluated; native `+=` keeps them to the end of the full statement.
+
+**A nested item carrying its own `#[algebraic(..)]` is left entirely alone**, so
+that attribute governs it. Rewriting it under the outer scope first would make
+the inner attribute run over already-rewritten code and silently ignore its own
+parameters.
 
 ## Writing tests that can actually fail
 
@@ -108,6 +123,11 @@ not be rewritten fails with `E0369`. The three scope UI cases
 for exactly this reason — they are the only evidence those flags do anything.
 
 Before trusting a new guard, neuter the thing it guards and watch it fail.
+
+`tests/ui/pass/` exists partly to force trybuild to use `cargo build` rather
+than `cargo check`: lints that fire during codegen — `arithmetic_overflow`
+among them — are invisible under `check`, so `tests/ui/literal_overflow.rs`
+cannot pin anything without a pass case present.
 
 `tests/ui/redundant_parens.rs` carries `#![deny(unused_parens)]` and pins both
 directions across every construct the rewriter emits, because generated parens

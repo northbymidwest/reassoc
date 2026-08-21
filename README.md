@@ -112,6 +112,10 @@ reassoc = "0.1"
 Primitives, references to them, `Duration`, `String`, the std time types, and
 `Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in.
 
+Opted-in types get reference operands too, so they work in iterator code the
+same way primitives do. That dereferences, so it needs `Copy`; a type that is
+not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`.
+
 ### Scope
 
 `#[algebraic]` takes two independent parameters:
@@ -150,6 +154,13 @@ will delete it.
   `&f32` operands — which rules it out, since references are ubiquitous in
   iterator-based numeric code. If `min_specialization` ever stabilizes, the
   opt-in can be removed with no such tradeoff.
+- Compound assignment on a **non-primitive** type evaluates its right-hand side
+  before the place, whereas native `+=` on an overloaded type evaluates the
+  place first. Distinguishing the two needs type information a macro does not
+  have. Primitive `+=` is RHS-first natively and matches.
+- Generated bindings resolve at the call site, because a stable proc macro has
+  no def-site hygiene. They carry a nonsense suffix to make a collision with a
+  user binding implausible, not impossible.
 - Debug builds (`opt-level = 0`) carry some overhead from un-inlined generic
   calls — roughly 40% more instructions in a tight loop. Release builds are
   byte-identical to hand-written algebraic calls; correctness is unaffected

@@ -1,4 +1,4 @@
-error: unknown operator; expected one or more of `add`, `sub`, `mul`, `div`, `rem`
+error: expected `no_refs` or one or more of `add`, `sub`, `mul`, `div`, `rem`
  --> tests/ui/bad_passthrough_op.rs:2:20
   |
 2 | #[passthrough(add, nonsense)]

@@ -164,3 +164,59 @@ fn derive_works_on_generic_types() {
     assert_eq!(add(Pair(1.0f32, 2.0), Pair(3.0, 4.0)), Pair(4.0f32, 6.0));
     assert_eq!(add(Pair(1u8, 2u8), Pair(3u8, 4u8)), Pair(4u8, 6u8));
 }
+
+// ---- reference operands, the iterator shape ----
+
+// The borrows are the point: these exercise the `&T` impls, so clippy's
+// suggestion to drop them would delete what is being tested.
+#[allow(clippy::needless_borrows_for_generic_args)]
+#[test]
+fn opted_in_types_accept_reference_operands() {
+    // `passthrough!` type
+    let xs = [Vec3(2.0, 2.0, 2.0), Vec3(3.0, 3.0, 3.0)];
+    let ys = [Vec3(4.0, 4.0, 4.0), Vec3(5.0, 5.0, 5.0)];
+    let got: Vec<Vec3> = xs.iter().zip(&ys).map(|(a, b)| mul(a, b)).collect();
+    assert_eq!(got, vec![Vec3(8.0, 8.0, 8.0), Vec3(15.0, 15.0, 15.0)]);
+    assert_eq!(mul(&xs[0], ys[0]), Vec3(8.0, 8.0, 8.0));
+    assert_eq!(mul(xs[0], &ys[0]), Vec3(8.0, 8.0, 8.0));
+
+    // derived type
+    let ds = [Derived(2.0), Derived(3.0)];
+    let got: Vec<Derived> = ds.iter().zip(&ds).map(|(a, b)| add(a, b)).collect();
+    assert_eq!(got, vec![Derived(4.0), Derived(6.0)]);
+}
+
+// The borrows are the point: these exercise the `&T` impls, so clippy's
+// suggestion to drop them would delete what is being tested.
+#[allow(clippy::needless_borrows_for_generic_args)]
+#[test]
+fn std_wrappers_accept_reference_operands() {
+    use core::num::{Saturating, Wrapping};
+    use core::time::Duration;
+    let a = Wrapping(3u32);
+    let b = Saturating(250u8);
+    let d = Duration::from_secs(2);
+    assert_eq!(add(&a, &a), Wrapping(6u32));
+    assert_eq!(add(&b, Saturating(10u8)), Saturating(255u8));
+    assert_eq!(add(&d, &d), Duration::from_secs(4));
+}
+
+/// A non-`Copy` type opts out of the reference impls.
+#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[passthrough(add, no_refs)]
+struct Owned(String);
+
+impl core::ops::Add for Owned {
+    type Output = Owned;
+    fn add(self, o: Owned) -> Owned {
+        Owned(self.0 + &o.0)
+    }
+}
+
+#[test]
+fn non_copy_types_can_opt_out_of_references() {
+    assert_eq!(
+        add(Owned("a".into()), Owned("b".into())),
+        Owned("ab".into())
+    );
+}

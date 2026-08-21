@@ -23,7 +23,20 @@
 /// ```
 #[macro_export]
 macro_rules! passthrough {
+    // Full coverage: same-type plus all four reference combinations, matching
+    // what the built-in types get. Requires `Copy`, because the reference impls
+    // dereference their operands. For a type that is not `Copy`, use the
+    // `no_refs` form below.
     ($t:ty) => {
+        $crate::passthrough!(no_refs $t);
+        $crate::passthrough_refs!(AlgAdd, alg_add, +, $t);
+        $crate::passthrough_refs!(AlgSub, alg_sub, -, $t);
+        $crate::passthrough_refs!(AlgMul, alg_mul, *, $t);
+        $crate::passthrough_refs!(AlgDiv, alg_div, /, $t);
+        $crate::passthrough_refs!(AlgRem, alg_rem, %, $t);
+    };
+    // Value operands only, for types that are not `Copy`.
+    (no_refs $t:ty) => {
         $crate::passthrough!(add: $t, $t => $t);
         $crate::passthrough!(sub: $t, $t => $t);
         $crate::passthrough!(mul: $t, $t => $t);
@@ -85,5 +98,28 @@ macro_rules! passthrough {
 macro_rules! strict {
     ($e:expr) => {
         $e
+    };
+}
+
+/// The three reference combinations for one operator on a `Copy` type.
+///
+/// Not part of the public API surface anyone should call directly; it exists
+/// because `macro_rules!` cannot loop over operators inside another expansion.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! passthrough_refs {
+    ($trait_name:ident, $method:ident, $op:tt, $t:ty) => {
+        impl $crate::traits::$trait_name<&$t, $t> for $t {
+            #[inline(always)]
+            fn $method(self, rhs: &$t) -> $t { self $op *rhs }
+        }
+        impl $crate::traits::$trait_name<$t, $t> for &$t {
+            #[inline(always)]
+            fn $method(self, rhs: $t) -> $t { *self $op rhs }
+        }
+        impl $crate::traits::$trait_name<&$t, $t> for &$t {
+            #[inline(always)]
+            fn $method(self, rhs: &$t) -> $t { *self $op *rhs }
+        }
     };
 }

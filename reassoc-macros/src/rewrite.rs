@@ -152,6 +152,15 @@ impl VisitMut for Rewriter {
             strip_skip_attribute(item);
             return;
         }
+        if has_algebraic_attribute(item) {
+            // The item carries its own `#[algebraic(..)]`. Leave it entirely
+            // alone and let that attribute govern it: rewriting here first
+            // would apply the OUTER scope to it, and the inner attribute
+            // would then run over already-rewritten code — silently ignoring
+            // its own parameters. `#[algebraic(closures = false)]` on a
+            // nested fn used to be overridden this way.
+            return;
+        }
         // `const`/`static` initializers, and `const fn` bodies, are const
         // contexts; `ops::*` are not `const fn`, so rewriting inside any of
         // these would trade working code for E0015. Leave them untouched
@@ -161,6 +170,42 @@ impl VisitMut for Rewriter {
             return;
         }
         visit_mut::visit_item_mut(self, item);
+    }
+
+    fn visit_impl_item_mut(&mut self, item: &mut syn::ImplItem) {
+        // `Item`-level checks miss everything inside an `impl` block, because
+        // an associated const or a method is an `ImplItem`, not an `Item`.
+        // Associated consts and `const fn` methods are const contexts (E0015),
+        // and `#[algebraic(skip)]` on a method used to be silently ignored.
+        match item {
+            syn::ImplItem::Const(_) => return,
+            syn::ImplItem::Fn(f)
+                if f.sig.constness.is_some()
+                    || attrs_skip(&f.attrs)
+                    || attrs_algebraic(&f.attrs) =>
+            {
+                strip_skip_attrs(&mut f.attrs);
+                return;
+            }
+            _ => {}
+        }
+        visit_mut::visit_impl_item_mut(self, item);
+    }
+
+    fn visit_trait_item_mut(&mut self, item: &mut syn::TraitItem) {
+        match item {
+            syn::TraitItem::Const(_) => return,
+            syn::TraitItem::Fn(f)
+                if f.sig.constness.is_some()
+                    || attrs_skip(&f.attrs)
+                    || attrs_algebraic(&f.attrs) =>
+            {
+                strip_skip_attrs(&mut f.attrs);
+                return;
+            }
+            _ => {}
+        }
+        visit_mut::visit_trait_item_mut(self, item);
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -200,6 +245,17 @@ impl VisitMut for Rewriter {
         if let Expr::Binary(binary) = expr {
             // Span the call at the operator so type errors point there.
             let span = binary.op.span();
+
+            if is_literal(&binary.left) && is_literal(&binary.right) {
+                // Both operands are literals, so rustc can evaluate this at
+                // compile time — and does, to fire `arithmetic_overflow` and
+                // `unconditional_panic`, which are deny-by-default. Rewriting
+                // to a function call hides the constants from those lints, so
+                // `255u8 + 1` would compile and wrap instead of being rejected.
+                // Literal-only arithmetic is const-folded anyway and gains
+                // nothing from dispatch, so leaving it alone costs nothing.
+                return;
+            }
 
             if let Some(name) = dispatch_fn(&binary.op) {
                 let func = syn::Ident::new(name, Span::call_site());
@@ -246,17 +302,45 @@ impl VisitMut for Rewriter {
                     // The place is still bound through a `&mut` temporary
                     // so it is evaluated exactly once; a naive `place =
                     // f(place, rhs)` rewrite would evaluate `place` twice.
+                    // The generated bindings carry a nonsense suffix because
+                    // a stable proc macro has no def-site hygiene: these
+                    // identifiers resolve at the call site and would shadow a
+                    // user binding of the same name. The suffix makes that
+                    // collision implausible rather than impossible.
+                    //
+                    // `match` rather than `let`: a `let` drops the RHS's
+                    // temporaries at the end of its own statement, i.e.
+                    // before the place is even evaluated, whereas native
+                    // `+=` keeps them alive to the end of the full
+                    // statement. Binding through a `match` scrutinee
+                    // extends them across the whole expansion, restoring
+                    // native drop timing for a Drop-carrying RHS.
                     *expr = syn::parse2(quote_spanned! {span=>
-                        {
-                            let __reassoc_rhs = #right;
-                            let __reassoc_place = &mut #left;
-                            *__reassoc_place = ::reassoc::ops::#func(*__reassoc_place, __reassoc_rhs);
+                        match #right {
+                            __reassoc_rhs_9f2c1a => {
+                                let __reassoc_place_9f2c1a = &mut #left;
+                                *__reassoc_place_9f2c1a =
+                                    ::reassoc::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
+                            }
                         }
                     })
                     .expect("generated compound assignment must parse");
                 }
             }
         }
+    }
+}
+
+/// True for a literal, or a negated literal, ignoring parentheses.
+///
+/// Used to leave compile-time-evaluable arithmetic unrewritten so rustc's
+/// deny-by-default `arithmetic_overflow` / `unconditional_panic` lints can
+/// still see the constants.
+fn is_literal(expr: &Expr) -> bool {
+    match unparen(expr) {
+        Expr::Lit(_) => true,
+        Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_literal(&unary.expr),
+        _ => false,
     }
 }
 
@@ -272,19 +356,38 @@ fn is_const_context(item: &syn::Item) -> bool {
 }
 
 /// True when the item carries `#[algebraic(skip)]`.
-fn has_skip_attribute(item: &syn::Item) -> bool {
-    item_attrs(item).is_some_and(|attrs| {
-        attrs.iter().any(|attr| {
-            attr.path()
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "algebraic")
-                && attr
-                    .parse_args::<syn::Ident>()
-                    .map(|ident| ident == "skip")
-                    .unwrap_or(false)
-        })
+fn is_algebraic_attr(attr: &syn::Attribute) -> bool {
+    attr.path()
+        .segments
+        .last()
+        .is_some_and(|s| s.ident == "algebraic")
+}
+
+fn attrs_skip(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        is_algebraic_attr(attr)
+            && attr
+                .parse_args::<syn::Ident>()
+                .map(|ident| ident == "skip")
+                .unwrap_or(false)
     })
+}
+
+/// Any `#[algebraic(..)]`, including a bare one and any parameterised form.
+fn attrs_algebraic(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(is_algebraic_attr)
+}
+
+fn strip_skip_attrs(attrs: &mut Vec<syn::Attribute>) {
+    attrs.retain(|attr| !(is_algebraic_attr(attr) && attrs_skip(core::slice::from_ref(attr))));
+}
+
+fn has_skip_attribute(item: &syn::Item) -> bool {
+    item_attrs(item).is_some_and(|attrs| attrs_skip(attrs))
+}
+
+fn has_algebraic_attribute(item: &syn::Item) -> bool {
+    item_attrs(item).is_some_and(|attrs| attrs_algebraic(attrs))
 }
 
 /// Remove `#[algebraic(skip)]` so it does not reach the compiler as an

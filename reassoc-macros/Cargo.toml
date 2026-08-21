@@ -18,11 +18,13 @@ repository.workspace = true
 proc-macro = true
 
 [dependencies]
-# Floors are the minimum we actually require, not the newest published:
-# a needlessly high floor forces downstream upgrades for no reason. Verified
-# the full suite passes at syn 3.0.0. `default-features = false` drops syn's
-# `derive` feature, which we never use; `clone-impls` is kept because the
-# rewriter clones `Expr` nodes.
+# Floors are the minimum we actually require, not the newest published: a
+# needlessly high floor forces downstream upgrades for no reason. Verified the
+# full suite passes at syn 3.0.0.
+#
+# `default-features = false` keeps the enabled set explicit. `clone-impls` is
+# needed because the rewriter clones `Expr` nodes, and `derive` because
+# `#[derive(Passthrough)]` parses a `DeriveInput`.
 syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
 quote = "1.0"
 proc-macro2 = "1.0"
