@@ -1,30 +1,33 @@
+use crate::passthrough;
 use crate::traits::{AlgAdd, AlgDiv, AlgMul, AlgRem, AlgSub};
 use core::num::{Saturating, Wrapping};
 use core::ops::{Add, Div, Mul, Rem, Sub};
 use core::time::Duration;
 
-crate::passthrough!(add: Duration, Duration => Duration);
-crate::passthrough!(sub: Duration, Duration => Duration);
-crate::passthrough!(mul: Duration, u32 => Duration);
-crate::passthrough!(mul: u32, Duration => Duration);
-crate::passthrough!(div: Duration, u32 => Duration);
+passthrough!(add: Duration, Duration => Duration);
+passthrough!(sub: Duration, Duration => Duration);
+passthrough!(mul: Duration, u32 => Duration);
+passthrough!(mul: u32, Duration => Duration);
+passthrough!(div: Duration, u32 => Duration);
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
+    use crate::passthrough;
     use alloc::string::String;
 
-    crate::passthrough!(add: String, &str => String);
+    passthrough!(add: String, &str => String);
 }
 
 #[cfg(feature = "std")]
 mod std_impls {
+    use crate::passthrough;
     use core::time::Duration;
     use std::time::{Instant, SystemTime};
 
-    crate::passthrough!(add: Instant, Duration => Instant);
-    crate::passthrough!(sub: Instant, Duration => Instant);
-    crate::passthrough!(add: SystemTime, Duration => SystemTime);
-    crate::passthrough!(sub: SystemTime, Duration => SystemTime);
+    passthrough!(add: Instant, Duration => Instant);
+    passthrough!(sub: Instant, Duration => Instant);
+    passthrough!(add: SystemTime, Duration => SystemTime);
+    passthrough!(sub: SystemTime, Duration => SystemTime);
 }
 
 /// `Wrapping<T>` and `Saturating<T>` for every inner type at once.
