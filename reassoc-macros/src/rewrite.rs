@@ -16,6 +16,12 @@ impl Rewriter {
     pub fn expression_scope() -> Self {
         Rewriter { closures: true, items: true }
     }
+
+    /// Scope used by `#[algebraic]`, configured by its `closures`/`items`
+    /// parameters.
+    pub fn from_scope(scope: crate::scope::Scope) -> Self {
+        Rewriter { closures: scope.closures, items: scope.items }
+    }
 }
 
 /// Strips one layer of grouping parens from an operand.
@@ -89,9 +95,14 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_item_mut(&mut self, item: &mut syn::Item) {
-        if self.items {
-            visit_mut::visit_item_mut(self, item);
+        if !self.items {
+            return;
         }
+        if has_skip_attribute(item) {
+            strip_skip_attribute(item);
+            return;
+        }
+        visit_mut::visit_item_mut(self, item);
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -203,5 +214,50 @@ impl VisitMut for Rewriter {
                 }
             }
         }
+    }
+}
+
+/// True when the item carries `#[algebraic(skip)]`.
+fn has_skip_attribute(item: &syn::Item) -> bool {
+    item_attrs(item).is_some_and(|attrs| {
+        attrs.iter().any(|attr| {
+            attr.path().segments.last().is_some_and(|s| s.ident == "algebraic")
+                && attr
+                    .parse_args::<syn::Ident>()
+                    .map(|ident| ident == "skip")
+                    .unwrap_or(false)
+        })
+    })
+}
+
+/// Remove `#[algebraic(skip)]` so it does not reach the compiler as an
+/// unresolved attribute on a nested item.
+fn strip_skip_attribute(item: &mut syn::Item) {
+    if let Some(attrs) = item_attrs_mut(item) {
+        attrs.retain(|attr| {
+            !(attr.path().segments.last().is_some_and(|s| s.ident == "algebraic")
+                && attr
+                    .parse_args::<syn::Ident>()
+                    .map(|ident| ident == "skip")
+                    .unwrap_or(false))
+        });
+    }
+}
+
+fn item_attrs(item: &syn::Item) -> Option<&Vec<syn::Attribute>> {
+    match item {
+        syn::Item::Fn(f) => Some(&f.attrs),
+        syn::Item::Impl(i) => Some(&i.attrs),
+        syn::Item::Mod(m) => Some(&m.attrs),
+        _ => None,
+    }
+}
+
+fn item_attrs_mut(item: &mut syn::Item) -> Option<&mut Vec<syn::Attribute>> {
+    match item {
+        syn::Item::Fn(f) => Some(&mut f.attrs),
+        syn::Item::Impl(i) => Some(&mut i.attrs),
+        syn::Item::Mod(m) => Some(&mut m.attrs),
+        _ => None,
     }
 }

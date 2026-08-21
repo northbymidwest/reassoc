@@ -1,6 +1,19 @@
 #![deny(unused_parens)]
 
-use reassoc::alg;
+use reassoc::{alg, algebraic};
+
+// Exercises the same generated-paren hazard through `#[algebraic]`: binary
+// ops, compound assignment, `strict!`, and a closure. None of these may
+// leak a paren into `unused_parens` — only the `alg!` case above (already
+// redundant in source) may lint.
+#[algebraic]
+fn item_scope(a: f32, b: f32, c: f32) -> f32 {
+    let mut m = a;
+    m += strict!(b + c);
+    m += b * c;
+    let square = |x: f32| x * x;
+    (a + b) * c + square(m)
+}
 
 fn main() {
     let (a, b, c) = (2.0f32, 3.0f32, 4.0f32);
