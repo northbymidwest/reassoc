@@ -75,3 +75,11 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Feature-gated code is only linted when its feature is on. The
+      # `resolve-crate-name` path broke the crate's own examples and no
+      # default-feature run could have seen it.
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+      - run: cargo doc --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings

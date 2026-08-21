@@ -78,7 +78,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Defaults to all five operators; a type implementing only some of them names
 /// the ones it has with `#[passthrough(add, sub, mul)]`.
 ///
-/// See [`reassoc::Passthrough`] for a worked example — this crate cannot depend
+/// See `reassoc::Passthrough` for a worked example — this crate cannot depend
 /// on `reassoc`, so the example lives there where it can actually be compiled.
 #[proc_macro_derive(Passthrough, attributes(passthrough))]
 pub fn derive_passthrough(input: TokenStream) -> TokenStream {

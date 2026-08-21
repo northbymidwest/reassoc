@@ -16,7 +16,13 @@ pub fn path() -> TokenStream {
     {
         use proc_macro_crate::{FoundCrate, crate_name};
         match crate_name("reassoc") {
-            Ok(FoundCrate::Itself) => return quote!(crate),
+            // `Itself` means we are expanding somewhere in the `reassoc`
+            // package — but its examples, tests, benches and doctests are
+            // each their own crate, linking the library by name, so `crate::`
+            // there resolves to the wrong root. The library itself never
+            // invokes these macros, so naming the crate is right for every
+            // case that actually occurs.
+            Ok(FoundCrate::Itself) => return quote!(::reassoc),
             Ok(FoundCrate::Name(name)) => {
                 let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
                 return quote!(::#ident);
