@@ -106,9 +106,16 @@ impl VisitMut for Rewriter {
             if is_plain {
                 // Emit the contents verbatim, without descending: this
                 // subtree is explicitly opted out of algebraic semantics.
+                //
+                // No wrapping parens here: a macro's expansion is already
+                // atomic at its call site (rustc protects it with invisible
+                // delimiters), so parens would be redundant in every
+                // position this can land in and would leak `unused_parens`
+                // into user code — the same class of bug already fixed
+                // twice for generated binary/compound-assignment operands.
                 if let Ok(inner) = mac.mac.parse_body::<Expr>() {
                     let span = mac.mac.path.segments.last().unwrap().ident.span();
-                    *expr = syn::parse2(quote_spanned! {span=> (#inner) })
+                    *expr = syn::parse2(quote_spanned! {span=> #inner })
                         .expect("plain! body must re-parse");
                 }
             }
