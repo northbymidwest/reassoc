@@ -1,0 +1,130 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this crate does
+
+`reassoc` lets ordinary arithmetic syntax compile to Rust 1.98's algebraic float
+operators (`algebraic_add` etc.), which permit reassociation and FMA
+contraction. A proc macro rewrites `+ - * / %` into calls on a generic dispatch
+layer; the type checker then selects algebraic ops for floats and `std::ops` for
+everything else.
+
+## Commands
+
+```bash
+cargo test --workspace                 # unit + integration tests
+cargo test -p reassoc --doc            # doctests (must stay at 0 ignored)
+cargo test -p reassoc --test alg       # one test file
+cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
+
+cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
+cargo test -p reassoc --test codegen -- --ignored   # assembly guard
+./scripts/codegen-check.sh                          # the guard, run directly
+
+cargo test -p reassoc --no-default-features                    # core only
+cargo test -p reassoc --no-default-features --features alloc
+cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
+
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all -- --check
+```
+
+**The `ui` and `codegen` tests are `#[ignore]`d on purpose** and do not run
+under a plain `cargo test`. Their output depends on the toolchain and the host
+architecture, so CI runs them explicitly — `ui` on a pinned 1.98.0. Run them
+with `--ignored` before claiming a change is green.
+
+**Regenerating expected diagnostics requires the `rust-src` component**
+(`rustup component add rust-src`). Five `.stderr` files quote a source line out
+of `core`, which rustc renders only when core's source is readable. Without it
+those five mismatch on exactly the quoted lines. Regenerate with
+`TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored`, then read
+each file back before committing.
+
+## Architecture
+
+**Two crates, and the split is forced.** A `proc-macro = true` crate may export
+nothing but proc macros, so the traits and impls cannot live beside them.
+`reassoc-macros` holds the rewriter; `reassoc` holds everything else and
+re-exports the macros. Users depend only on `reassoc`.
+
+**The dispatch layer** (`reassoc/src/traits.rs`, `ops.rs`, `impls/`) is five
+traits with a free function each. Impls are enumerated by `macro_rules!`, not
+blanket: floats route to `algebraic_*`, integers and everything else to plain
+operators, across all four reference combinations.
+
+**The rewriter** (`reassoc-macros/src/rewrite.rs`) is one `VisitMut` shared by
+both entry points in `lib.rs`: `alg!` for a single expression, `#[algebraic]`
+for an item. `scope.rs` parses the attribute's `closures` / `items` / `skip`
+parameters into the `Rewriter`'s two boolean fields.
+
+## Invariants that look like cleanup opportunities but are not
+
+**Trait output is a type parameter, never an associated type.** `trait AlgMul<B,
+O>` — not `type Out`. With an associated type, rustc cannot invert the
+projection, so `let s = 0.0;` in a function returning `f32` defaults the literal
+to `f64` and fails with `E0271`. Both the associated-type and
+autoref-specialization designs were built and rejected for this. The test
+`unannotated_float_literals_infer_from_return_type` exists solely to catch a
+regression here.
+
+**`strict!` is not special-cased.** The rewriter matches nothing by name. The
+escape hatch works purely because `VisitMut` cannot descend into a macro's token
+stream. An earlier version consumed `strict!` during rewriting, which made
+`use reassoc::{algebraic, strict};` emit an unused-import warning — a hard error
+under `#![deny(warnings)]`. Do not reintroduce name matching.
+
+**`unparen` strips exactly one paren layer.** The outermost layer is the one
+expansion makes redundant; further layers were already redundant in the user's
+source and must still lint. Stripping all of them swallows a real diagnostic;
+stripping none leaks `unused_parens` into user code.
+
+**Compound assignment binds the RHS before the place.** Taking `&mut` on the
+place first makes any RHS that reads it fail to borrow-check, rejecting valid
+code like `s += s * k` and `a[0] += a[1]`. It also matches Rust's own
+RHS-then-place order.
+
+**Const positions are never rewritten** — array-repeat lengths, `TypeArray`
+lengths, `const`/`static` items, inline `const { .. }` blocks, const generic
+arguments, and enum discriminants. `ops::*` are not `const fn`, so rewriting
+there fails with `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
+is rejected with an authored error.
+
+**Generated code uses absolute paths** (`::reassoc::ops::add`) and never emits
+parentheses around operands.
+
+## Writing tests that can actually fail
+
+Native `f32` operators produce values identical to dispatched ones, so **a test
+using `f32` passes even if the rewriter is a complete no-op.** This blind spot
+bit the project repeatedly.
+
+Use the `Dispatched` type defined in `tests/alg.rs` and `tests/attribute.rs` — it
+implements only the `Alg*` traits and no `std::ops`, so rewriting becomes
+observable at compile time. Code that must be rewritten compiles; code that must
+not be rewritten fails with `E0369`. The three scope UI cases
+(`closures_false_*`, `items_default_*`, `items_true_skip_*`) are must-fail tests
+for exactly this reason — they are the only evidence those flags do anything.
+
+Before trusting a new guard, neuter the thing it guards and watch it fail.
+
+`tests/ui/redundant_parens.rs` carries `#![deny(unused_parens)]` and pins both
+directions across every construct the rewriter emits, because generated parens
+leaking into user code recurred three times in three different code paths.
+
+## Releasing
+
+Two packages, published in order: `reassoc-macros` first, then `reassoc` — the
+facade pins `reassoc-macros = "=<version>"` and cannot resolve until the macro
+crate is on the index. Bump both (the workspace version and the pin) together.
+See `RELEASING.md`. Tag each release at the exact commit published.
+
+Dependency floors are the minimum actually required, not the newest published;
+a needlessly high floor forces downstream upgrades for no reason.
+
+## Background
+
+`docs/superpowers/specs/` holds the design document, including the reasoning
+behind the dispatch shape and the alternatives that were measured and rejected.
+Read it before changing the dispatch layer.
