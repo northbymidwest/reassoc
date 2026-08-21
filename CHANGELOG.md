@@ -2,6 +2,26 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.2.3 — 2026-08-21
+
+### Fixed
+
+- **`resolve-crate-name` generated an unresolvable path inside this package.**
+  `proc-macro-crate` reports `FoundCrate::Itself` when expanding anywhere in
+  the `reassoc` package, and the generated path was `crate::ops` — but that
+  package's examples, tests and doctests are each their own crate linking the
+  library by name, so `crate::` resolved to the wrong root. Consumers were
+  unaffected, since they always get `FoundCrate::Name`, which is why no
+  default-feature build could have caught it.
+- A broken intra-doc link in `reassoc-macros`, which cannot reference
+  `reassoc` because it cannot depend on it.
+
+### Changed
+
+- CI now lints `--all-features` and `--no-default-features` in addition to the
+  default, and treats rustdoc warnings as errors. Feature-gated code is only
+  linted when its feature is on, which is how the bug above went unseen.
+
 ## 0.2.2 — 2026-08-21
 
 ### Changed
