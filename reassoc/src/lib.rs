@@ -1,5 +1,22 @@
 //! Ordinary arithmetic syntax for Rust's algebraic float operators.
 //!
+//! <div class="warning">
+//!
+//! **Work in progress. Expect bugs, and expect them to be subtle.**
+//!
+//! This crate rewrites your arithmetic. When it is wrong, the failure mode is
+//! usually not a compile error — it is code that compiles, runs, and quietly
+//! does something slightly different from what you wrote. Bugs found so far
+//! include compound assignment rejecting valid code, a compile-time overflow
+//! error silently becoming a wrapped value, and evaluation order diverging
+//! from native Rust. Each was found *after* a release.
+//!
+//! Changing your results is also the entire point: see
+//! [Floating point semantics](#floating-point-semantics) below, and wrap
+//! anything depending on exact rounding in [`strict!`].
+//!
+//! </div>
+//!
 //! Rust 1.98 stabilized `algebraic_add`, `algebraic_sub`, `algebraic_mul`,
 //! `algebraic_div`, and `algebraic_rem`, which permit reassociation and FMA
 //! contraction. They are fast but unreadable in bulk. This crate lets you

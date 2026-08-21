@@ -2,6 +2,28 @@
 
 Ordinary arithmetic syntax for Rust's algebraic float operators.
 
+> [!WARNING]
+> **Work in progress. Expect bugs, and expect them to be subtle.**
+>
+> This crate rewrites your arithmetic. When it is wrong, the failure mode is
+> usually not a compile error — it is code that compiles, runs, and quietly
+> does something slightly different from what you wrote. Bugs found so far
+> include compound assignment rejecting valid code, a compile-time overflow
+> error silently becoming a wrapped value, and evaluation order diverging from
+> native Rust. Each was found *after* a release, by someone deliberately
+> looking.
+>
+> Note also that changing your results is the entire point: algebraic operators
+> permit reassociation and contraction, so output can differ from strict IEEE
+> evaluation in the last bits, and can differ between targets and compiler
+> versions. Anything depending on exact rounding must be wrapped in `strict!`
+> — see [Correctness](#correctness) — and the
+> [Limitations](#limitations) section lists cases that are known to behave
+> differently from plain Rust.
+>
+> Don't reach for this where a wrong answer is expensive, and check the numbers
+> before and after adopting it.
+
 Rust 1.98 stabilized `algebraic_add`, `algebraic_mul`, and friends. They let
 the compiler reassociate and contract float arithmetic, which unlocks
 vectorization and FMA — but writing them by hand is unreadable:
