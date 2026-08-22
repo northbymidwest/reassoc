@@ -4,6 +4,22 @@ Notable changes per release. Dates are the publish date.
 
 ## Unreleased
 
+### Changed (breaking)
+
+- **Nested items are entered by default.** `#[algebraic]` and `alg! { .. }`
+  now rewrite a `fn`, `impl`, `mod` or `trait` declared inside the body, as
+  they always did closures: everything lexically inside the annotated scope
+  is algebraic. A nested helper used to sit silently strict unless
+  `items = true` was written — the silent-miss shape the rest of the crate
+  exists to avoid, and, once containers propagated all the way down, the one
+  place nesting stopped. Code that relied on the old default to keep a
+  nested fn strict changes numerically without a compile error; put
+  `#[algebraic(skip)]` on that item. A nested *generic* helper now fails
+  loudly with the usual per-concrete-type note; `skip` it.
+- **`items` is deprecated** and slated for removal. Writing it warns, at the
+  parameter, through rustc's `deprecated` lint; `items = false` still
+  restores the old boundary for items declared inside function bodies.
+
 ### Added
 
 - **`#[algebraic]` on an `impl` block, an inline `mod`, or a `trait`.** Every

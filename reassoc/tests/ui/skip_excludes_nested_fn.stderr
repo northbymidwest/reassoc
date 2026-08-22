@@ -1,13 +1,13 @@
 error[E0369]: cannot multiply `Dispatched` by `Dispatched`
-  --> tests/ui/items_default_excludes_nested_fn.rs:20:11
+  --> tests/ui/skip_excludes_nested_fn.rs:21:11
    |
-20 |         v * v
+21 |         v * v
    |         - ^ - Dispatched
    |         |
    |         Dispatched
    |
 note: an implementation of `Mul` might be missing for `Dispatched`
-  --> tests/ui/items_default_excludes_nested_fn.rs:9:1
+  --> tests/ui/skip_excludes_nested_fn.rs:9:1
    |
  9 | struct Dispatched(f32);
    | ^^^^^^^^^^^^^^^^^ must implement `Mul`

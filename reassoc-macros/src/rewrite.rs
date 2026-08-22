@@ -13,9 +13,10 @@ pub struct Rewriter {
     /// Descend into closure bodies.
     pub closures: bool,
     /// Descend into `fn` / `impl` / `mod` / `trait` items declared inside a
-    /// function body. Items met *outside* one — the members of an annotated
-    /// `impl`, `mod` or `trait`, and containers nested in those — are always
-    /// entered: that is what annotating the container means.
+    /// function body. On by default; `false` only through the deprecated
+    /// `items = false`. Items met *outside* a body — the members of an
+    /// annotated `impl`, `mod` or `trait`, and containers nested in those —
+    /// are entered regardless: that is what annotating the container means.
     pub items: bool,
     /// Whether the visitor is currently inside a function body, which is
     /// where `items` applies.
@@ -26,12 +27,12 @@ pub struct Rewriter {
 }
 
 impl Rewriter {
-    /// Scope used by `alg!`: closures in, nested items out, matching
+    /// Scope used by `alg!`: closures and nested items in, matching
     /// `#[algebraic]`'s default. An expression is always inside a body.
     pub fn expression_scope() -> Self {
         Rewriter {
             closures: true,
-            items: false,
+            items: true,
             in_body: true,
             errors: Vec::new(),
         }
@@ -90,9 +91,9 @@ impl VisitMut for Rewriter {
 
     // Const positions are never rewritten: `ops::*` are not `const fn`, so a
     // call there is E0015. Array-repeat and type-array lengths, const generic
-    // arguments, enum discriminants, and inline `const {}` blocks are reachable
-    // from any function body; `const`/`static` items and `const fn` bodies
-    // through `items = true`.
+    // arguments, enum discriminants, inline `const {}` blocks, and nested
+    // `const`/`static` items and `const fn` bodies are all reachable from any
+    // function body.
 
     fn visit_expr_repeat_mut(&mut self, expr_repeat: &mut syn::ExprRepeat) {
         self.visit_expr_mut(&mut expr_repeat.expr);

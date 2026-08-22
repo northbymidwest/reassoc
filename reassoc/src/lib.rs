@@ -61,9 +61,10 @@
 //! # Rewriting a whole `impl`, module or trait
 //!
 //! The attribute also goes on an `impl` block (inherent or trait), an inline
-//! `mod`, or a `trait`, and rewrites every member body. `#[algebraic(skip)]`
-//! excludes one member; a member with its own `#[algebraic(..)]` follows that
-//! instead. A `const fn` member is skipped if the rewrite would not touch it
+//! `mod`, or a `trait`, and rewrites every member body — as a function's
+//! annotation already covers every closure and nested item inside it.
+//! `#[algebraic(skip)]` excludes one member or nested item; a member with its
+//! own `#[algebraic(..)]` follows that instead. A `const fn` member is skipped if the rewrite would not touch it
 //! and is an error otherwise — `reassoc::ops::*` are not `const fn`, so
 //! rewriting it cannot compile, and leaving it strict silently would be worse.
 //!

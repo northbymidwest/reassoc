@@ -30,7 +30,8 @@ fn closures_untouched(v: &[f32]) -> f32 {
     total + 1.0
 }
 
-#[algebraic(items = true)]
+// `items = true` used to be required here; nested items are in by default.
+#[algebraic]
 fn descends_into_items(x: f32) -> f32 {
     fn helper(y: f32) -> f32 {
         y * y
@@ -38,7 +39,7 @@ fn descends_into_items(x: f32) -> f32 {
     helper(x)
 }
 
-#[algebraic(items = true)]
+#[algebraic]
 fn respects_skip(x: f32) -> f32 {
     #[algebraic(skip)]
     fn strict(y: f32) -> f32 {
@@ -47,7 +48,7 @@ fn respects_skip(x: f32) -> f32 {
     strict(x)
 }
 
-#[algebraic(closures = false, items = true)]
+#[algebraic(closures = false)]
 fn both_axes_independently(x: f32) -> f32 {
     fn helper(y: f32) -> f32 {
         y * y
@@ -92,7 +93,7 @@ fn nested_items_can_be_included_and_skipped() {
 
 #[test]
 fn closures_and_items_are_independent_axes() {
-    // items = true reaches the nested fn; closures = false leaves the
+    // The nested fn is reached by default; closures = false leaves the
     // closure alone. Both must still compile and produce the right value.
     assert_eq!(both_axes_independently(3.0), 18.0);
 }
@@ -154,10 +155,9 @@ fn compound_assignment_rhs_may_be_exactly_the_place() {
 // position fails with E0015 blamed on the attribute. These are const
 // contexts the rewriter must leave alone.
 
-// The array-repeat *length* is a const context reachable at the DEFAULT
-// scope, with no opt-in at all -- an ordinary function body, no
-// `items = true`, no nested item. Only `buf[n % buf.len()]`'s index
-// expression is a normal runtime position.
+// The array-repeat *length* is a const context reachable from an ordinary
+// function body with no nested item at all. Only `buf[n % buf.len()]`'s
+// index expression is a normal runtime position.
 #[algebraic]
 fn array_repeat_length_is_not_rewritten(n: usize) -> f32 {
     let buf = [0.0f32; 4 * 2];
@@ -169,7 +169,7 @@ fn array_repeat_length_stays_const() {
     assert_eq!(array_repeat_length_is_not_rewritten(3), 0.0);
 }
 
-#[algebraic(items = true)]
+#[algebraic]
 fn nested_const_is_not_rewritten() -> f32 {
     const K: f32 = 2.0 * 3.0;
     K
@@ -180,7 +180,7 @@ fn nested_const_item_stays_const() {
     assert_eq!(nested_const_is_not_rewritten(), 6.0);
 }
 
-#[algebraic(items = true)]
+#[algebraic]
 fn nested_static_is_not_rewritten() -> f32 {
     static S: f32 = 2.0 * 3.0;
     S
@@ -238,9 +238,9 @@ fn const_generic_argument_stays_const() {
 }
 
 // A `Variant`'s explicit discriminant (`A = 1 + 1`) is a const context,
-// reached through `items = true` the same way as a nested `const`/`static`
+// reached through a nested item the same way as a nested `const`/`static`
 // item above.
-#[algebraic(items = true)]
+#[algebraic]
 fn enum_discriminant_is_not_rewritten() -> i32 {
     enum E {
         A = 1 + 1,
@@ -304,7 +304,7 @@ fn closures_are_rewritten_by_default_dispatch_only() {
     assert_eq!(dispatch_only_closure(Dispatched(3.0)), Dispatched(9.0));
 }
 
-#[algebraic(items = true)]
+#[algebraic]
 fn dispatch_only_nested_item(w: Dispatched) -> Dispatched {
     fn helper(v: Dispatched) -> Dispatched {
         v * v
@@ -451,7 +451,7 @@ fn doubles_behave_like_floats() {
 /// Const positions inside a nested `impl` are const contexts too. An
 /// associated const and a `const fn` method are `ImplItem`s, not `Item`s, so
 /// the `Item`-level check used to miss them and they failed with E0015. A
-/// `const fn` whose arithmetic the rewrite would touch is no longer skipped
+/// `const fn` whose arithmetic the rewrite would touch is not skipped
 /// silently — it must say `#[algebraic(skip)]` (the must-fail direction is
 /// `tests/ui/const_fn_member_with_arithmetic.rs`); one with nothing to
 /// rewrite, like `h`, is skipped without a word.
@@ -461,7 +461,7 @@ struct Consts;
 // `const fn` method behind `visit_item_mut`, where the Item-level check used
 // to miss them.
 #[allow(non_local_definitions)]
-#[algebraic(items = true)]
+#[algebraic]
 fn const_positions_in_nested_impls(x: f32) -> f32 {
     impl Consts {
         const K: f32 = 1.0 + 2.0;
@@ -654,8 +654,8 @@ fn algebraic_then_test() {
 //
 // `Dispatched` throughout, so a member the container form failed to enter is
 // a compile error. The must-fail directions — a `skip`ped member, a nested fn
-// inside a member body under the default `items = false`, a member carrying
-// its own narrower attribute — are `tests/ui/container_*.rs`.
+// inside a member body under the deprecated `items = false`, a member
+// carrying its own narrower attribute — are `tests/ui/container_*.rs`.
 
 mod container {
     use super::Dispatched;
@@ -744,27 +744,30 @@ fn containers_rewrite_every_member_body() {
     assert_eq!(deep::inner::with_closure(Dispatched(1.0)), Dispatched(1.0));
 }
 
-/// Container parameters apply to every member; `items = true` on the
-/// container reaches a fn declared inside a member's body.
-mod container_params {
-    use super::Dispatched;
-    use reassoc::algebraic;
-    pub struct U;
-    #[algebraic(items = true)]
-    impl U {
-        pub fn via_nested(a: Dispatched) -> Dispatched {
-            fn helper(x: Dispatched) -> Dispatched {
-                x * x
-            }
-            helper(a)
+// ---- nested items are entered by default ----
+
+/// A `fn` declared inside an algebraic body is part of it, like a closure: no
+/// `items = true` needed. The opt-out is `#[algebraic(skip)]` on the item (or
+/// the deprecated `items = false` on the attribute, pinned in
+/// `tests/ui/items_false_excludes_nested_fn.rs`).
+#[algebraic]
+fn nested_fn_entered_by_default(w: Dispatched) -> Dispatched {
+    fn helper(v: Dispatched) -> Dispatched {
+        v * v
+    }
+    struct Local(Dispatched);
+    impl Local {
+        fn sq(&self) -> Dispatched {
+            self.0 * self.0
         }
     }
+    helper(w) + Local(w).sq()
 }
 
 #[test]
-fn container_items_parameter_reaches_fns_inside_member_bodies() {
+fn nested_items_are_entered_by_default() {
     assert_eq!(
-        container_params::U::via_nested(Dispatched(3.0)),
-        Dispatched(9.0)
+        nested_fn_entered_by_default(Dispatched(3.0)),
+        Dispatched(18.0)
     );
 }

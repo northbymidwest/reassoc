@@ -1,0 +1,26 @@
+warning: use of deprecated constant `f::items_parameter_of_algebraic_is_deprecated`: nested items are entered by default; `items` is slated for removal. To leave an item alone, put `#[algebraic(skip)]` on it
+  --> tests/ui/items_false_excludes_nested_fn.rs:16:13
+   |
+16 | #[algebraic(items = false)]
+   |             ^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+error[E0369]: cannot multiply `Dispatched` by `Dispatched`
+  --> tests/ui/items_false_excludes_nested_fn.rs:19:11
+   |
+19 |         v * v
+   |         - ^ - Dispatched
+   |         |
+   |         Dispatched
+   |
+note: an implementation of `Mul` might be missing for `Dispatched`
+  --> tests/ui/items_false_excludes_nested_fn.rs:8:1
+   |
+ 8 | struct Dispatched(f32);
+   | ^^^^^^^^^^^^^^^^^ must implement `Mul`
+note: the trait `Mul` must be implemented
+  --> $RUST/core/src/ops/arith.rs
+   |
+   | pub const trait Mul<Rhs = Self> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

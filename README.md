@@ -157,19 +157,16 @@ not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`.
 
 ### Scope
 
-`#[algebraic]` takes two independent parameters:
+Everything lexically inside the annotated scope is rewritten: closure bodies
+and nested `fn`/`impl`/`mod`/`trait` items alike. `#[algebraic(skip)]` on a
+nested item or a container member excludes it. A `const fn` cannot be
+rewritten; one with nothing to rewrite is skipped, one with arithmetic is an
+error asking for `skip`.
 
 | parameter | default | effect |
 | --- | --- | --- |
 | `closures` | `true` | `false` leaves closure bodies alone |
-| `items` | `false` | `true` descends into nested `fn`/`impl`/`mod` |
-
-`#[algebraic(skip)]` on a nested item or a container member excludes it. On
-a container, `items` keeps this meaning — items declared *inside a member's
-body* — while the container's own members are always entered, containers
-nested in it included. A `const fn` member cannot be rewritten; one with
-nothing to rewrite is skipped, one with arithmetic is an error asking for
-`skip`.
+| `items` | `true` | **deprecated**, slated for removal: `false` leaves items declared inside a function body alone |
 
 ## Correctness
 

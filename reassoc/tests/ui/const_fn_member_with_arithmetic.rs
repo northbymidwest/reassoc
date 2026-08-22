@@ -18,8 +18,8 @@ impl V {
     }
 }
 
-// The same rule where `items = true` meets a nested `const fn`.
-#[algebraic(items = true)]
+// The same rule for a `const fn` nested in an ordinary algebraic body.
+#[algebraic]
 fn outer(x: f32) -> f32 {
     const fn twice(y: f32) -> f32 {
         y * 2.0

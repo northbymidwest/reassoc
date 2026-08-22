@@ -274,3 +274,16 @@ fn block_form_honours_strict() {
     };
     assert_eq!(got, 3.0);
 }
+
+/// The block form enters nested items too, matching `#[algebraic]`'s default.
+#[test]
+fn block_form_enters_nested_items() {
+    let w = Dispatched(3.0);
+    let got = alg! {
+        fn helper(v: Dispatched) -> Dispatched {
+            v * v
+        }
+        helper(w) + w
+    };
+    assert_eq!(got, Dispatched(12.0));
+}

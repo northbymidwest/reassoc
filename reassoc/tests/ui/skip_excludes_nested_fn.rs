@@ -1,8 +1,8 @@
-// Proves `#[algebraic(skip)]` has teeth: `items = true` alone would descend
-// into the nested `fn` and rewrite `w * w` into a `::reassoc::ops::mul`
-// call, which would compile. With `skip` on the nested fn, it must be left
-// untouched and fail with E0369, since `Dispatched` implements only the
-// crate's `Alg*` traits and not `std::ops::Mul`.
+// Proves `#[algebraic(skip)]` has teeth: nested items are entered by
+// default, so without it the rewriter would turn `w * w` into a
+// `::reassoc::ops::mul` call and this would compile. Since `Dispatched`
+// implements only the crate's `*Rhs` traits and not `std::ops::Mul`, the
+// skipped fn must be left untouched and fail with E0369.
 use reassoc::algebraic;
 
 #[derive(Clone, Copy)]
@@ -14,7 +14,7 @@ impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     }
 }
 
-#[algebraic(items = true)]
+#[algebraic]
 fn f(w: Dispatched) -> Dispatched {
     #[algebraic(skip)]
     fn helper(v: Dispatched) -> Dispatched {

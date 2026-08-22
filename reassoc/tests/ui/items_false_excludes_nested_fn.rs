@@ -1,8 +1,7 @@
-// Proves the default `items = false` has teeth: without it, the rewriter
-// would descend into the nested `fn` and turn `w * w` into a
-// `::reassoc::ops::mul` call, which would compile. Since `Dispatched`
-// implements only the crate's `*Rhs` traits and not `std::ops::Mul`, leaving
-// the nested item untouched must fail with E0369.
+// The deprecated `items = false` still restores the old boundary: the nested
+// fn is left untouched and fails with E0369 on `Dispatched`. Using the
+// parameter at all warns, at the parameter, through rustc's own
+// `deprecated` lint — a stable proc macro has no other way to warn.
 use reassoc::algebraic;
 
 #[derive(Clone, Copy)]
@@ -14,7 +13,7 @@ impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     }
 }
 
-#[algebraic]
+#[algebraic(items = false)]
 fn f(w: Dispatched) -> Dispatched {
     fn helper(v: Dispatched) -> Dispatched {
         v * v

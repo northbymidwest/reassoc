@@ -81,11 +81,13 @@ reverts to a worse result if undone.
   are concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
-- `#[algebraic]` on an `impl`/inline `mod`/`trait` enters every member and
-  every container nested in it; `items` governs only items declared inside a
-  function body. A `const fn` in an algebraic scope is skipped if the rewrite
-  would not change it (probed on a clone), an error otherwise. `mod foo;` and
-  other item kinds are refused by name.
+- Everything lexically inside an annotated scope is entered: closures, nested
+  items, and (on an `impl`/inline `mod`/`trait`) every member and nested
+  container. `items` is deprecated (warns at the parameter through a
+  `#[deprecated]` const; `false` restores the old boundary for items inside
+  fn bodies) and slated for removal. A `const fn` in an algebraic scope is
+  skipped if the rewrite would not change it (probed on a clone), an error
+  otherwise. `mod foo;` and other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.
 
@@ -97,9 +99,9 @@ Gaps against plain Rust are documented in `docs/diagnostics.md` and
 Native `f32` operators produce values identical to dispatched ones, so a test
 using `f32` passes even if the rewriter is a no-op. Use the `Dispatched` type
 in `tests/alg.rs` / `tests/attribute.rs` — it implements only the `*Rhs` traits,
-so rewriting is observable at compile time. The three scope UI cases
-(`closures_false_*`, `items_default_*`, `items_true_skip_*`) are must-fail
-tests for this reason. Before trusting a new guard, neuter the thing it guards
+so rewriting is observable at compile time. The scope UI cases
+(`closures_false_*`, `skip_excludes_*`, `items_false_*`, `container_*`) are
+must-fail tests for this reason. Before trusting a new guard, neuter the thing it guards
 and watch it fail — and read every `.stderr` you bless: five must-fail cases
 once named a removed trait and passed for several releases on "cannot find
 trait", pinning nothing. `tests/ui.rs::must_fail_cases_fail_for_the_stated_reason`

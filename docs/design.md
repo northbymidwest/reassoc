@@ -163,11 +163,19 @@ never a misresolve.
 call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
+**Everything lexically inside an annotated scope is entered.** Nested items
+were out by default until 0.3.8 on the reading that a nested `fn` "reads like
+a standalone item"; that left a helper silently strict inside a body that
+looked covered — the silent-miss shape the rest of the crate is built to
+avoid — treated `fn sq(x)` and `|x| ..` differently on syntax alone, and once
+containers propagated all the way down made a function body the one place
+nesting stopped. `items` survives as a deprecated knob (`false` restores the
+old boundary), warned about through a `#[deprecated]` const the expansion
+uses at the parameter's span, since a stable proc macro cannot warn directly.
 **`#[algebraic]` on a container** — `impl`, inline `mod`, `trait` — enters
-every member body, and containers nested in those, unconditionally: the
-annotation on an `impl` means "these methods". `items` keeps its one meaning,
-items declared inside a function body, tracked by an `in_body` flag the three
-fn visitors set; the default visitor's free functions bypass overrides, so the
+every member body, and containers nested in those: the annotation on an
+`impl` means "these methods". `items` governs items declared inside a
+function body, tracked by an `in_body` flag the three fn visitors set; the default visitor's free functions bypass overrides, so the
 impl/trait visitors must call the overriding method, not the free function —
 `tests/ui/container_items_default_excludes_nested_fn.rs` caught exactly that.
 A `const fn` in any algebraic scope is decided by probing: the body is cloned
