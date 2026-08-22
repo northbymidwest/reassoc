@@ -103,9 +103,10 @@
 //! # assert_eq!(weighted(&[1.0, 2.0], 3.0), 45.0);
 //! ```
 //!
-//! Note there is no `algebraic { .. }` form without the `!`: Rust reads a bare
-//! identifier before a brace as a struct literal, so no macro can claim that
-//! syntax.
+//! The block is a block: `let` bindings made inside `alg! { .. }` are scoped to
+//! it and do not escape, exactly as with any `{ .. }`. Note there is no
+//! `algebraic { .. }` form without the `!`: Rust reads a bare identifier before
+//! a brace as a struct literal, so no macro can claim that syntax.
 //!
 //! # Types
 //!

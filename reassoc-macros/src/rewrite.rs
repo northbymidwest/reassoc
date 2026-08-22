@@ -103,6 +103,12 @@ impl VisitMut for Rewriter {
         self.visit_type_mut(&mut type_array.elem);
     }
 
+    fn visit_const_param_mut(&mut self, param: &mut syn::ConstParam) {
+        // `const N: usize = { A * B }`: the default is evaluated at compile
+        // time. The type may carry an array length, already handled.
+        self.visit_type_mut(&mut param.ty);
+    }
+
     fn visit_generic_argument_mut(&mut self, arg: &mut syn::GenericArgument) {
         if !matches!(arg, syn::GenericArgument::Const(_)) {
             visit_mut::visit_generic_argument_mut(self, arg);

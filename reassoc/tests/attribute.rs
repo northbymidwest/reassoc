@@ -771,3 +771,27 @@ fn nested_items_are_entered_by_default() {
         Dispatched(18.0)
     );
 }
+
+// ---- a const-generic parameter's default is a const position ----
+
+/// `struct Buf<const N: usize = { BASE * 2 }>` inside an algebraic body: the
+/// default is evaluated at compile time, so it must stay native (`ops::*` are
+/// not `const fn`). Non-literal operands, so the literal rule cannot be what
+/// saves it.
+#[algebraic]
+fn const_param_default_is_not_rewritten() -> usize {
+    const BASE: usize = 2;
+    const TWO: usize = 2;
+    struct Buf<const N: usize = { BASE * TWO }>([f32; N]);
+    impl<const N: usize> Buf<N> {
+        fn len(&self) -> usize {
+            N
+        }
+    }
+    Buf([0.0; 4]).len()
+}
+
+#[test]
+fn const_generic_parameter_default_stays_const() {
+    assert_eq!(const_param_default_is_not_rewritten(), 4);
+}

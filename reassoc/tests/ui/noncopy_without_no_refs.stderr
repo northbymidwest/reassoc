@@ -42,7 +42,7 @@ note: required by a bound in `SynthAddAssign`
    | |     SynthAddAssign,
    | |     -------------- required by a bound in this trait
 ...  |
-   | |      with `reassoc::passthrough!(add_assign: {Self}, {B});`"
+   | |      with `reassoc::passthrough!(add_assign: {Lhs}, {Self});`"
    | | );
    | |_- in this macro invocation
    = note: this error originates in the macro `declare_op_trait` (in Nightly builds, run with -Z macro-backtrace for more info)

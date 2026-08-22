@@ -2,6 +2,29 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Fixed
+
+- **A const-generic parameter's default** (`struct Buf<const N: usize = {
+  BASE * TWO }>`) inside an algebraic scope was rewritten and failed with
+  `E0015`; it is a const position and is left alone.
+- **`+=` on a same-type pair with no in-place form** reported a bare "the
+  trait bound `C: AddAssignRhs<C>` is not satisfied": rustc settles on the
+  root bound rather than the per-pair marker for that shape. The root trait
+  now carries the same message, phrased for its own parameters, so every
+  shape reads "binary assignment operation `+=` cannot be applied to type
+  `C`" with the opt-in spelled out. A `Copy` type opted in through a
+  `no_refs` form, which emits no marker, is the case that surfaced it
+  (`tests/ui/no_refs_copy_index_compound.rs`).
+
+### Changed
+
+- The `*Out` traits no longer carry an `on_unimplemented` message: it was
+  never the one rustc reported, since the blanket resolves the output to the
+  left type before the operand bound is checked. A comment says so.
+- Docs: `alg! { .. }` is a block, and `let`s inside it are scoped to it.
+
 ## 0.4.0 — 2026-08-21
 
 ### Changed (breaking)

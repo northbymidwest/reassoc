@@ -127,7 +127,7 @@ reassoc = "0.4"
 - `alg!(expr)` — rewrite one expression.
 - `alg! { .. }` — rewrite a block, for part of a function rather than all of
   it. Takes statements, loops and compound assignment, and evaluates to the
-  block's value:
+  block's value; `let`s inside it are scoped to it, like any block:
 
   ```rust
   # use reassoc::alg;
