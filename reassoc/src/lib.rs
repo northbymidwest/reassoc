@@ -41,7 +41,8 @@
 //! Algebraic operators let the compiler reassociate and contract. Results may
 //! differ from strict IEEE evaluation in the final bits, and may differ
 //! between targets. Algorithms that depend on exact rounding — compensated
-//! summation above all — must be wrapped in [`strict!`]:
+//! summation above all — must be wrapped in [`strict!`], which takes an
+//! expression or a brace-delimited statement sequence:
 //!
 //! ```
 //! # use reassoc::{algebraic, strict};

@@ -142,7 +142,8 @@ reassoc = "0.5"
   ```
 - `#[algebraic]` — rewrite a whole function; or every method of an `impl`
   block, every item of an inline `mod`, every default body of a `trait`.
-- `strict!(expr)` — opt a subexpression back out to strict IEEE.
+- `strict!(expr)` / `strict! { stmts.. }` — opt a subexpression, or a whole
+  statement block such as a Kahan step, back out to strict IEEE.
 - `passthrough!(Ty)` — opt your own type into the dispatch layer.
 - `#[derive(Passthrough)]` — the same, at the type's definition. Add
   `#[passthrough(add, mul)]` to name a subset for a type that implements only
@@ -177,7 +178,24 @@ nothing to rewrite is skipped, one with arithmetic is an error asking for
 Algebraic operators may reassociate. Results can differ from strict IEEE in
 the last bits and can differ between targets. **Wrap compensated-summation
 code in `strict!`** — `(t - sum) - y` is algebraically zero, and reassociation
-will delete it.
+will delete it. The block form covers a whole step:
+
+```rust
+# use reassoc::{algebraic, strict};
+# #[algebraic]
+# fn kahan(xs: &[f32]) -> f32 {
+# let mut sum = 0.0; let mut c = 0.0;
+# for &x in xs {
+strict! {
+    let y = x - c;
+    let t = sum + y;
+    c = (t - sum) - y;
+    sum = t;
+}
+# }
+# sum
+# }
+```
 
 ## Limitations
 
