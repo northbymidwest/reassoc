@@ -26,8 +26,11 @@ Then run `rustfmt` on the output.
 """
 
 import argparse
+import hashlib
+import pathlib
 import random
 import re
+import subprocess
 from fractions import Fraction
 
 VARS = ["a", "b", "c", "d", "e", "f", "g", "h"]
@@ -153,6 +156,34 @@ def dispatched(src: str) -> str:
     return LITERAL.sub(r"Disp(\1)", src).replace("strict!(", "(")
 
 
+def provenance() -> tuple[str, str]:
+    """A short hash of this script and the git commit it ran at, so a corpus
+    can be told apart from one the same seed produced under an older
+    generator, or before a change to the rewriter it was meant to exercise."""
+    script = pathlib.Path(__file__).read_bytes()
+    digest = hashlib.sha256(script).hexdigest()[:12]
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=pathlib.Path(__file__).parent,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(pathlib.Path(__file__))],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=pathlib.Path(__file__).parent,
+        ).stdout.strip()
+        if dirty:
+            commit += " (generator modified)"
+    except (OSError, subprocess.CalledProcessError):
+        commit = "unknown"
+    return digest, commit
+
+
 def main() -> None:
     global MAX_NUM, MAX_DENOM_EXP
     p = argparse.ArgumentParser()
@@ -170,6 +201,7 @@ def main() -> None:
 
     rng = random.Random(args.seed)
     env = dict(zip(VARS, VAR_VALUES))
+    script_hash, commit = provenance()
 
     cases = []
     while len(cases) < args.count:
@@ -218,6 +250,8 @@ def main() -> None:
 //! compound-assignment emitter on bare paths.
 //!
 //! Seed {args.seed}, {args.count} trees of ~{args.nodes} nodes and {args.chains} chains, over `{ty}`.
+//! Generator sha256 {script_hash}, run at commit {commit}: the same seed under a
+//! different generator hash is a different corpus.
 #![allow(clippy::float_cmp, clippy::eq_op, clippy::neg_multiply, clippy::needless_borrow)]
 #![allow(clippy::op_ref, clippy::assign_op_pattern, clippy::double_parens)]
 #![allow(clippy::excessive_precision)] // exact dyadic literals clippy cannot round-trip in f32
