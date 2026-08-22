@@ -12,6 +12,12 @@ Notable changes per release. Dates are the publish date.
   expression is still passed through unwrapped, so nothing changes for existing
   uses and `unused_braces` stays quiet.
 
+### Changed
+
+- The workspace uses Cargo's resolver 3 (MSRV-aware version selection), which
+  edition 2024 already implies for packages; a virtual workspace root has to
+  name it.
+
 ### Fixed
 
 - **Five must-fail UI cases had been pinning nothing since 0.3.0.** They named
