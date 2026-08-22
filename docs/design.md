@@ -93,17 +93,21 @@ source and must still lint. Generated parens leaking into user code recurred
 three times in three code paths; `tests/ui/redundant_parens.rs` pins both
 directions.
 
-**A non-float literal on either side leaves the operation native.** Rust never
-converts an integer to a float, so `x + 1` cannot be float arithmetic; native
-it keeps `255u8 + 1` and `let x: u8 = 255; x + 1` visible to
-`arithmetic_overflow`, and keeps indices and counters out of dispatch with
-their exact native meaning. The rule used to require literals on both sides.
-The check is "not a float literal" rather than "is an integer literal" because
-byte literals overflow like `u8` and an allowlist missed them, and it inspects
-suffixes because `2f64` reaches syn as `Lit::Int`. Float literals are still
-rewritten: neither lint applies to them, and algebraic operators are
-deliberately non-deterministic even on constants. Residual: both operands
-const-known non-literals.
+**A non-float literal, or a cast to an integer type, on either side leaves the
+operation native.** Rust never converts an integer to a float, so `x + 1`
+cannot be float arithmetic; native it keeps `255u8 + 1` and `let x: u8 = 255;
+x + 1` visible to `arithmetic_overflow`, and keeps indices and counters out of
+dispatch with their exact native meaning. The rule used to require literals on
+both sides. The check is "not a float literal" rather than "is an integer
+literal" because byte literals overflow like `u8` and an allowlist missed them,
+and it inspects suffixes because `2f64` reaches syn as `Lit::Int`. A cast to
+a primitive integer type (`n as usize`) is the same proof, and `(255 as u8) +
+(1 as u8)` was rewritten and panicked at runtime where native denies it at
+compile time; `as f32` proves nothing and stays rewritten. The check looks
+through every paren layer, where the emitter strips one: `((200u8)) +
+((100u8))` is still constant. Float literals are still rewritten: neither lint
+applies to them, and algebraic operators are deliberately non-deterministic
+even on constants. Residual: both operands const-known non-literals.
 
 **Unary minus is not rewritten.** It once routed through a same-type
 `ops::neg` to anchor `-(3.0 * 2.0)`; the `MulOut` blanket does that on its
@@ -111,34 +115,49 @@ own, and the detour rejected `-x` for `x: &f64`. The constant-method-receiver
 special case went for the same reason: `(1.0 * 2.0).sqrt()` now fails with
 native `E0689`.
 
-**Compound assignment** binds the RHS first through a `match`, then assigns.
-RHS first because native `+=` does, and because `&mut` on the place first
-makes `s += s * k` a borrow error. `match` rather than `let` because a `let`
-drops the RHS's temporaries before the place is evaluated. A bare path is
-assigned through directly (`a = add(a, rhs)`): taking `&mut` on it is denied
-for a `static mut` in edition 2024, and a non-`Copy` local moves and reassigns.
-Anything else — a field, an index, a deref — goes
-through `ops::add_assign(&mut place, rhs)`, bounded on `AddAssignRhs<Place>`.
-That trait has a blanket impl forming `+=` from `+` for any pair marked
-`SynthAddAssign<B>` (emitted by every reference-emitting `passthrough!` form,
-so every opted-in `Copy` pair), and direct in-place impls for `String` and for
-types that declare `add_assign`. The marker is enumerated per pair rather than
-a blanket over `Copy` because coherence cannot assume `String: !Copy` but can
-see that no other crate may implement a local trait for a foreign type; and it
-carries the user-facing message, because the blanket's header matches any pair
-so the marker is the bound rustc reports. `String`'s in-place impls are for
-`&str` and `&String` concretely, not `&T: AsRef<str>`: a downstream crate may
-implement the marker for `String` with a local type on the right, and a
-generic `&T` would overlap. Native place-first evaluation for overloaded `+=`
-is still not reproduced, by choice. It is reachable — a trait method on the
-place, `place.assign_add(rhs)`, keeps the two-phase borrow that lets `v[i] +=
-v[j]` compile, and a *trait* method resolves fine on an unsuffixed literal
-receiver (only inherent methods hit `E0689`) — but native has two orders, RHS
-first for primitives and place first for overloaded types, and a macro that
-cannot see types must pick one for all. RHS first matches the primitives,
-which is what this crate is for, and keeps the bare-path form that a
-`static mut` needs. Binding names carry a
-nonsense suffix because a stable proc macro has no def-site hygiene.
+**Compound assignment** binds the RHS first through a `match`, then borrows
+the place: `match (rhs,) { (r,) => { ops::add_assign(&mut place, r); } }`. RHS
+first because native `+=` does, and because `&mut` on the place first makes
+`s += s * k` a borrow error. `match` rather than `let` because a `let` drops
+the RHS's temporaries before the place is evaluated. A one-tuple scrutinee
+because a bare struct literal is not allowed as one — `acc += P { x: 1.0 }`
+made the generated `match` unparsable and the proc macro panic, and `unparen`
+had already removed any parens the user put there. Every place goes through
+`&mut`, bare paths included. They used to be assigned through by name
+(`a = add(a, rhs)`), which had two costs measured after 0.3.6: a non-`Copy`
+local captured by a closure or `async` block was *moved* out, turning an
+`FnMut` into an `FnOnce`, and a type with `AddAssign` but no `Add` was
+rejected where native accepts it. The one thing by-name bought was `static
+mut` — edition 2024 denies `&mut` on one — so the generated statement carries
+`#[allow(static_mut_refs)]`; native `+=` on a primitive static takes no
+reference either. Release codegen is unchanged: the `&mut` form of the dot
+kernel merges with the hand-written one (`_dot_direct = _dot_bymut`).
+`ops::add_assign` is bounded on `AddAssignRhs<Place>`, which has a blanket
+impl forming `+=` from `+` for any pair marked `SynthAddAssign<B>` (emitted by
+every reference-emitting `passthrough!` form, so every opted-in `Copy` pair),
+and direct in-place impls for `String` and for types that declare
+`add_assign`. The marker is enumerated per pair rather than a blanket over
+`Copy` because coherence cannot assume `String: !Copy` but can see that no
+other crate may implement a local trait for a foreign type; and it carries the
+user-facing message, because the blanket's header matches any pair so the
+marker is the bound rustc reports. Its supertrait is `RefOperand`, not `Copy`:
+with `Copy`, a non-`Copy` type opted in without `no_refs` led with a bare
+"`T: Copy` is not satisfied" ahead of `RefOperand`'s note naming the way out.
+`String`'s in-place impls are for `&str` and `&String` concretely, not `&T:
+AsRef<str>`: a downstream crate may implement the marker for `String` with a
+local type on the right, and a generic `&T` would overlap. Native place-first
+evaluation for overloaded `+=` is still not reproduced, by choice: native has
+two orders, RHS first for primitives and place first for overloaded types, and
+a macro that cannot see types must pick one for all. RHS first matches the
+primitives, which is what this crate is for.
+
+**The RHS binding resolves at the call site** and carries a nonsense suffix.
+`Span::mixed_site()` would make it properly hygienic, and was tried: rustc
+re-anchors a span that comes from an external macro's context at the
+invocation, so the caret of an unsatisfied `+=` moved from the operator to the
+`#[algebraic]` attribute (`tests/ui/compound_assign_not_opted_in.rs`). A user
+binding of the same name is a loud error (`tests/ui/binding_collision.rs`),
+never a misresolve.
 
 **Const positions are never rewritten** — `ops::*` are not `const fn`, so a
 call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`

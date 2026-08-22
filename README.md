@@ -121,7 +121,7 @@ negation is exact anyway.
 
 ```toml
 [dependencies]
-reassoc = "0.1"
+reassoc = "0.3"
 ```
 
 - `alg!(expr)` — rewrite one expression.
@@ -177,8 +177,8 @@ will delete it.
 
 The short version: arithmetic inside other macros is left alone (which is also
 why `strict!` works); user types need a one-line opt-in; const positions and
-generic functions are out; compound assignment on a non-`Copy` value behind a
-reference or index does not work; debug builds carry some call overhead.
+generic functions are out; `+=` on a non-`Copy` user type needs its `AddAssign`
+declared; debug builds carry some call overhead.
 
 **[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with
 the reason behind it.

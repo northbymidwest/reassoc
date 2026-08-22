@@ -99,11 +99,17 @@ inference, so declare the output yourself when it is not the left operand:
 passthrough!(mul out Ray, Ray => f64);
 ```
 
+Forgetting to reports ``cannot multiply `Ray` by `Ray` `` with rustc's own
+pointer at the impl that exists — "but trait `MulRhs<Ray, f64>` is implemented
+for it" — since the blanket resolves the output to `Ray` before the operand
+bound is checked (`tests/ui/undeclared_output.rs`).
+
 **Two other cases are unaffected by any of this** and behave as they always
-have: an operation with a non-float literal on either side is left unrewritten
-(it cannot be float arithmetic), so rustc's own `arithmetic_overflow` lint still
-fires on it, and `strict!(..)` opts an expression out of dispatch entirely,
-restoring native errors along with native semantics.
+have: an operation with a non-float literal or a cast to an integer type on
+either side is left unrewritten (it cannot be float arithmetic), so rustc's own
+`arithmetic_overflow` lint still fires on it, and `strict!(..)` opts an
+expression out of dispatch entirely, restoring native errors along with native
+semantics.
 
 ## Reproducing this
 

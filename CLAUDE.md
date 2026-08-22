@@ -20,6 +20,7 @@ cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
 cargo test -p reassoc --test codegen -- --ignored   # assembly guard
 ./scripts/codegen-check.sh                          # the guard, run directly
+cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer
 
 cargo test -p reassoc --no-default-features                    # core only
 cargo test -p reassoc --no-default-features --features alloc
@@ -29,9 +30,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-`ui` and `codegen` are `#[ignore]`d because their output depends on toolchain
-and host; CI runs them explicitly, `ui` on a pinned 1.98.0. Run both with
-`--ignored` before calling a change green. Regenerating `.stderr` files needs
+`ui`, `codegen` and `renamed` are `#[ignore]`d because they shell out or
+depend on toolchain and host; CI runs them explicitly, `ui` on a pinned 1.98.0.
+Run all three with `--ignored` before calling a change green. Regenerating `.stderr` files needs
 the `rust-src` component (five of them quote a line of `core`); regenerate with
 `TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored` and read each
 diff back before committing.
@@ -67,14 +68,17 @@ reverts to a worse result if undone.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
 - Nothing is matched by name; `strict!` works because macros are never entered.
 - `unparen` strips groups, then exactly one paren layer.
-- A non-float literal on either side leaves the operation native. Do not widen
-  to all literals (silently drops algebraic on float constants) or narrow to
-  both sides (hides `arithmetic_overflow`).
+- A non-float literal, or a cast to an integer type, on either side leaves the
+  operation native. Do not widen to all literals (silently drops algebraic on
+  float constants) or narrow to both sides (hides `arithmetic_overflow`).
 - Unary minus is not rewritten; constant method receivers are not special-cased.
-- Compound assignment: RHS first, bound by `match`; bare paths assigned
-  through, everything else via `ops::*_assign(&mut place, rhs)`. The synth
-  marker is per pair and carries the message; `String`'s in-place impls are
-  concrete, not `&T: AsRef<str>`.
+- Compound assignment: RHS first, bound by `match` on a one-tuple (a struct
+  literal is not a legal scrutinee); every place, bare paths included, goes
+  through `ops::*_assign(&mut place, rhs)` with `static_mut_refs` allowed on
+  that statement. The binding is call-site with a suffix — mixed-site hygiene
+  moves the error caret to the attribute. The synth marker is per pair, has a
+  `RefOperand` supertrait, and carries the message; `String`'s in-place impls
+  are concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
@@ -99,7 +103,10 @@ now rejects any snapshot whose error is an unresolved name.
 `tests/ui/pass/` exists partly to force trybuild to use `cargo build`: lints
 that fire during codegen, `arithmetic_overflow` among them, are invisible under
 `cargo check`. `tests/ui/redundant_parens.rs` pins `unused_parens` in both
-directions across every construct the rewriter emits.
+directions across every construct the rewriter emits. The fuzz corpus carries
+a `D`-typed twin of every tree for the same reason as `Dispatched`: the f64
+forms pass with an operator left unrewritten; the twin fails to compile.
+Regenerate with `scripts/gen-fuzz-corpus.py` and run `rustfmt` on the output.
 
 ## Releasing
 

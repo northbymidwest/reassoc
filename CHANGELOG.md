@@ -2,6 +2,59 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+A review of 0.3.6 against the compiler; every item below was reproduced
+before it was fixed, and each has a regression test.
+
+### Fixed
+
+- **`acc += P { x: 1.0 }` panicked the proc macro.** A struct literal is not
+  allowed as a `match` scrutinee, and the expansion put the RHS there bare —
+  even when the user had parenthesised it, since the rewriter strips that
+  layer. The scrutinee is now a one-tuple, `match (rhs,) { (r,) => .. }`, which
+  takes any expression; temporary lifetime and codegen are unchanged.
+- **`+=` on a bare path moved a non-`Copy` local out of a closure.** The
+  expansion assigned through by name (`s = add(s, rhs)`), so `|p| s += p` on a
+  `String` became `FnOnce` and `async { s += t }` moved `s` — both `FnMut` /
+  borrows natively. It also needed `+` where native needs `+=`, rejecting a type
+  with `AddAssign` and no `Add`. Every place now goes through `ops::add_assign
+  (&mut place, rhs)`; a `static mut` keeps working through an allow on the
+  generated statement, and release codegen is byte-identical (the dot kernel
+  merges with its hand-written form). A non-`Copy` type with only `+` no
+  longer gets `+=`, exactly as in plain Rust.
+- **`#[derive(Passthrough)]` on a generic type whose `where` clause ends in a
+  comma** — what rustfmt writes for any multi-line bound list — produced
+  unparsable tokens (`where T: Copy, , ..`).
+- **A non-`Copy` type opted in without `no_refs` led with a bare "`T: Copy` is
+  not satisfied"** from the 0.3.6 `Synth*` markers' `Copy` supertrait, ahead
+  of `RefOperand`'s note naming the way out. The supertrait is `RefOperand`
+  now, and the note is the first error again; `tests/ui/noncopy_without_no_refs.rs`
+  pins it.
+- **`(255 as u8) + (1 as u8)` and `((200u8)) + ((100u8))` were rewritten** and
+  panicked at runtime where plain Rust denies them at compile time. A cast to
+  an integer type now proves non-float arithmetic like an integer literal does,
+  and the constant check looks through every paren layer.
+- **`#[passthrough(add_assign)]` alone still opted the type into all five
+  binary operators.** Naming only in-place forms now means only those.
+- The `passthrough!` docs claimed every form synthesises `+=` from `+`; the
+  `no_refs` forms cannot (they do not assume `Copy`) and now say so.
+
+### Added
+
+- `tests/renamed/`, a consumer that depends on the crate as `myalg` with
+  `resolve-crate-name` on, built by `tests/renamed.rs` and CI. Inside this
+  repository the feature only ever took the `Itself` path, which is how 0.2.3's
+  bug shipped unseen.
+- The fuzz corpus carries a `D`-typed twin of every tree: a type with the
+  dispatch traits and no `std::ops`, so a tree compiles only if every operator
+  in it was rewritten. The f64 forms cannot tell — native and dispatched f64
+  give the same bits on exact values.
+- UI snapshots for the `RefOperand` note, the hand-implemented-operand case,
+  the two overflow cases above, and the generated binding's collision
+  behaviour; regression pins for every construct position the rewriter enters.
+- CI runs the test suite on the MSRV toolchain, not just a build.
+
 ## 0.3.6 — 2026-08-21
 
 ### Added

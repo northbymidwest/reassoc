@@ -26,8 +26,9 @@ measured constraint; none is an oversight. Diagnostics have their own page in
 - Integer arithmetic whose operands are *both* compile-time-known non-literals
   — `let x: u8 = 255; let y: u8 = 1; x + y` — is not seen by rustc's
   `arithmetic_overflow` lint once rewritten, so it wraps or panics at runtime
-  instead of being rejected. An operation with a literal on either side is left
-  native (it cannot be float arithmetic), so `x + 1` and `255u8 + 1` are still
+  instead of being rejected. An operation with a non-float literal or a cast to
+  an integer type on either side is left native (it cannot be float
+  arithmetic), so `x + 1`, `255u8 + 1` and `(255 as u8) + (1 as u8)` are still
   rejected; covering the all-variable case would mean not rewriting integer
   arithmetic at all.
 - Const positions are left alone, so arithmetic there keeps ordinary operator
@@ -40,11 +41,15 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
   have. Primitive `+=` is RHS-first natively and matches.
-- Compound assignment on a non-`Copy` user type through a reference or an
-  index (`self.tags += t`, `v[i] += t`) needs the type's `AddAssign` declared:
-  `passthrough!(add_assign: Ty, Rhs)` or `add_assign` on the derive. A `Copy`
-  type gets `+=` from `+` without it, `String` is covered, and a non-`Copy`
-  local (`s += t`) is assigned through directly either way.
+- Compound assignment on a non-`Copy` user type (`s += t`, `self.tags += t`,
+  `v[i] += t`) needs the type's `AddAssign` declared, exactly as native `+=`
+  needs `AddAssign`: `passthrough!(add_assign: Ty, Rhs)` or `add_assign` on the
+  derive. A `Copy` type opted in through a reference-emitting form gets `+=`
+  from `+` without it; `String` is covered.
+- `+=` on a `static mut` compiles because the generated statement allows
+  `static_mut_refs` and borrows the static for the duration of the assignment,
+  which native `+=` on a primitive does not do. The usual rules for references
+  to a `static mut` apply to that borrow.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —
@@ -54,9 +59,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   This covers float widths, integer widths, signedness, and int-against-float
   alike. See [diagnostics.md](diagnostics.md) for how closely the errors match plain
   Rust.
-- Generated bindings resolve at the call site, because a stable proc macro has
-  no def-site hygiene. They carry a nonsense suffix to make a collision with a
-  user binding implausible, not impossible.
+- The one binding the rewrite generates resolves at the call site. Mixed-site
+  hygiene is available on stable and was tried; it moves the caret of an
+  unsatisfied `+=` from the operator to the attribute, so the binding carries a
+  nonsense suffix instead. A user binding of the same name is a compile error,
+  never a silent misresolve.
 - Debug builds (`opt-level = 0`) carry some overhead from un-inlined generic
   calls — a tight dot-product loop measures about 25% more instructions than
   the hand-written algebraic form. Release builds are byte-identical to it, and
