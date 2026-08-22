@@ -31,6 +31,8 @@
 //! compound-assignment emitter on bare paths.
 //!
 //! Seed 1, 200 trees of ~40 nodes and 80 chains, over `f64`.
+//! Generator sha256 faa5417b1c86, run at commit e67b6e1: the same seed under a
+//! different generator hash is a different corpus.
 #![allow(
     clippy::float_cmp,
     clippy::eq_op,
