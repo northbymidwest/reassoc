@@ -58,10 +58,13 @@ The generated code is byte-identical to hand-written algebraic calls; the
 dispatch layer compiles away entirely in release builds.
 
 This is the optimization `-ffast-math` grants in C and C++ — reassociation,
-FMA contraction, division as reciprocal multiplication — but per function or
-expression rather than per translation unit, with `strict!` to carve a step
-back out, and without `-ffast-math`'s assumption that NaN and infinity never
-occur. Nothing outside an algebraic scope changes.
+FMA contraction, division as reciprocal multiplication, sign of zero ignored
+(LLVM's `reassoc contract arcp nsz`) — but per function or expression rather
+than per translation unit, with `strict!` to carve a step back out, and
+without `-ffast-math`'s `-ffinite-math-only` (`nnan ninf`): NaN and infinity
+are never undefined behaviour here, though a rearranged expression may
+produce or lose one where the strict one would not. Nothing outside an
+algebraic scope changes.
 
 ## Why not just call the methods?
 
