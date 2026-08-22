@@ -8,7 +8,7 @@ readme = "../README.md"
 # otherwise warn on every build ("only one of license or license-file is
 # necessary"). The canonical copy lives at the repo root; this is a real
 # copy, kept in sync manually — 0BSD's text never changes.
-keywords = ["float", "simd", "fma", "numerics", "macro"]
+keywords = ["fast-math", "float", "simd", "fma", "numerics"]
 categories = ["mathematics", "no-std"]
 version.workspace = true
 edition.workspace = true
@@ -24,7 +24,7 @@ std = ["alloc"]
 alloc = []
 
 [dependencies]
-reassoc-macros = { version = "=0.6.0", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.7.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"

@@ -57,6 +57,12 @@ Measured on aarch64 at `-O`, the loop above:
 The generated code is byte-identical to hand-written algebraic calls; the
 dispatch layer compiles away entirely in release builds.
 
+This is the optimization `-ffast-math` grants in C and C++ — reassociation,
+FMA contraction, division as reciprocal multiplication — but per function or
+expression rather than per translation unit, with `strict!` to carve a step
+back out, and without `-ffast-math`'s assumption that NaN and infinity never
+occur. Nothing outside an algebraic scope changes.
+
 ## Why not just call the methods?
 
 Because arithmetic stops being readable. Here is Catmull-Rom spline
@@ -121,7 +127,7 @@ negation is exact anyway.
 
 ```toml
 [dependencies]
-reassoc = "0.6"
+reassoc = "0.7"
 ```
 
 - `alg!(expr)` — rewrite one expression.

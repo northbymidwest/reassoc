@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.7.0 — 2026-08-22
 
 ### Changed
 
