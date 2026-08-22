@@ -62,20 +62,23 @@ macro_rules! declare_op_trait {
         /// Marks a `Copy` pair whose `+=` is formed from `+` by reading the
         /// place. Enumerated per pair, not blanket over `Copy`, so the blanket
         /// below cannot overlap an in-place impl; it carries the user-facing
-        /// message because it is the bound rustc reports.
+        /// message because it is the bound rustc reports. The supertrait is
+        /// `RefOperand` rather than `Copy` itself so that a non-`Copy` type
+        /// opted in without `no_refs` gets `RefOperand`'s note naming the way
+        /// out, not a bare "`Self: Copy` is not satisfied" ahead of it.
         #[diagnostic::on_unimplemented(
             message = $assign_msg,
             label = $assign_msg,
             note = $assign_hint,
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
-        pub trait $synth_trait<B>: Copy {}
+        pub trait $synth_trait<B>: RefOperand {}
 
         impl<A: $synth_trait<B>, B: $rhs_trait<A, A>> $assign_trait<A> for B {
             #[inline(always)]
             #[track_caller]
             fn $assign_method(self, lhs: &mut A) {
-                *lhs = self.$rhs_method(*lhs);
+                *lhs = self.$rhs_method(RefOperand::reassoc_dup(lhs));
             }
         }
     };

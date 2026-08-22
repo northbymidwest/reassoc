@@ -35,9 +35,11 @@
 ///   for an operand trait implemented by hand. The forms above work it out for
 ///   themselves.
 /// - `passthrough!(add_assign: A, B)` — `A += B` in place through the type's
-///   own `AddAssign`. A `Copy` type needs none of this: every form above
-///   synthesises `+=` from `+`. This is for a non-`Copy` type whose `+=` must
-///   work through a `&mut` or an index, such as a `String` field.
+///   own `AddAssign`. A `Copy` type opted in through a reference-emitting form
+///   needs none of this: those forms synthesise `+=` from `+`. The `no_refs`
+///   forms do not (they cannot assume `Copy`), so this is for a non-`Copy`
+///   type, or a `no_refs` one, whose `+=` must work: a `String` field, a
+///   non-`Copy` local, an indexed element.
 ///
 /// A right-hand type that is already a reference, `&str` say, takes the plain
 /// form and is dispatched by value.

@@ -1,0 +1,96 @@
+error[E0277]: `Derived` must be `Copy` to get `passthrough!`'s reference impls
+  --> tests/ui/noncopy_without_no_refs.rs:8:17
+   |
+ 8 | #[derive(Clone, reassoc::Passthrough)]
+   |                 ^^^^^^^^^^^^^^^^^^^^ this type is not `Copy`
+   |
+help: the trait `Copy` is not implemented for `Derived`
+  --> tests/ui/noncopy_without_no_refs.rs:10:1
+   |
+10 | struct Derived(String);
+   | ^^^^^^^^^^^^^^
+   = note: for a type that is not `Copy`, opt out of them: `passthrough!(no_refs Derived);` for the whole type, `passthrough!(no_refs add: Derived, Rhs => Out);` for one operator, or `#[passthrough(no_refs)]` on the derive
+   = note: this also covers a right-hand operand that is already a reference, such as `&str`: the reference-emitting form would need a lifetime for it
+   = note: required for `Derived` to implement `RefOperand`
+   = note: this error originates in the derive macro `reassoc::Passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Declared` must be `Copy` to get `passthrough!`'s reference impls
+  --> tests/ui/noncopy_without_no_refs.rs:26:19
+   |
+26 | passthrough!(add: Declared, Declared => Declared);
+   |                   ^^^^^^^^ this type is not `Copy`
+   |
+help: the trait `Copy` is not implemented for `Declared`
+  --> tests/ui/noncopy_without_no_refs.rs:19:1
+   |
+19 | struct Declared(String);
+   | ^^^^^^^^^^^^^^^
+   = note: for a type that is not `Copy`, opt out of them: `passthrough!(no_refs Declared);` for the whole type, `passthrough!(no_refs add: Declared, Rhs => Out);` for one operator, or `#[passthrough(no_refs)]` on the derive
+   = note: this also covers a right-hand operand that is already a reference, such as `&str`: the reference-emitting form would need a lifetime for it
+   = note: required for `Declared` to implement `RefOperand`
+note: required by a bound in `SynthAddAssign`
+  --> src/traits.rs
+   |
+   |           pub trait $synth_trait<B>: RefOperand {}
+   |                                      ^^^^^^^^^^ required by this bound in `SynthAddAssign`
+...
+   | / declare_op_trait!(
+   | |     AddRhs,
+   | |     AddOut,
+   | |     add_rhs,
+...  |
+   | |     SynthAddAssign,
+   | |     -------------- required by a bound in this trait
+...  |
+   | |      with `reassoc::passthrough!(add_assign: {Self}, {B});`"
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `declare_op_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Declared` must be `Copy` to get `passthrough!`'s reference impls
+  --> tests/ui/noncopy_without_no_refs.rs:26:1
+   |
+26 | passthrough!(add: Declared, Declared => Declared);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this type is not `Copy`
+   |
+help: the trait `Copy` is not implemented for `Declared`
+  --> tests/ui/noncopy_without_no_refs.rs:19:1
+   |
+19 | struct Declared(String);
+   | ^^^^^^^^^^^^^^^
+   = note: for a type that is not `Copy`, opt out of them: `passthrough!(no_refs Declared);` for the whole type, `passthrough!(no_refs add: Declared, Rhs => Out);` for one operator, or `#[passthrough(no_refs)]` on the derive
+   = note: this also covers a right-hand operand that is already a reference, such as `&str`: the reference-emitting form would need a lifetime for it
+   = note: required for `Declared` to implement `RefOperand`
+   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Declared` must be `Copy` to get `passthrough!`'s reference impls
+  --> tests/ui/noncopy_without_no_refs.rs:26:1
+   |
+26 | passthrough!(add: Declared, Declared => Declared);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this type is not `Copy`
+   |
+help: the trait `Copy` is not implemented for `Declared`
+  --> tests/ui/noncopy_without_no_refs.rs:19:1
+   |
+19 | struct Declared(String);
+   | ^^^^^^^^^^^^^^^
+   = note: for a type that is not `Copy`, opt out of them: `passthrough!(no_refs Declared);` for the whole type, `passthrough!(no_refs add: Declared, Rhs => Out);` for one operator, or `#[passthrough(no_refs)]` on the derive
+   = note: this also covers a right-hand operand that is already a reference, such as `&str`: the reference-emitting form would need a lifetime for it
+   = note: required for `Declared` to implement `RefOperand`
+   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Declared` must be `Copy` to get `passthrough!`'s reference impls
+  --> tests/ui/noncopy_without_no_refs.rs:26:1
+   |
+26 | passthrough!(add: Declared, Declared => Declared);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this type is not `Copy`
+   |
+help: the trait `Copy` is not implemented for `Declared`
+  --> tests/ui/noncopy_without_no_refs.rs:19:1
+   |
+19 | struct Declared(String);
+   | ^^^^^^^^^^^^^^^
+   = note: for a type that is not `Copy`, opt out of them: `passthrough!(no_refs Declared);` for the whole type, `passthrough!(no_refs add: Declared, Rhs => Out);` for one operator, or `#[passthrough(no_refs)]` on the derive
+   = note: this also covers a right-hand operand that is already a reference, such as `&str`: the reference-emitting form would need a lifetime for it
+   = note: required for `Declared` to implement `RefOperand`
+   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)

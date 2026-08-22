@@ -355,3 +355,115 @@ fn non_copy_types_can_opt_out_of_references() {
         Owned("ab".into())
     );
 }
+
+// ---- derive robustness ----
+
+/// A `where` clause with a trailing comma is what rustfmt writes for any
+/// multi-line bound list; the derive must append its own bounds to it without
+/// producing `, ,`.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[passthrough(add)]
+struct Bounded<T>
+where
+    T: Copy,
+{
+    a: T,
+    b: T,
+}
+
+impl<T> core::ops::Add for Bounded<T>
+where
+    T: Copy + core::ops::Add<Output = T>,
+{
+    type Output = Bounded<T>;
+    fn add(self, o: Bounded<T>) -> Bounded<T> {
+        Bounded {
+            a: self.a + o.a,
+            b: self.b + o.b,
+        }
+    }
+}
+
+#[test]
+fn derive_accepts_a_where_clause_with_a_trailing_comma() {
+    let p = Bounded { a: 1.0f32, b: 2.0 };
+    assert_eq!(add(p, p), Bounded { a: 2.0, b: 4.0 });
+}
+
+/// Naming only in-place forms must not also opt the type into all five binary
+/// operators: this type has `AddAssign` and nothing else, and native `+=` on
+/// it is fine.
+#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[passthrough(add_assign, no_refs)]
+struct InPlaceOnly(String);
+
+impl core::ops::AddAssign for InPlaceOnly {
+    fn add_assign(&mut self, o: InPlaceOnly) {
+        self.0 += &o.0;
+    }
+}
+
+#[test]
+fn derive_with_only_in_place_forms_emits_only_those() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(v: &mut [InPlaceOnly], t: InPlaceOnly) {
+        v[0] += t;
+    }
+    let mut v = [InPlaceOnly("a".into())];
+    go(&mut v, InPlaceOnly("b".into()));
+    assert_eq!(v[0], InPlaceOnly("ab".into()));
+}
+
+// ---- scaling a user vector by a float literal, the commonest kernel shape ----
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct V2(f32, f32);
+impl core::ops::Add for V2 {
+    type Output = V2;
+    fn add(self, o: V2) -> V2 {
+        V2(self.0 + o.0, self.1 + o.1)
+    }
+}
+impl core::ops::Mul<f32> for V2 {
+    type Output = V2;
+    fn mul(self, k: f32) -> V2 {
+        V2(self.0 * k, self.1 * k)
+    }
+}
+impl core::ops::Mul<V2> for f32 {
+    type Output = V2;
+    fn mul(self, v: V2) -> V2 {
+        V2(self * v.0, self * v.1)
+    }
+}
+impl core::ops::Div<f32> for V2 {
+    type Output = V2;
+    fn div(self, k: f32) -> V2 {
+        V2(self.0 / k, self.1 / k)
+    }
+}
+passthrough!(add: V2, V2 => V2);
+passthrough!(mul: V2, f32 => V2);
+passthrough!(mul: f32, V2 => V2);
+passthrough!(div: V2, f32 => V2);
+
+/// An unsuffixed float literal on either side of a user vector must infer to
+/// the scalar type the opt-in names, through the same-type opt-in sitting
+/// beside it, on both binary and compound forms.
+#[test]
+fn float_literal_scalars_infer_against_a_user_vector() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(v: V2, k: f32) -> (V2, V2, V2, V2, V2) {
+        let mut acc = v;
+        acc *= 2.0;
+        acc /= 4.0;
+        (v * 2.0, 2.0 * v, v * k, (v + v) * 0.5, acc)
+    }
+    let v = V2(1.0, 2.0);
+    assert_eq!(
+        go(v, 3.0),
+        (V2(2.0, 4.0), V2(2.0, 4.0), V2(3.0, 6.0), v, V2(0.5, 1.0))
+    );
+}

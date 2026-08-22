@@ -117,15 +117,22 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let krate = crate::krate::path();
     let ty = quote! { #name #ty_generics };
 
-    let bounds = |extra: TokenStream| match where_clause {
-        Some(existing) => quote! { #existing, #extra },
-        None => quote! { where #extra },
+    // Appended as a predicate, not as tokens after the existing clause: the
+    // existing clause may end in a trailing comma (rustfmt writes one for any
+    // multi-line bound list), and `#existing, #extra` then reads `, ,`.
+    let bounds = |extra: syn::WherePredicate| {
+        let mut clause = where_clause.cloned().unwrap_or_else(|| syn::WhereClause {
+            where_token: Default::default(),
+            predicates: Default::default(),
+        });
+        clause.predicates.push(extra);
+        clause
     };
     // `RefOperand` rather than a bare `Copy` bound: it carries an
     // `on_unimplemented` message naming `no_refs`, where `Copy` alone would
     // produce an unexplained "cannot move out of a shared reference" pointing
     // into this expansion.
-    let ref_bound = quote! { #ty: #krate::traits::RefOperand };
+    let ref_bound: syn::WherePredicate = syn::parse_quote! { #ty: #krate::traits::RefOperand };
 
     let impls = selected.iter().map(|op| {
         let trait_ident = Ident::new(op.trait_name, Span::call_site());
@@ -140,15 +147,18 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         // The `where` bound defers to the type's own `core::ops` impl, which is
         // what lets this work for generic types: without it the body would have
         // no operator to call.
-        let op_bound = quote! { #ty: ::core::ops::#bound_ident<Output = #ty> };
-        let by_value_bounds = bounds(quote! { #op_bound });
+        let op_bound: syn::WherePredicate =
+            syn::parse_quote! { #ty: ::core::ops::#bound_ident<Output = #ty> };
+        let by_value_bounds = bounds(op_bound.clone());
 
         // Opting in means implementing the right-operand trait, keyed on the
         // left type. The blanket impl in `reassoc::traits` turns that into the
         // operator. Two opt-ins for the same type — say same-type `Mul` and a
         // scalar `Mul` — add two of these and never overlap.
-        // The marker's `Copy` supertrait must be provable for a generic type.
-        let copy_bounds = bounds(quote! { #ty: ::core::marker::Copy });
+        // The marker's supertrait must be provable for a generic type. Bounded
+        // on `RefOperand` (`Copy` under a name that carries the `no_refs` note)
+        // so a non-`Copy` type sees that note, not a bare `Copy` error.
+        let copy_bounds = bounds(ref_bound.clone());
         let synth_value = (with_refs && !in_place).then(|| {
             quote! {
                 impl #impl_generics #krate::traits::#synth_ident<#ty> for #ty #copy_bounds {}
@@ -174,7 +184,8 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
                 impl #impl_generics #krate::traits::#synth_ident<&#ty> for #ty #copy_bounds {}
             }
         });
-        let ref_bounds = bounds(quote! { #ref_bound, #op_bound });
+        let mut ref_bounds = bounds(ref_bound.clone());
+        ref_bounds.predicates.push(op_bound);
         quote! {
             #by_value
             #synth_ref
@@ -218,8 +229,9 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         let method_ident = Ident::new(op.method, Span::call_site());
         let bound_ident = Ident::new(op.bound, Span::call_site());
         let op_token: TokenStream = op.token.parse().expect("operator token must parse");
-        let op_bound = quote! { #ty: ::core::ops::#bound_ident<#ty> };
-        let by_value_bounds = bounds(quote! { #op_bound });
+        let op_bound: syn::WherePredicate =
+            syn::parse_quote! { #ty: ::core::ops::#bound_ident<#ty> };
+        let by_value_bounds = bounds(op_bound.clone());
         let by_value = quote! {
             impl #impl_generics #krate::traits::#trait_ident<#ty> for #ty
             #by_value_bounds
@@ -232,7 +244,8 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         if !with_refs {
             return by_value;
         }
-        let ref_bounds = bounds(quote! { #ref_bound, #op_bound });
+        let mut ref_bounds = bounds(ref_bound.clone());
+        ref_bounds.predicates.push(op_bound);
         quote! {
             #by_value
 
@@ -253,12 +266,14 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 
 /// Reads an optional `#[passthrough(add, mul, add_assign, no_refs)]` attribute.
 ///
-/// Defaults to all five binary operators and no in-place forms. A type
-/// implementing only some of them must name the ones it has: an impl whose
-/// `where` bound is known unsatisfiable for a concrete type is a hard error at
-/// the definition rather than a lazily-checked one, so generating all five
-/// unconditionally would not compile. `add_assign` etc. are never assumed,
-/// since a `Copy` type gets `+=` from `+` without them.
+/// Naming nothing means all five binary operators and no in-place forms. A
+/// type implementing only some of them must name the ones it has: an impl
+/// whose `where` bound is known unsatisfiable for a concrete type is a hard
+/// error at the definition rather than a lazily-checked one, so generating
+/// all five unconditionally would not compile. Naming only in-place forms
+/// means only those — a type with `AddAssign` and no `Add` is ordinary.
+/// `add_assign` etc. are never assumed, since a `Copy` type gets `+=` from
+/// `+` without them.
 type Selected = (Vec<&'static Op>, Vec<&'static AssignOp>, bool);
 
 fn selected_ops(input: &DeriveInput) -> syn::Result<Selected> {
@@ -294,7 +309,7 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<Selected> {
         })?;
     }
 
-    if chosen.is_empty() {
+    if chosen.is_empty() && assigns.is_empty() {
         chosen = OPS.iter().collect();
     }
     Ok((chosen, assigns, with_refs))
