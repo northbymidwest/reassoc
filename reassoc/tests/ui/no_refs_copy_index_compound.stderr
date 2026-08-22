@@ -14,7 +14,7 @@ help: the trait `SynthAddAssign<C>` is not implemented for `C`
    | ^^^^^^^^
    = note: `C` has no `+=` with `C` on the right: a `Copy` type gets one from `reassoc::passthrough!(C);`, and a type with its own `AddAssign<C>` impl declares it with `reassoc::passthrough!(add_assign: C, C);`
    = note: if the place is a reference, dereference it: `*place` rather than `place`
-   = help: the following other types implement trait `SynthAddAssign<B>`:
+   = help: the following other types implement trait `SynthAddAssign<B, Tag>`:
              `Duration` implements `SynthAddAssign<&Duration>`
              `Duration` implements `SynthAddAssign<Duration>`
              `Instant` implements `SynthAddAssign<&Duration>`
@@ -28,5 +28,5 @@ help: the trait `SynthAddAssign<C>` is not implemented for `C`
 note: required by a bound in `reassoc::ops::add_assign`
   --> src/ops.rs
    |
-   | pub fn add_assign<A, B: AddAssignRhs<A>>(a: &mut A, b: B) {
-   |                         ^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+   | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`

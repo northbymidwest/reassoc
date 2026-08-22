@@ -1,0 +1,5 @@
+error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+  --> tests/ui/const_fn_nested_const_fn_with_arithmetic.rs:11:9
+   |
+11 |         const fn inner(b: f32) -> f32 {
+   |         ^^^^^

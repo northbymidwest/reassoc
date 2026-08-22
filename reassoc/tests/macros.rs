@@ -124,13 +124,19 @@ fn qualified_std_macro_paths_are_entered_too() {
     );
 }
 
+macro_rules! opaque {
+    ($e:expr) => {
+        $e
+    };
+}
+
 /// `format_args!` must be consumed in the same expression; a trailing comma in
-/// an argument list is kept; an unlisted macro (`matches!`) inside a listed
+/// an argument list is kept; an unlisted macro (`opaque!`) inside a listed
 /// one stays opaque while the listed one's own arguments are entered.
 #[algebraic]
 fn corners(a: Dispatched, b: Dispatched, n: u8) -> String {
     assert!(a * b > a,);
-    assert!(matches!(n, 1..=3) && a * b > a, "{:?}", a + b,);
+    assert!(opaque!(n) == n && a * b > a, "{:?}", a + b,);
     std::fmt::format(format_args!("{:?}", a * b))
 }
 
@@ -139,5 +145,28 @@ fn format_args_trailing_commas_and_opaque_macros_inside_listed_ones() {
     assert_eq!(
         corners(Dispatched(2.0), Dispatched(3.0), 2),
         "Dispatched(6.0)"
+    );
+}
+
+/// `matches!` is entered for its first argument alone — an expression — and
+/// the pattern (and guard) after the comma is left as written: a pattern is
+/// not an expression, and a guard is rustc's to check.
+#[algebraic]
+fn matches_scrutinee(a: Dispatched, b: Dispatched, n: u8) -> (bool, bool, bool) {
+    let first = matches!(a * b, Dispatched(v) if v > 5.0);
+    let nested = assert_matches_like(matches!(a + b, Dispatched(v) if v == 5.0));
+    let guarded = matches!(n, 1..=3 | 7 if n != 2);
+    (first, nested, guarded)
+}
+
+fn assert_matches_like(b: bool) -> bool {
+    b
+}
+
+#[test]
+fn matches_enters_its_scrutinee_and_leaves_the_pattern_alone() {
+    assert_eq!(
+        matches_scrutinee(Dispatched(2.0), Dispatched(3.0), 3),
+        (true, true, true)
     );
 }

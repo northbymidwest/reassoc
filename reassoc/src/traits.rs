@@ -1,9 +1,19 @@
-//! Dispatch traits for algebraic arithmetic operators.
+//! Dispatch traits for algebraic arithmetic operators. Implementation detail:
+//! the supported way to reach them is `passthrough!` and the derive.
 //!
 //! Outputs are type parameters, never associated types: that is what lets an
 //! expected return type flow back into an unannotated float literal
 //! (`let s = 0.0;` in a function returning `f32`). The shape of each trait is
 //! load-bearing for diagnostics; see `CLAUDE.md`.
+//!
+//! The trailing `Tag` parameter carries no information and is never named by
+//! a user: it exists so that `passthrough!(foreign ..)` can put a type *local
+//! to the opting-in crate* into an impl header, which is what Rust's orphan
+//! rule needs before a crate may implement a foreign trait for a foreign
+//! type. Everything this crate ships, and every plain `passthrough!`, uses
+//! the default `()`; the `foreign` form uses a private type of its own. The
+//! `ops::*` functions leave it free, and rustc infers it from the one impl
+//! that matches — the same way it already infers the output.
 
 macro_rules! declare_op_trait {
     ($rhs_trait:ident, $out_trait:ident, $rhs_method:ident, $msg:literal,
@@ -25,7 +35,7 @@ macro_rules! declare_op_trait {
                     resolved per concrete type, so `#[algebraic]` cannot be used in a generic \
                     function"
         )]
-        pub trait $rhs_trait<Lhs, O> {
+        pub trait $rhs_trait<Lhs, O, Tag = ()> {
             fn $rhs_method(self, lhs: Lhs) -> O;
         }
 
@@ -42,10 +52,10 @@ macro_rules! declare_op_trait {
         /// type first, so a missing output declaration surfaces as the
         /// operand bound failing — with rustc's own "but `MulRhs<Ray, f64>`
         /// is implemented" hint (`tests/ui/undeclared_output.rs`).
-        pub trait $out_trait<B, O> {}
+        pub trait $out_trait<B, O, Tag = ()> {}
 
-        impl<A, B> $out_trait<B, A> for A {}
-        impl<A, B> $out_trait<B, A> for &A {}
+        impl<A, B, Tag> $out_trait<B, A, Tag> for A {}
+        impl<A, B, Tag> $out_trait<B, A, Tag> for &A {}
 
         /// The right-hand operand of the compound form: `b.add_assign_rhs(&mut
         /// a)` is `a += b`. `Copy` pairs get it from the blanket below; a type
@@ -60,7 +70,7 @@ macro_rules! declare_op_trait {
             note = $root_hint,
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
-        pub trait $assign_trait<Lhs> {
+        pub trait $assign_trait<Lhs, Tag = ()> {
             fn $assign_method(self, lhs: &mut Lhs);
         }
 
@@ -77,9 +87,9 @@ macro_rules! declare_op_trait {
             note = $assign_hint,
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
-        pub trait $synth_trait<B>: RefOperand {}
+        pub trait $synth_trait<B, Tag = ()>: RefOperand {}
 
-        impl<A: $synth_trait<B>, B: $rhs_trait<A, A>> $assign_trait<A> for B {
+        impl<A: $synth_trait<B, Tag>, B: $rhs_trait<A, A, Tag>, Tag> $assign_trait<A, Tag> for B {
             #[inline(always)]
             #[track_caller]
             fn $assign_method(self, lhs: &mut A) {

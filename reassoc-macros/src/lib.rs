@@ -56,10 +56,24 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.to_compile_error().into(),
     };
 
+    // `skip` means "leave this alone", whatever it is on: a `const fn`, a
+    // `const`, a `struct` — anything a reader might mark to be explicit. A
+    // container strips it from its members before rustc sees it; this is the
+    // path for the item rustc does hand us.
+    if scope.skip {
+        return item;
+    }
+
     // A function first: the common case, and a method's tokens (`fn f(&self)
     // ..`) parse as one.
     match syn::parse::<syn::ItemFn>(item.clone()) {
         Ok(mut func) => {
+            // A second `#[algebraic(..)]` below this one governs instead, as
+            // it does for a container member: rewriting here first would
+            // apply this scope and silently override the inner parameters.
+            if func.attrs.iter().any(rewrite::is_algebraic_attr) {
+                return func.to_token_stream().into();
+            }
             // `ops::*` are not `const fn`; rejecting up front beats an E0015
             // blamed on the attribute.
             if let Some(const_token) = func.sig.constness {
@@ -70,10 +84,6 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 )
                 .to_compile_error()
                 .into();
-            }
-            // `skip` at the top level simply means "do nothing".
-            if scope.skip {
-                return func.to_token_stream().into();
             }
             let mut rewriter = rewrite::Rewriter::from_scope(scope);
             rewriter.visit_item_fn_mut(&mut func);
@@ -111,9 +121,6 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 Ok(
                     mut container @ (syn::Item::Impl(_) | syn::Item::Mod(_) | syn::Item::Trait(_)),
                 ) => {
-                    if scope.skip {
-                        return container.to_token_stream().into();
-                    }
                     let mut rewriter = rewrite::Rewriter::from_scope(scope);
                     rewriter.visit_item_mut(&mut container);
                     let mut tokens = container.to_token_stream();

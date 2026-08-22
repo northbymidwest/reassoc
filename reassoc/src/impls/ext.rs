@@ -13,6 +13,20 @@ passthrough!(mul: Duration, u32 => Duration);
 passthrough!(mul: u32, Duration => Duration);
 passthrough!(div: Duration, u32 => Duration);
 
+/// `uN / NonZero<uN>` and `%`, with `/=` and `%=`: the idiom for a division
+/// that cannot trap. By value only, exactly the set core implements — no
+/// reference forms, no `NonZero * NonZero`.
+macro_rules! nonzero_divisor {
+    ($($t:ty)*) => {$(
+        passthrough!(no_refs div: $t, core::num::NonZero<$t> => $t);
+        passthrough!(no_refs rem: $t, core::num::NonZero<$t> => $t);
+        passthrough!(no_refs div_assign: $t, core::num::NonZero<$t>);
+        passthrough!(no_refs rem_assign: $t, core::num::NonZero<$t>);
+    )*};
+}
+
+nonzero_divisor!(u8 u16 u32 u64 u128 usize);
+
 #[cfg(feature = "alloc")]
 mod alloc_impls {
     use alloc::string::String;
@@ -29,21 +43,39 @@ mod alloc_impls {
             lhs + self.as_ref()
         }
     }
+    impl<T: ?Sized + AsRef<str>> AddRhs<String, String> for &mut T {
+        #[inline(always)]
+        fn add_rhs(self, lhs: String) -> String {
+            lhs + (*self).as_ref()
+        }
+    }
 
     // In place. Concrete right operands, not `&T: AsRef<str>`: a generic `&T`
-    // here would overlap the blanket synth impl for a downstream type.
-    impl AddAssignRhs<String> for &str {
-        #[inline(always)]
-        fn add_assign_rhs(self, lhs: &mut String) {
-            *lhs += self;
-        }
+    // here would overlap the blanket synth impl for a downstream type. The
+    // list is every reference native `+=` deref-coerces to `&str` once its
+    // impl is unique.
+    macro_rules! string_in_place {
+        ($($rhs:ty),* $(,)?) => {$(
+            impl AddAssignRhs<String> for $rhs {
+                #[inline(always)]
+                fn add_assign_rhs(self, lhs: &mut String) {
+                    *lhs += &*self;
+                }
+            }
+        )*};
     }
-    impl AddAssignRhs<String> for &String {
-        #[inline(always)]
-        fn add_assign_rhs(self, lhs: &mut String) {
-            *lhs += self;
-        }
-    }
+    string_in_place!(
+        &str,
+        &String,
+        &&str,
+        &&String,
+        &alloc::borrow::Cow<'_, str>,
+        &alloc::boxed::Box<str>,
+        &alloc::rc::Rc<str>,
+        &alloc::sync::Arc<str>,
+        &mut str,
+        &mut String,
+    );
 }
 
 #[cfg(feature = "std")]

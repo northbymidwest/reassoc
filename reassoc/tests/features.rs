@@ -104,3 +104,95 @@ fn system_time_minus_duration_works() {
         std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(9)
     );
 }
+
+/// `u32 / NonZero<u32>` and `%` exist natively (the idiom for a division
+/// that cannot trap), with `/=` and `%=`, by value only: no reference forms
+/// and no `NonZero * NonZero`, so none are emitted here either.
+#[test]
+fn unsigned_division_by_nonzero_matches_native() {
+    use core::num::NonZero;
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(mut x: u32, n: NonZero<u32>, y: usize, m: NonZero<usize>) -> (u32, u32, u32, usize) {
+        let q = x / n;
+        let r = x % n;
+        x /= n;
+        x %= NonZero::new(2).unwrap();
+        (q, r, x, y % m)
+    }
+    let n = NonZero::new(3u32).unwrap();
+    assert_eq!(go(7, n, 9, NonZero::new(4).unwrap()), (2, 1, 0, 1));
+    let _ = (
+        div(7u8, NonZero::new(2u8).unwrap()),
+        div(7u128, NonZero::new(2u128).unwrap()),
+    );
+}
+
+/// Native `+=` on a `String` deref-coerces its right operand once the impl is
+/// unique: `&Cow<str>`, `&Box<str>`, `&&str`, `&&String`, `&Rc<str>`,
+/// `&Arc<str>`, `&mut String`, `&mut str` are all accepted. Dispatch never
+/// coerces, so each needs an in-place impl of its own; `+` accepts the same
+/// set through `AsRef<str>`.
+#[cfg(feature = "alloc")]
+#[test]
+fn string_in_place_accepts_every_reference_native_would_coerce() {
+    use alloc_or_std::borrow::Cow;
+    use alloc_or_std::rc::Rc;
+    use alloc_or_std::sync::Arc;
+    use reassoc::algebraic;
+    // The reference shapes are the point of the test.
+    #[allow(clippy::borrowed_box, clippy::ptr_arg, clippy::too_many_arguments)]
+    #[algebraic]
+    fn go(
+        mut s: String,
+        c: &Cow<str>,
+        b: &Box<str>,
+        r: &&str,
+        o: &&String,
+        rc: &Rc<str>,
+        arc: &Arc<str>,
+        m: &mut String,
+        ms: &mut str,
+    ) -> String {
+        s += c;
+        s += b;
+        s += r;
+        s += o;
+        s += rc;
+        s += arc;
+        // A `&mut` right operand is moved into the dispatch call rather than
+        // implicitly reborrowed as native `+=` would; reborrow to reuse it.
+        s += &mut *m;
+        s += &mut *ms;
+        s = s + &mut *m;
+        s = s + ms;
+        s + m
+    }
+    let owned = String::from("d");
+    let mut m = String::from("g");
+    let mut ms = String::from("h");
+    let s = go(
+        String::new(),
+        &Cow::Borrowed("a"),
+        &"b".into(),
+        &"c",
+        &&owned,
+        &Rc::from("e"),
+        &Arc::from("f"),
+        &mut m,
+        ms.as_mut_str(),
+    );
+    assert_eq!(s, "abcdefghghg");
+}
+
+/// The std pairs with a reference on one side are slightly more permissive
+/// than native (`docs/limitations.md`): `&Duration + Duration` compiles here,
+/// where std has no reference impls for `Duration`. Pinned so a change is
+/// deliberate.
+#[test]
+#[allow(clippy::needless_borrows_for_generic_args)]
+fn duration_reference_operands_are_accepted() {
+    let d = Duration::from_secs(1);
+    assert_eq!(add(&d, d), Duration::from_secs(2));
+    assert_eq!(mul(&d, 2u32), Duration::from_secs(2));
+}

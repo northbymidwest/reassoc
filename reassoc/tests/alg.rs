@@ -150,7 +150,9 @@ impl_dispatched!(DivRhs, div_rhs, /);
 impl_dispatched!(RemRhs, rem_rhs, %);
 // `Copy`, so `+=` is formed from `+` — the marker says so, per pair.
 impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::SynthSubAssign<Dispatched> for Dispatched {}
 impl reassoc::traits::SynthMulAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::SynthDivAssign<Dispatched> for Dispatched {}
 
 #[test]
 fn binary_operators_actually_dispatch() {
@@ -304,4 +306,52 @@ fn empty_and_all_statement_block_forms_are_unit() {
     };
     assert_eq!((unit, also_unit), ((), ()));
     assert_eq!((s, t), (Dispatched(4.0), Dispatched(6.0)));
+}
+
+/// The brace form with a single expression inside, used as a statement and
+/// followed by more statements: the expansion is that one expression, not a
+/// block, and rustc accepts a macro statement that expands to a non-block
+/// expression.
+#[test]
+fn single_expression_brace_form_in_statement_position() {
+    let (a, b) = (Dispatched(2.0), Dispatched(3.0));
+    let mut s = Dispatched(1.0);
+    alg! { s = s * a * b }
+    alg! { s += a * b }
+    let t = s;
+    assert_eq!(t.0, 12.0);
+}
+
+/// `+=` in tail position — a fn body or closure body with no semicolon — is
+/// a `()`-typed expression, and as the body of a match arm or an `if`/`else`
+/// branch it needs no braces, exactly as native `+=` does not.
+#[test]
+fn compound_assignment_in_tail_and_arm_positions() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn bump(acc: &mut Dispatched, x: Dispatched) {
+        *acc += x
+    }
+    #[algebraic]
+    fn arms(mut x: Dispatched, k: u8) -> Dispatched {
+        match k {
+            0 => x += Dispatched(1.0),
+            1 => x -= Dispatched(1.0),
+            _ => x *= Dispatched(2.0),
+        }
+        if k > 5 {
+            x += Dispatched(1.0)
+        } else {
+            x /= Dispatched(2.0)
+        }
+        let mut add = |y: Dispatched| x += y;
+        add(Dispatched(1.0));
+        x
+    }
+    let mut a = Dispatched(1.0);
+    bump(&mut a, Dispatched(2.0));
+    assert_eq!(a.0, 3.0);
+    assert_eq!(arms(Dispatched(1.0), 0).0, 2.0); // (1+1)/2+1
+    assert_eq!(arms(Dispatched(4.0), 1).0, 2.5); // (4-1)/2+1
+    assert_eq!(arms(Dispatched(3.0), 9).0, 8.0); // 3*2+1+1
 }

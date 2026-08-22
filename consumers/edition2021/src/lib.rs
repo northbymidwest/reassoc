@@ -25,6 +25,9 @@ mod expressions;
 #[path = "../../../reassoc/tests/features.rs"]
 mod features;
 #[rustfmt::skip]
+#[path = "../../../reassoc/tests/foreign.rs"]
+mod foreign;
+#[rustfmt::skip]
 #[path = "../../../reassoc/tests/fuzz_corpus_f32.rs"]
 mod fuzz_corpus_f32;
 #[rustfmt::skip]

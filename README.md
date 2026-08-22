@@ -149,23 +149,34 @@ reassoc = "0.5"
   `#[passthrough(add, mul)]` to name a subset for a type that implements only
   some operators.
 
-Primitives, references to them, `Duration`, `String`, the std time types, and
-`Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in.
+Primitives, references to them, `Duration`, `String`, the std time types,
+`uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
+and need no opt-in.
 
 Opted-in types get reference operands too, so they work in iterator code the
 same way primitives do. That dereferences, so it needs `Copy`; a type that is
-not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`.
+not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`, or —
+for a type that implements its operators on references, as heavy numeric types
+do — names them as written: `passthrough!(add: &Big, &Big => Big)`.
+
+A type from another crate — `glam`, `nalgebra`, `num-complex` — takes the
+`foreign` prefix: `passthrough!(foreign glam::Vec3)`. Rust's orphan rule
+forbids the plain form there; the prefix carries a private marker type of
+yours in the impl, which is what the rule asks for. Opt a foreign type in
+once, in the binary or one shared crate (two crates opting in the same type
+give a third an ambiguity error); see [Limitations](#limitations).
 
 ### Scope
 
 Everything lexically inside the annotated scope is rewritten: closure bodies,
 nested `fn`/`impl`/`mod`/`trait` items, and the arguments of the std macros
 whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
-`write!`, `dbg!`, `vec!` and their relatives). Any other macro is opaque —
-which is what makes `strict!` work. `#[algebraic(skip)]` on a nested item or a
-container member excludes it. A `const fn` cannot be rewritten; one with
-nothing to rewrite is skipped, one with arithmetic is an error asking for
-`skip`.
+`write!`, `dbg!`, `vec!` and their relatives, and the scrutinee of
+`matches!`). Any other macro is opaque — which is what makes `strict!` work.
+`#[algebraic(skip)]` on any item — a nested item, a container member of any
+kind, a standalone `const fn` — excludes it. A `const fn` cannot be
+rewritten; one with nothing to rewrite is skipped, one with arithmetic is an
+error asking for `skip`.
 
 | parameter | default | effect |
 | --- | --- | --- |
@@ -201,9 +212,11 @@ strict! {
 
 The short version: arithmetic inside a macro other than the std expression
 macros is left alone (which is also why `strict!` works); user types need a
-one-line opt-in; const positions and
-generic functions are out; `+=` on a non-`Copy` user type needs its `AddAssign`
-declared; debug builds carry some call overhead.
+one-line opt-in, and types from other crates the `foreign` form of it, once
+per dependency tree; const positions
+and generic functions are out; `+=` on a non-`Copy` user type needs its
+`AddAssign` declared, and `+=` on a `#[repr(packed)]` field is rejected; debug
+builds carry some call overhead.
 
 **[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with
 the reason behind it.

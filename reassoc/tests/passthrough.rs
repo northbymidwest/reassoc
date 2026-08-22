@@ -565,3 +565,62 @@ fn derive_on_an_enum_a_lifetime_and_accumulated_attributes() {
     assert_eq!(alg!(t + t * t), Tagged(6.0, "m"));
     assert_eq!(alg!(&t * &t), Tagged(4.0, "m"));
 }
+
+/// The macro form with a reference on the *left*: the standard shape for a
+/// non-`Copy` numeric type (`&Matrix + &Matrix`, `&Heavy * f64`). Both `&`
+/// positions route to the value form — no `&&Heavy` impl and no lifetime to
+/// name — and the output is read as "the left type" through the reference,
+/// since the `&A` blanket already says `&Heavy` yields `Heavy`.
+#[derive(Debug, Clone, PartialEq)]
+struct Heavy(Vec<f64>);
+impl core::ops::Add<&Heavy> for &Heavy {
+    type Output = Heavy;
+    fn add(self, o: &Heavy) -> Heavy {
+        Heavy(self.0.iter().zip(&o.0).map(|(a, b)| a + b).collect())
+    }
+}
+impl core::ops::Sub<&Heavy> for &Heavy {
+    type Output = Heavy;
+    fn sub(self, o: &Heavy) -> Heavy {
+        Heavy(self.0.iter().zip(&o.0).map(|(a, b)| a - b).collect())
+    }
+}
+impl core::ops::Mul<f64> for &Heavy {
+    type Output = Heavy;
+    fn mul(self, k: f64) -> Heavy {
+        Heavy(self.0.iter().map(|a| a * k).collect())
+    }
+}
+impl core::ops::Mul<&Heavy> for Heavy {
+    type Output = Heavy;
+    fn mul(self, o: &Heavy) -> Heavy {
+        Heavy(self.0.iter().zip(&o.0).map(|(a, b)| a * b).collect())
+    }
+}
+impl core::ops::Mul<&Heavy> for &Heavy {
+    type Output = f64; // a dot product: the output is not the left type
+    fn mul(self, o: &Heavy) -> f64 {
+        self.0.iter().zip(&o.0).map(|(a, b)| a * b).sum()
+    }
+}
+passthrough!(add: &Heavy, &Heavy => Heavy);
+passthrough!(sub: &Heavy, &Heavy => Heavy);
+passthrough!(mul: &Heavy, f64 => Heavy);
+passthrough!(mul: Heavy, &Heavy => Heavy);
+passthrough!(mul: &Heavy, &Heavy => f64);
+
+#[test]
+fn reference_left_operand_takes_the_value_form() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, Heavy, f64) {
+        let s = &(a + b) * k * b;
+        let d = a - b;
+        let dot = a * b;
+        (s, d, dot)
+    }
+    let (s, d, dot) = go(&Heavy(vec![1.0, 2.0]), &Heavy(vec![3.0, 4.0]), 2.0);
+    assert_eq!(s, Heavy(vec![24.0, 48.0]));
+    assert_eq!(d, Heavy(vec![-2.0, -2.0]));
+    assert_eq!(dot, 11.0);
+}

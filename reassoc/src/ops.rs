@@ -17,65 +17,70 @@ use crate::traits::{
 // `#[track_caller]` costs nothing once inlined and makes an integer overflow
 // panic in a debug build point at the user's operator rather than in here.
 
+// `T` is the opt-in tag (`traits.rs`): unconstrained here, resolved by
+// selection from the one impl that matches the operand types, `()` for
+// everything but a `passthrough!(foreign ..)` pair.
+
 #[inline(always)]
 #[track_caller]
-pub fn add<A: AddOut<B, O>, B: AddRhs<A, O>, O>(a: A, b: B) -> O {
+pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.add_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn sub<A: SubOut<B, O>, B: SubRhs<A, O>, O>(a: A, b: B) -> O {
+pub fn sub<A: SubOut<B, O, T>, B: SubRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.sub_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn mul<A: MulOut<B, O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O {
+pub fn mul<A: MulOut<B, O, T>, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.mul_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn div<A: DivOut<B, O>, B: DivRhs<A, O>, O>(a: A, b: B) -> O {
+pub fn div<A: DivOut<B, O, T>, B: DivRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.div_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn rem<A: RemOut<B, O>, B: RemRhs<A, O>, O>(a: A, b: B) -> O {
+pub fn rem<A: RemOut<B, O, T>, B: RemRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.rem_rhs(a)
 }
 
-// Compound assignment through a place the rewriter cannot assign through by
-// name: a field, an index, a deref.
+// Compound assignment. Every place goes through here by `&mut` — a bare
+// path as much as a field, an index or a deref — so a non-`Copy` local
+// captured by a closure stays borrowed, not moved (`docs/design.md`).
 
 #[inline(always)]
 #[track_caller]
-pub fn add_assign<A, B: AddAssignRhs<A>>(a: &mut A, b: B) {
+pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.add_assign_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn sub_assign<A, B: SubAssignRhs<A>>(a: &mut A, b: B) {
+pub fn sub_assign<A, B: SubAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.sub_assign_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn mul_assign<A, B: MulAssignRhs<A>>(a: &mut A, b: B) {
+pub fn mul_assign<A, B: MulAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.mul_assign_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn div_assign<A, B: DivAssignRhs<A>>(a: &mut A, b: B) {
+pub fn div_assign<A, B: DivAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.div_assign_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn rem_assign<A, B: RemAssignRhs<A>>(a: &mut A, b: B) {
+pub fn rem_assign<A, B: RemAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.rem_assign_rhs(a)
 }

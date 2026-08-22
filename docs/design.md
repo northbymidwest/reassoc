@@ -87,7 +87,8 @@ came in 0.5.0: `assert!(x * y > eps)` inside a kernel silently computing
 strict IEEE was the most common everyday surprise, so the `assert`, `panic`,
 `print`, `format` and `write` families, `dbg!` and `vec!` are entered — by
 last path segment, and only when the tokens parse as comma-separated
-expressions (`vec!`'s `elem; len` aside). A listed name whose arguments do not
+expressions (`vec!`'s `elem; len` aside) — and `matches!` for its scrutinee,
+the one argument that is an expression. A listed name whose arguments do not
 parse is left whole, so a user macro sharing a std name keeps its grammar
 unless it takes expressions and reads their tokens. `strict!` is never on the
 list; `macros = false` turns the entry off.
@@ -159,6 +160,30 @@ two orders, RHS first for primitives and place first for overloaded types, and
 a macro that cannot see types must pick one for all. RHS first matches the
 primitives, which is what this crate is for.
 
+**The dispatch traits carry a trailing tag parameter**, `AddRhs<Lhs, O, Tag =
+()>`, that means nothing and is never named by a user. It exists for one
+reason: Rust's orphan rule lets a crate implement a foreign trait for a
+foreign type only if the impl header names a type local to that crate, and
+`AddRhs<Lhs, O> for Rhs` had no slot for one — so a user of `glam` or
+`nalgebra` could not opt those types in at all. `passthrough!(foreign ..)`
+wraps its impls in `const _: () = { struct __ReassocOptIn; .. }` and passes
+that type as the tag; `ops::*` leave the tag free and rustc infers it from the
+one impl that matches, as it already infers `O`. The plain forms pass `()`, so
+a duplicate opt-in of a local type stays the `E0119` it always was at the
+definition — with a per-expansion tag it would instead become `E0283` at
+every use, which is what the `foreign` form cannot avoid: two crates opting
+in the same foreign pair are two impls coherence can no longer reject, and a
+crate seeing both is ambiguous at the operator (`tests/ui/foreign_diamond.rs`).
+That hazard is the price of the capability, the same one serde's `remote`
+derives carry, and is managed by guidance (opt in once, at the top of the
+tree). Measured: the tag costs nothing in inference (every pinned literal and
+iterator case still resolves) and `#[doc(hidden)]` on `traits` is not an
+option — rustc stops trimming paths in diagnostics under a hidden module, and
+every error would read `reassoc::traits::AddRhs<..>`. Shipping impls for
+popular crates behind features would avoid the tag for those types; not done,
+since such types are along for the ride in an algebraic scope rather than its
+point.
+
 **The RHS binding resolves at the call site** and carries a nonsense suffix.
 `Span::mixed_site()` would make it properly hygienic, and was tried: rustc
 re-anchors a span that comes from an external macro's context at the
@@ -198,7 +223,19 @@ rewritten; the attribute does not propagate to implementors.
 
 **A nested item with its own `#[algebraic(..)]` is left alone**; rewriting it
 under the outer scope first would make the inner attribute run over already-
-rewritten code and silently ignore its parameters.
+rewritten code and silently ignore its parameters. The same holds for a
+second `#[algebraic(..)]` directly on an annotated function: the outer
+expansion returns it untouched and the inner governs, as on a container
+(`tests/ui/double_attribute_inner_wins.rs`). `skip` is accepted on any item,
+wherever it lands: the container form strips it from members of every kind
+(`const`, `static`, `struct`, `use`, `macro_rules!` included — inside a `mod`
+the attribute is not even in scope, so leaving it would be an error), a
+skipped item has the `skip`s nested inside it stripped too since nothing else
+will see them, a `const fn` body likewise, and the attribute invoked directly
+with `skip` returns its item unchanged before looking at what it is — which is
+how `#[algebraic(skip)] const fn` works at top level. A `const fn` nested
+inside a skipped `const fn` with arithmetic of its own is still reported: the
+probe's errors propagate.
 
 **Generated code is respanned onto the operator.** `quote_spanned!` does not
 respan interpolated tokens, so a crate path at `Span::call_site()` anchored

@@ -21,6 +21,7 @@ cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
 cargo test -p reassoc --test codegen -- --ignored   # assembly guard
 ./scripts/codegen-check.sh                          # the guard, run directly
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
+cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 
 cargo test -p reassoc --no-default-features                    # core only
@@ -67,6 +68,11 @@ reverts to a worse result if undone.
 
 - Trait outputs are type parameters, never associated types (`E0271` on
   unannotated literals otherwise).
+- Every dispatch trait has a trailing `Tag = ()` parameter that `ops::*` leave
+  free; `passthrough!(foreign ..)` passes a per-expansion local type so the
+  orphan rule admits impls for types from other crates, plain forms pass `()`.
+  `traits` must not be `#[doc(hidden)]` (rustc stops trimming its paths in
+  diagnostics). `consumers/foreign-types/` is the foreign crate the tests use.
 - The operand trait is keyed on the left type; the operand bound hangs off `B`;
   `MulOut<B, O>` leaves `B` free in its blanket. Each of the three is load-
   bearing for a specific diagnostic.

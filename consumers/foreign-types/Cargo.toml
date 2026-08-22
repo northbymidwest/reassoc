@@ -1,0 +1,12 @@
+# Types from "another crate", for the `passthrough!(foreign ..)` tests. It has
+# no dependency on reassoc, so from reassoc's own test crates these types are
+# foreign exactly as a `glam` or `nalgebra` type would be: the plain
+# `passthrough!` forms hit the orphan rule on them (E0117), and the `foreign`
+# form is the way in. A workspace member so `cargo test --workspace` covers it.
+[package]
+name = "foreign-types"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]

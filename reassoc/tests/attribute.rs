@@ -829,3 +829,203 @@ fn async_closures_and_union_fields_are_entered() {
     assert_eq!(got, Dispatched(7.0));
     assert_eq!(union_field(2.0, 3.0), 6.0);
 }
+
+// ---- `skip` is accepted wherever the attribute can land ----
+
+/// `#[algebraic(skip)]` means "leave this alone" on any item: a standalone
+/// `const fn` (where `#[algebraic]` itself is an error), and `const`,
+/// `static`, `struct`, `enum`, `type`, `use` and `macro_rules!` members of an
+/// algebraic container, which are never rewritten but must not be rejected
+/// either. The container strips the attribute before rustc sees it, so no
+/// `use reassoc::algebraic` is needed inside the module.
+#[algebraic(skip)]
+const fn standalone_skipped_const_fn(a: f32) -> f32 {
+    a * 2.0
+}
+#[algebraic(skip)]
+struct SkippedStandalone(f32);
+#[algebraic(skip)]
+const SKIPPED_CONST: f32 = 1.0 + 2.0;
+
+#[algebraic]
+mod skip_on_every_member_kind {
+    #[algebraic(skip)]
+    pub const C: f32 = 1.0 + 2.0;
+    #[algebraic(skip)]
+    pub static S: f32 = 2.0 * 2.0;
+    #[algebraic(skip)]
+    pub struct P(pub f32);
+    #[algebraic(skip)]
+    pub enum E {
+        A = 1 + 1,
+    }
+    #[algebraic(skip)]
+    pub type Arr = [f32; 1 + 1];
+    #[algebraic(skip)]
+    pub use core::f32::consts::PI;
+    #[algebraic(skip)]
+    macro_rules! two {
+        () => {
+            1.0 + 1.0
+        };
+    }
+    #[algebraic(skip)]
+    pub mod nested {
+        pub fn f(a: f32) -> f32 {
+            a * 2.0
+        }
+    }
+    pub struct Holder;
+    #[algebraic(skip)]
+    impl Holder {
+        pub fn g(a: f32) -> f32 {
+            a * 2.0
+        }
+    }
+    #[algebraic(skip)]
+    pub trait T {
+        fn h(&self) -> f32 {
+            2.0 * 2.0
+        }
+    }
+    impl T for Holder {}
+    pub fn user(a: f32) -> f32 {
+        a * C + S + P(a).0 + E::A as u8 as f32 + Arr::default()[0] + two!() + nested::f(a)
+    }
+    pub struct K;
+    impl K {
+        // A `const fn` member whose only rewrite-relevant content is a nested
+        // item's `skip` attribute: nothing to rewrite, so it is skipped, and
+        // the nested attribute is stripped rather than left for rustc.
+        pub const fn outer(a: f32) -> f32 {
+            #[algebraic(skip)]
+            fn inner(b: f32) -> f32 {
+                b * 2.0
+            }
+            let _ = inner;
+            a
+        }
+        #[algebraic(skip)]
+        pub const fn skipped(a: f32) -> f32 {
+            a * 2.0
+        }
+        #[algebraic(skip)]
+        pub const TWO: f32 = 1.0 + 1.0;
+    }
+}
+
+#[test]
+fn skip_is_a_no_op_on_every_item_kind() {
+    use skip_on_every_member_kind::{Holder, K, T};
+    assert_eq!(standalone_skipped_const_fn(2.0), 4.0);
+    assert_eq!(SkippedStandalone(SKIPPED_CONST).0, 3.0);
+    assert_eq!(
+        skip_on_every_member_kind::user(1.0),
+        3.0 + 4.0 + 1.0 + 2.0 + 0.0 + 2.0 + 2.0
+    );
+    assert_eq!(K::outer(1.5), 1.5);
+    assert_eq!(K::skipped(1.5), 3.0);
+    assert_eq!(K::TWO, 2.0);
+    assert_eq!(Holder::g(1.0) + Holder.h(), 6.0);
+    let _: skip_on_every_member_kind::K = K;
+    let _ = skip_on_every_member_kind::PI;
+}
+
+// ---- function shapes and patterns the attribute must round-trip ----
+
+mod shapes {
+    use super::Dispatched;
+    use reassoc::algebraic;
+
+    #[algebraic]
+    pub(crate) async unsafe fn async_unsafe(x: Dispatched) -> Dispatched {
+        x * x
+    }
+    #[algebraic]
+    #[allow(improper_ctypes_definitions)]
+    pub extern "C" fn extern_c(x: Dispatched) -> Dispatched {
+        x * x
+    }
+    #[algebraic]
+    #[allow(clippy::multiple_bound_locations)]
+    pub fn generic_env<'a, T: Copy>(
+        x: &'a Dispatched,
+        _t: T,
+    ) -> impl Fn(Dispatched) -> Dispatched + 'a
+    where
+        T: Sized,
+    {
+        move |y| *x * y
+    }
+    #[algebraic]
+    pub fn destructured((p, q): (Dispatched, Dispatched), [r, s]: [Dispatched; 2]) -> Dispatched {
+        p * q * r * s
+    }
+    #[algebraic]
+    pub fn labeled_break(x: Dispatched) -> Dispatched {
+        'blk: {
+            if x.0 > 0.0 {
+                break 'blk x * x;
+            }
+            x
+        }
+    }
+    #[algebraic]
+    pub fn let_else(x: Option<Dispatched>) -> Dispatched {
+        let Some(y) = x else { return Dispatched(0.0) };
+        y * y
+    }
+    #[algebraic]
+    pub fn question_mark(x: Dispatched) -> Result<Dispatched, ()> {
+        let y = Ok::<Dispatched, ()>(x)?;
+        Ok(y * y)
+    }
+    #[algebraic]
+    pub fn iterator_return(x: Dispatched) -> impl Iterator<Item = Dispatched> {
+        core::iter::once(x).map(move |y| y * x)
+    }
+    #[algebraic]
+    #[allow(clippy::redundant_closure_call)]
+    pub fn immediately_invoked(x: Dispatched) -> Dispatched {
+        (|| x * x)() + (|| -> Dispatched { x * x })()
+    }
+    /// Float range patterns are literals under a unary minus: untouched.
+    #[algebraic]
+    pub fn float_ranges(x: f32) -> u8 {
+        match x {
+            -1.0..=1.0 => 0,
+            1.0.. => 1,
+            _ => 2,
+        }
+    }
+}
+
+#[test]
+fn every_function_shape_round_trips() {
+    use shapes::*;
+    let d = Dispatched(2.0);
+    assert_eq!(extern_c(d), Dispatched(4.0));
+    assert_eq!(generic_env(&d, 1u8)(Dispatched(3.0)), Dispatched(6.0));
+    assert_eq!(destructured((d, d), [d, d]), Dispatched(16.0));
+    assert_eq!(labeled_break(d), Dispatched(4.0));
+    assert_eq!(labeled_break(Dispatched(-1.0)), Dispatched(-1.0));
+    assert_eq!(let_else(Some(d)), Dispatched(4.0));
+    assert_eq!(let_else(None), Dispatched(0.0));
+    assert_eq!(question_mark(d), Ok(Dispatched(4.0)));
+    assert_eq!(iterator_return(d).next(), Some(Dispatched(4.0)));
+    assert_eq!(immediately_invoked(d), Dispatched(8.0));
+    assert_eq!(
+        (float_ranges(0.5), float_ranges(2.0), float_ranges(-3.0)),
+        (0, 1, 2)
+    );
+    // `async unsafe fn`: poll it once; the body is synchronous.
+    use core::future::Future;
+    let fut = unsafe { async_unsafe(d) };
+    let waker = core::task::Waker::noop();
+    let mut cx = core::task::Context::from_waker(waker);
+    let mut fut = core::pin::pin!(fut);
+    assert_eq!(
+        fut.as_mut().poll(&mut cx),
+        core::task::Poll::Ready(Dispatched(4.0))
+    );
+}

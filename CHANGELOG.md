@@ -2,6 +2,60 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Fixed
+
+- **`passthrough!` with a reference on the left** — `passthrough!(add: &Big,
+  &Big => Big)`, `passthrough!(mul: &Big, f64 => Big)` — now works. It failed
+  with `E0119` (the output was compared against `&Big` as written, but the
+  `&A` blanket already says `&Big` yields `Big`) or `E0637` (`where &Big:
+  RefOperand`). A reference on either side now takes the value form, and the
+  output comparison looks through a leading `&`. This is the standard shape
+  for non-`Copy` numeric types and had no working spelling.
+- **`#[algebraic(skip)]` is accepted on any item.** It was an error on a
+  standalone `const fn` (the `const` check came first), on a `const`, `static`
+  or `struct` member of an algebraic container (left for rustc, which rejected
+  the item kind or could not find the attribute inside a `mod`), and on items
+  nested inside a `const fn` member (never stripped). A second `#[algebraic]`
+  directly on a function now defers to the inner one, as it already did on a
+  container; a `const fn` nested in a skipped `const fn` with arithmetic of
+  its own is reported instead of being left strict silently.
+
+### Added
+
+- **`passthrough!(foreign ..)`: types from other crates can be opted in.**
+  `passthrough!(foreign glam::Vec3)`, `passthrough!(foreign mul: &Matrix,
+  &Vector => Vector)` — any form, prefixed. The plain forms on a foreign type
+  are Rust's orphan rule (`E0117`, pinned); the `foreign` form emits a
+  private local marker and carries it in a new trailing `Tag = ()` parameter
+  on every dispatch trait (`AddRhs<Lhs, O, Tag>`, `AddOut<B, O, Tag>`,
+  `AddAssignRhs<Lhs, Tag>`, `SynthAddAssign<B, Tag>`), which `ops::*` leave
+  free for inference. Hand-written impls in the old two-parameter shape still
+  compile through the default. The hazard — two crates opting in the same
+  foreign pair give a third `E0283` at each use — is pinned
+  (`tests/ui/foreign_diamond.rs`) and documented with the rule that avoids it:
+  opt in once, in the binary or one shared crate. `consumers/foreign-types/`
+  supplies genuinely foreign types to the tests.
+- `uN / NonZero<uN>`, `%`, `/=` and `%=` for every unsigned width, by value,
+  exactly the set core implements.
+- `String += &Cow<str>`, `&Box<str>`, `&&str`, `&&String`, `&Rc<str>`,
+  `&Arc<str>`, `&mut str`, `&mut String` — every reference native `+=`
+  deref-coerces — and `String + &mut T` for `T: AsRef<str>`.
+- `matches!` is entered for its scrutinee; the pattern after the comma is
+  left as written.
+- Documented: types from other crates cannot be opted in (orphan rule; use a
+  newtype); `+=` on a `#[repr(packed)]` field is rejected (`E0793`); a `&mut`
+  right operand of `+=` is moved, not reborrowed; `&Duration + Duration` is
+  accepted where native is not; `clippy::pedantic`'s `unnecessary_semicolon`
+  fires on rewritten `+=`.
+- Pins for: compound assignment in tail position and as match-arm and
+  `if`/`else` bodies, `alg! { s = a * b }` in statement position followed by
+  more statements, a spread of function shapes (`pub(crate) async unsafe`,
+  `extern "C"`, destructured parameters, `let else`, labeled-block `break`,
+  `?`), float range patterns, `closures = false` inside a listed macro, and
+  the two fixes above.
+
 ## 0.5.1 — 2026-08-21
 
 ### Added

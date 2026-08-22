@@ -69,10 +69,12 @@
 //! Everything lexically inside the scope: closure bodies, nested items, and
 //! the arguments of the std macros whose arguments are expressions —
 //! `assert!` and friends, `panic!` and friends, the `print`/`format`/`write`
-//! families, `dbg!`, `vec!`. Any other macro is opaque, which is exactly what
-//! makes [`strict!`] an escape hatch. `#[algebraic(closures = false)]` and
-//! `#[algebraic(macros = false)]` turn those two off; `#[algebraic(skip)]` on
-//! a nested item or container member leaves it alone.
+//! families, `dbg!`, `vec!`, and the scrutinee of `matches!`. Any other macro
+//! is opaque, which is exactly what makes [`strict!`] an escape hatch.
+//! `#[algebraic(closures = false)]` and `#[algebraic(macros = false)]` turn
+//! those two off; `#[algebraic(skip)]` on any item — a nested item, a
+//! container member of any kind, or a standalone `const fn` — leaves it
+//! alone.
 //!
 //! # Rewriting a whole `impl`, module or trait
 //!
@@ -128,7 +130,9 @@
 //!
 //! Floats dispatch to algebraic operators; integers, references, and the
 //! supported standard types dispatch to ordinary operators. Your own types
-//! need one line:
+//! need one line; a type from another crate (a `glam` or `nalgebra` vector,
+//! say) takes the same line with the `foreign` prefix, once per dependency
+//! tree — see [`passthrough!`] and `docs/limitations.md`.
 //!
 //! ```
 //! # #[derive(Clone, Copy)] struct Vec3(f32);
@@ -175,6 +179,10 @@ extern crate alloc;
 extern crate std;
 
 pub mod ops;
+// Reached through `passthrough!` and the derive; not a supported surface for
+// hand-written code. Not `#[doc(hidden)]`: rustc stops trimming paths in
+// diagnostics for items under a hidden module, and `AddRhs<..>` reads better
+// than `reassoc::traits::AddRhs<..>` in every error this crate produces.
 pub mod traits;
 
 mod impls;

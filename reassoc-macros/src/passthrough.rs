@@ -315,13 +315,14 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<Selected> {
     Ok((chosen, assigns, with_refs))
 }
 
-/// `declare_output!($crate, MulOut, refs|no_refs, A, B, O)` — state that
+/// `declare_output!($crate, MulOut, Tag, refs|no_refs, A, B, O)` — state that
 /// `A`'s operator with `B` on the right yields `O`, but only when `O` is not
 /// `A` as written: the blanket "yields the left type" impl already covers that
 /// case and a specific impl would collide with it. `macro_rules!` cannot
 /// compare two `$ty` fragments, hence a proc macro. `no_refs` emits the value
 /// pair; `refs` emits only the `&B` combinations, since the reference form of
-/// `passthrough!` has already expanded `no_refs`. The crate path is an
+/// `passthrough!` has already expanded `no_refs`. A left type written `&A` is
+/// compared as `A`, since the `&A` blanket already yields `A`. The crate path is an
 /// argument because a proc macro cannot write `$crate` and `passthrough!` is
 /// invoked from inside `reassoc` itself. The comparison is syntactic, so an
 /// alias of the left type (`=> V3` for `type V3 = Vec3`) reads as different
@@ -330,6 +331,7 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
     struct Args {
         krate: syn::Path,
         trait_ident: Ident,
+        tag: syn::Type,
         refs: bool,
         left: syn::Type,
         right: syn::Type,
@@ -341,6 +343,8 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
             let krate = input.parse()?;
             input.parse::<syn::Token![,]>()?;
             let trait_ident = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let tag = input.parse()?;
             input.parse::<syn::Token![,]>()?;
             let mode: Ident = input.parse()?;
             let refs = match mode.to_string().as_str() {
@@ -357,6 +361,7 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
             Ok(Args {
                 krate,
                 trait_ident,
+                tag,
                 refs,
                 left,
                 right,
@@ -368,12 +373,25 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
     let Args {
         krate,
         trait_ident,
+        tag,
         refs,
         left,
         right,
         output,
     } = syn::parse2(input)?;
-    if left.to_token_stream().to_string() == output.to_token_stream().to_string() {
+    // The blanket impls say `A` and `&A` both yield `A`, so an output equal
+    // to the left type with its leading `&` removed is already covered.
+    let mut left_value = &left;
+    loop {
+        left_value = match left_value {
+            // `$a:ty` arrives wrapped in an invisible group.
+            syn::Type::Group(g) => &g.elem,
+            syn::Type::Paren(p) => &p.elem,
+            syn::Type::Reference(r) => &r.elem,
+            _ => break,
+        };
+    }
+    if left_value.to_token_stream().to_string() == output.to_token_stream().to_string() {
         return Ok(TokenStream::new());
     }
     let right: syn::Type = if refs {
@@ -382,7 +400,7 @@ pub fn expand_declare_output(input: TokenStream) -> syn::Result<TokenStream> {
         right
     };
     Ok(quote! {
-        impl #krate::traits::#trait_ident<#right, #output> for #left {}
-        impl #krate::traits::#trait_ident<#right, #output> for &#left {}
+        impl #krate::traits::#trait_ident<#right, #output, #tag> for #left {}
+        impl #krate::traits::#trait_ident<#right, #output, #tag> for &#left {}
     })
 }

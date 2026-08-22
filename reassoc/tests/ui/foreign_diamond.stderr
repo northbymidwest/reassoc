@@ -1,0 +1,22 @@
+error[E0283]: type annotations needed
+  --> tests/ui/foreign_diamond.rs:15:9
+   |
+13 | #[reassoc::algebraic]
+   | --------------------- required by a bound introduced by this call
+14 | fn f(a: Vec3, b: Vec3) -> Vec3 {
+15 |     a + b
+   |         ^ cannot infer type for type parameter `T` declared on the function `add`
+   |
+note: multiple `impl`s satisfying `Vec3: AddRhs<Vec3, Vec3, _>` found
+  --> tests/ui/foreign_diamond.rs:10:1
+   |
+10 | reassoc::passthrough!(foreign add: Vec3, Vec3 => Vec3);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 | reassoc::passthrough!(foreign add: Vec3, Vec3 => Vec3);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `reassoc::ops::add`
+  --> src/ops.rs
+   |
+   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
+   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `reassoc::passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)

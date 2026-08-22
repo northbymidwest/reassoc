@@ -87,7 +87,7 @@ impl Rewriter {
     /// rewriting a clone of the body under the same scope and comparing, so
     /// the literal rule, `strict!` and const positions all count exactly as
     /// they do elsewhere.
-    fn const_fn(&mut self, const_token: syn::token::Const, body: &syn::Block) {
+    fn const_fn(&mut self, const_token: syn::token::Const, body: &mut syn::Block) {
         let mut probe = Rewriter {
             closures: self.closures,
             items: self.items,
@@ -98,6 +98,11 @@ impl Rewriter {
         };
         let mut clone = body.clone();
         probe.visit_block_mut(&mut clone);
+        // The body itself is never entered, so any `#[algebraic(skip)]`
+        // nested in it is stripped here — otherwise rustc would meet it, and
+        // inside a `mod` the attribute is not even in scope. The probe strips
+        // the same attributes from the clone, so stripping is not a change.
+        StripSkip.visit_block_mut(body);
         if clone.to_token_stream().to_string() != body.to_token_stream().to_string() {
             self.errors.push(syn::Error::new_spanned(
                 const_token,
@@ -106,6 +111,9 @@ impl Rewriter {
                  `#[algebraic(skip)]` to leave it as written, or drop `const`",
             ));
         }
+        // A `const fn` nested in this one with arithmetic of its own is
+        // reported too, never left strict without a word.
+        self.errors.extend(probe.errors);
     }
 }
 
@@ -152,18 +160,15 @@ impl VisitMut for Rewriter {
         if self.in_body && !self.items {
             return;
         }
-        if let Some(attrs) = item_attrs_mut(item) {
-            // A nested item with its own `#[algebraic(..)]` is governed by that
-            // attribute alone; rewriting it here first would apply the outer
-            // scope and silently override the inner parameters.
-            if strip_skip(attrs) || attrs.iter().any(is_algebraic_attr) {
-                return;
-            }
+        match item_attrs_mut(item).map(claim) {
+            Some(Claim::Theirs) => return,
+            Some(Claim::Skipped) => return StripSkip.visit_item_mut(item),
+            _ => {}
         }
         match item {
             syn::Item::Const(_) | syn::Item::Static(_) => {}
             syn::Item::Fn(f) if f.sig.constness.is_some() => {
-                self.const_fn(f.sig.constness.unwrap(), &f.block);
+                self.const_fn(f.sig.constness.unwrap(), &mut f.block);
             }
             _ => visit_mut::visit_item_mut(self, item),
         }
@@ -185,32 +190,34 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_impl_item_mut(&mut self, item: &mut syn::ImplItem) {
+        match impl_item_attrs_mut(item).map(claim) {
+            Some(Claim::Theirs) => return,
+            Some(Claim::Skipped) => return StripSkip.visit_impl_item_mut(item),
+            _ => {}
+        }
         match item {
             syn::ImplItem::Const(_) => {}
-            syn::ImplItem::Fn(f) => {
-                if leave_fn_alone(&mut f.attrs) {
-                    return;
-                }
-                match f.sig.constness {
-                    Some(c) => self.const_fn(c, &f.block),
-                    // Through the override, so the body counts as one.
-                    None => self.visit_impl_item_fn_mut(f),
-                }
-            }
+            syn::ImplItem::Fn(f) => match f.sig.constness {
+                Some(c) => self.const_fn(c, &mut f.block),
+                // Through the override, so the body counts as one.
+                None => self.visit_impl_item_fn_mut(f),
+            },
             _ => visit_mut::visit_impl_item_mut(self, item),
         }
     }
 
     fn visit_trait_item_mut(&mut self, item: &mut syn::TraitItem) {
+        match trait_item_attrs_mut(item).map(claim) {
+            Some(Claim::Theirs) => return,
+            Some(Claim::Skipped) => return StripSkip.visit_trait_item_mut(item),
+            _ => {}
+        }
         match item {
             syn::TraitItem::Const(_) => {}
             syn::TraitItem::Fn(f) => {
-                if leave_fn_alone(&mut f.attrs) {
-                    return;
-                }
                 // A required method has no body: nothing to rewrite, and
                 // nothing to warn about.
-                match (f.sig.constness, &f.default) {
+                match (f.sig.constness, &mut f.default) {
                     (Some(c), Some(body)) => self.const_fn(c, body),
                     _ => self.visit_trait_item_fn_mut(f),
                 }
@@ -327,11 +334,33 @@ impl VisitMut for Rewriter {
 impl Rewriter {
     /// Enters the arguments of a listed std macro. Only a macro whose last
     /// path segment is on the list, and only when its tokens parse as
-    /// comma-separated expressions (or `vec!`'s `elem; len`); anything else —
-    /// a user macro, a listed name carrying a different grammar, `strict!` —
-    /// is left untouched, tokens and all.
+    /// comma-separated expressions (or `vec!`'s `elem; len`, or `matches!`'s
+    /// `expr, pattern`); anything else — a user macro, a listed name carrying
+    /// a different grammar, `strict!` — is left untouched, tokens and all.
     fn macro_arguments(&mut self, mac: &mut syn::Macro) {
-        if !self.macros || !is_listed_macro(&mac.path) {
+        if !self.macros {
+            return;
+        }
+        // `matches!(expr, pattern)`: the scrutinee is an expression, the rest
+        // is a pattern with an optional guard, left as written.
+        if mac
+            .path
+            .segments
+            .last()
+            .is_some_and(|s| s.ident == "matches")
+        {
+            if let Ok(mut m) = syn::parse2::<MatchesArgs>(mac.tokens.clone()) {
+                self.visit_expr_mut(&mut m.scrutinee);
+                let MatchesArgs {
+                    scrutinee,
+                    comma,
+                    rest,
+                } = m;
+                mac.tokens = quote::quote!(#scrutinee #comma #rest);
+            }
+            return;
+        }
+        if !is_listed_macro(&mac.path) {
             return;
         }
         if mac.path.segments.last().is_some_and(|s| s.ident == "vec")
@@ -350,6 +379,23 @@ impl Rewriter {
             }
             mac.tokens = args.to_token_stream();
         }
+    }
+}
+
+/// `matches!(scrutinee, pattern [if guard])`.
+struct MatchesArgs {
+    scrutinee: Expr,
+    comma: syn::Token![,],
+    rest: proc_macro2::TokenStream,
+}
+
+impl syn::parse::Parse for MatchesArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(MatchesArgs {
+            scrutinee: input.parse()?,
+            comma: input.parse()?,
+            rest: input.parse()?,
+        })
     }
 }
 
@@ -374,8 +420,9 @@ impl syn::parse::Parse for VecRepeat {
 /// strings being string-literal expressions, and `name = value` an assignment
 /// expression that re-emits unchanged), matched on the last path segment so
 /// `std::println!` counts. `strict!` is deliberately not here, nor is anything
-/// whose arguments are patterns or token soup (`matches!`, `cfg!`,
-/// `stringify!`, `concat!`).
+/// whose arguments are token soup (`cfg!`, `stringify!`, `concat!`).
+/// `matches!` is handled apart: its first argument is an expression, the rest
+/// a pattern.
 const LISTED_MACROS: [&str; 20] = [
     "assert",
     "assert_eq",
@@ -537,7 +584,7 @@ fn is_float_suffix(suffix: &str) -> bool {
         .is_some_and(|width| !width.is_empty() && width.bytes().all(|b| b.is_ascii_digit()))
 }
 
-fn is_algebraic_attr(attr: &Attribute) -> bool {
+pub fn is_algebraic_attr(attr: &Attribute) -> bool {
     attr.path()
         .segments
         .last()
@@ -548,26 +595,121 @@ fn is_skip_attr(attr: &Attribute) -> bool {
     is_algebraic_attr(attr) && attr.parse_args::<syn::Ident>().is_ok_and(|i| i == "skip")
 }
 
-/// Removes `#[algebraic(skip)]` so it never reaches rustc as an unknown
-/// attribute; returns whether there was one.
+/// `#[algebraic(..)]` other than `skip`: the item is governed by that
+/// attribute's own expansion.
+fn is_own_algebraic_attr(attr: &Attribute) -> bool {
+    is_algebraic_attr(attr) && !is_skip_attr(attr)
+}
+
+/// Removes `#[algebraic(skip)]` so it never reaches rustc — inside a `mod` the
+/// attribute is not even in scope; returns whether there was one.
 fn strip_skip(attrs: &mut Vec<Attribute>) -> bool {
     let before = attrs.len();
     attrs.retain(|attr| !is_skip_attr(attr));
     attrs.len() != before
 }
 
-/// A nested `fn` the rewriter must not enter: `#[algebraic(skip)]`, or one
-/// carrying its own `#[algebraic(..)]`.
-fn leave_fn_alone(attrs: &mut Vec<Attribute>) -> bool {
-    strip_skip(attrs) || attrs.iter().any(is_algebraic_attr)
+/// Who handles a nested item, read off its attributes.
+enum Claim {
+    /// No `#[algebraic(..)]` of its own: this visitor enters it.
+    Ours,
+    /// Carries its own `#[algebraic(..)]`, which governs it alone — rewriting
+    /// it here first would apply the outer scope and silently override the
+    /// inner parameters — and whose expansion strips its own nested `skip`s.
+    Theirs,
+    /// Marked `#[algebraic(skip)]` (now removed): not entered, and every
+    /// `skip` inside it must be stripped by the caller, since nothing else
+    /// will see them.
+    Skipped,
+}
+
+fn claim(attrs: &mut Vec<Attribute>) -> Claim {
+    if attrs.iter().any(is_own_algebraic_attr) {
+        Claim::Theirs
+    } else if strip_skip(attrs) {
+        Claim::Skipped
+    } else {
+        Claim::Ours
+    }
+}
+
+/// Removes `#[algebraic(skip)]` from every item inside something the rewriter
+/// does not enter — a skipped item, a `const fn` body — stopping at items that
+/// carry their own `#[algebraic(..)]`, whose expansion does the same for them.
+struct StripSkip;
+
+impl VisitMut for StripSkip {
+    fn visit_item_mut(&mut self, item: &mut syn::Item) {
+        if let Some(attrs) = item_attrs_mut(item) {
+            if attrs.iter().any(is_own_algebraic_attr) {
+                return;
+            }
+            strip_skip(attrs);
+        }
+        visit_mut::visit_item_mut(self, item);
+    }
+
+    fn visit_impl_item_mut(&mut self, item: &mut syn::ImplItem) {
+        if let Some(attrs) = impl_item_attrs_mut(item) {
+            if attrs.iter().any(is_own_algebraic_attr) {
+                return;
+            }
+            strip_skip(attrs);
+        }
+        visit_mut::visit_impl_item_mut(self, item);
+    }
+
+    fn visit_trait_item_mut(&mut self, item: &mut syn::TraitItem) {
+        if let Some(attrs) = trait_item_attrs_mut(item) {
+            if attrs.iter().any(is_own_algebraic_attr) {
+                return;
+            }
+            strip_skip(attrs);
+        }
+        visit_mut::visit_trait_item_mut(self, item);
+    }
 }
 
 fn item_attrs_mut(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
+    use syn::Item::*;
     match item {
-        syn::Item::Fn(f) => Some(&mut f.attrs),
-        syn::Item::Impl(i) => Some(&mut i.attrs),
-        syn::Item::Mod(m) => Some(&mut m.attrs),
-        syn::Item::Trait(t) => Some(&mut t.attrs),
+        Const(i) => Some(&mut i.attrs),
+        Enum(i) => Some(&mut i.attrs),
+        ExternCrate(i) => Some(&mut i.attrs),
+        Fn(i) => Some(&mut i.attrs),
+        ForeignMod(i) => Some(&mut i.attrs),
+        Impl(i) => Some(&mut i.attrs),
+        Macro(i) => Some(&mut i.attrs),
+        Mod(i) => Some(&mut i.attrs),
+        Static(i) => Some(&mut i.attrs),
+        Struct(i) => Some(&mut i.attrs),
+        Trait(i) => Some(&mut i.attrs),
+        TraitAlias(i) => Some(&mut i.attrs),
+        Type(i) => Some(&mut i.attrs),
+        Union(i) => Some(&mut i.attrs),
+        Use(i) => Some(&mut i.attrs),
+        _ => None,
+    }
+}
+
+fn impl_item_attrs_mut(item: &mut syn::ImplItem) -> Option<&mut Vec<Attribute>> {
+    use syn::ImplItem::*;
+    match item {
+        Const(i) => Some(&mut i.attrs),
+        Fn(i) => Some(&mut i.attrs),
+        Type(i) => Some(&mut i.attrs),
+        Macro(i) => Some(&mut i.attrs),
+        _ => None,
+    }
+}
+
+fn trait_item_attrs_mut(item: &mut syn::TraitItem) -> Option<&mut Vec<Attribute>> {
+    use syn::TraitItem::*;
+    match item {
+        Const(i) => Some(&mut i.attrs),
+        Fn(i) => Some(&mut i.attrs),
+        Type(i) => Some(&mut i.attrs),
+        Macro(i) => Some(&mut i.attrs),
         _ => None,
     }
 }

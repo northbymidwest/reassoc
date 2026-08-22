@@ -6,8 +6,9 @@ measured constraint; none is an oversight. Diagnostics have their own page in
 
 - Arithmetic inside a macro invocation is rewritten only for the std macros
   whose arguments are known to be expressions — the `assert`, `panic`,
-  `print`, `format` and `write` families, `dbg!`, `vec!` — matched on the last
-  path segment, and only when the arguments actually parse as expressions. The
+  `print`, `format` and `write` families, `dbg!`, `vec!`, and the scrutinee
+  (first argument) of `matches!` — matched on the last path segment, and only
+  when the arguments actually parse as expressions. The
   proc macro runs before macro expansion and cannot tell arithmetic from any
   other tokens in an arbitrary macro body, so every other macro is opaque; use
   `alg!` inside one if you need it. That is also exactly why `strict!(..)`
@@ -20,7 +21,27 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   `#[derive(Passthrough)]`. A type that implements only some of the five
   operators names them — `#[passthrough(add, mul)]`, or one
   `passthrough!(add: Ty, Ty => Ty)` per operator — since an impl whose bound
-  cannot hold is an error at the definition, not at the call.
+  cannot hold is an error at the definition, not at the call. A type that
+  implements its operators on references, as non-`Copy` numeric types usually
+  do, names them as written: `passthrough!(add: &Big, &Big => Big)`,
+  `passthrough!(mul: &Big, f64 => Big)`.
+
+  **A type from another crate takes the `foreign` prefix**:
+  `passthrough!(foreign glam::Vec3)`, `passthrough!(foreign mul: &Matrix,
+  &Vector => Vector)`. The plain forms on such a type are Rust's orphan rule,
+  `E0117`: `passthrough!` implements this crate's traits for the named type,
+  and a third crate may do that only if the impl names a type of its own. The
+  `foreign` form emits one — a private marker, never named by you — and
+  carries it in a trailing tag parameter the dispatch traits have for exactly
+  this. Everything else about the opt-in is identical. The one thing it
+  cannot do is stop two crates from opting in the same pair: coherence can
+  no longer forbid the second impl, so a crate that depends on both sees two
+  and every use is `E0283 type annotations needed` at the operator
+  (`tests/ui/foreign_diamond.rs`). So opt a foreign pair in **once**, in the
+  binary or in one shared crate — never in a leaf library, which would export
+  its opt-in to every dependant — and never for a type this crate already
+  covers. If a foreign type is used through a newtype of yours anyway, the
+  plain forms on the newtype need none of this.
 
   Covering user types automatically would need a blanket impl that overlaps the
   float impls, and stable Rust has no specialization to break the tie. A single
@@ -54,6 +75,25 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
   have. Primitive `+=` is RHS-first natively and matches.
+- Compound assignment borrows the place: `place += rhs` becomes
+  `ops::add_assign(&mut place, rhs)`. Two things follow. A field of a
+  `#[repr(packed)]` struct cannot be borrowed (`E0793`), so `p.x += 1.0` on
+  one is rejected where native `+=` copies; write `p.x = p.x + 1.0`, which is
+  rewritten fine. And a `&mut` right operand is *moved* into the call rather
+  than implicitly reborrowed as native `+=` would (`s += m` with `m: &mut
+  String` consumes `m`); reborrow it, `s += &mut *m` or `s += &*m`, to use it
+  again.
+- Operands are never coerced, so a right operand native `+=` would
+  deref-coerce needs an impl of its own. `String` has them for every
+  reference that deref-coerces to `&str` — `&String`, `&Cow<str>`,
+  `&Box<str>`, `&&str`, `&Rc<str>`, `&Arc<str>`, `&mut str`, `&mut String` —
+  and `+` takes any `&T where T: AsRef<str>`. A user type with
+  `AddAssign<&str>` accepts exactly `&str`.
+- The std pairs that take a reference on one side are slightly *more*
+  permissive than native: `&Duration + Duration` and `Instant + &Duration`
+  compile here and not in plain Rust, which has no reference impls for those
+  types. Every opted-in pair gets its reference forms uniformly; carving out
+  the std exceptions would buy nothing but an error.
 - Compound assignment on a non-`Copy` user type (`s += t`, `self.tags += t`,
   `v[i] += t`) needs the type's `AddAssign` declared, exactly as native `+=`
   needs `AddAssign`: `passthrough!(add_assign: Ty, Rhs)` or `add_assign` on the
@@ -71,7 +111,12 @@ measured constraint; none is an oversight. Diagnostics have their own page in
 - Clippy lints that look at an operator expression — `eq_op` on `a - a`,
   `identity_op`, `erasing_op`, `op_ref` and the like — do not fire inside an
   algebraic scope, because by the time clippy runs the operator is a call.
-  `unused_parens` is the exception the rewriter takes care to keep.
+  `unused_parens` is the exception the rewriter takes care to keep. In the
+  other direction, `clippy::pedantic`'s `unnecessary_semicolon` fires on every
+  rewritten `x += y;`: the generated `match` sits at the operator's span (so
+  errors point there), and the statement's own `;` then follows a block-like
+  expression. Default clippy is clean; allow that one lint in pedantic
+  builds.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —

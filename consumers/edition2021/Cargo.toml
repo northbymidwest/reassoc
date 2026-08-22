@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 reassoc = { path = "../../reassoc", default-features = false }
+foreign-types = { path = "../foreign-types" }
 
 [features]
 # Mirror reassoc's, so the suite's `cfg(feature = "alloc")` / `"std"` gates

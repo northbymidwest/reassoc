@@ -28,3 +28,5 @@ reassoc-macros = { version = "=0.5.1", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"
+# Types from another crate, for the `passthrough!(foreign ..)` tests.
+foreign-types = { path = "../consumers/foreign-types" }
