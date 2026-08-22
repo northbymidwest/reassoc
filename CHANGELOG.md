@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.3.7 — 2026-08-21
 
 A review of 0.3.6 against the compiler; every item below was reproduced
 before it was fixed, and each has a regression test.
