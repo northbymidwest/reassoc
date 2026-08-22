@@ -164,29 +164,33 @@ impl VisitMut for Rewriter {
             return;
         }
 
-        // RHS first, through a `match` (native order; native temporary
-        // lifetime). A bare path is then assigned through by name — `&mut` on
-        // it is denied for a `static mut`, and a non-`Copy` local moves and
-        // reassigns. Anything else goes through `ops::add_assign(&mut place,
-        // rhs)`. The suffix stands in for def-site hygiene.
-        *expr = if is_simple_place(left) {
-            syn::parse2(quote_spanned! {span=>
-                match #right {
-                    __reassoc_rhs_9f2c1a => {
-                        #left = #krate::ops::#func(#left, __reassoc_rhs_9f2c1a);
-                    }
+        // RHS first, bound through a `match` (native order; native temporary
+        // lifetime). The scrutinee is a one-tuple because a bare struct
+        // literal is not allowed as a scrutinee, and `unparen` has already
+        // removed any parens the user put around it. The binding resolves at
+        // the call site with a nonsense suffix, not with `Span::mixed_site()`
+        // hygiene: rustc re-anchors a span from an external macro's context
+        // at the invocation, so a mixed-site binding moves the caret of an
+        // unsatisfied `+=` from the operator to the `#[algebraic]` attribute
+        // (measured; `tests/ui/compound_assign_not_opted_in.rs` pins it). A
+        // user binding of the same name is a loud error, never a misresolve.
+        //
+        // The place is then borrowed, for every shape: a closure-captured
+        // non-`Copy` local stays `FnMut` (assigning through by name moved it
+        // out), a type with only an in-place form works (by name needed `+`),
+        // and a temporary behind a deref lives through the call. Native `+=`
+        // on a primitive `static mut` takes no reference, and edition 2024
+        // denies `&mut` on one; the allow keeps that case compiling.
+        let func_assign = syn::Ident::new(&format!("{name}_assign"), Span::call_site());
+        let rhs = syn::Ident::new("__reassoc_rhs_9f2c1a", span);
+        *expr = syn::parse2(quote_spanned! {span=>
+            match (#right,) {
+                (#rhs,) => {
+                    #[allow(static_mut_refs)]
+                    #krate::ops::#func_assign(&mut #left, #rhs);
                 }
-            })
-        } else {
-            let func_assign = syn::Ident::new(&format!("{name}_assign"), Span::call_site());
-            syn::parse2(quote_spanned! {span=>
-                match #right {
-                    __reassoc_rhs_9f2c1a => {
-                        #krate::ops::#func_assign(&mut #left, __reassoc_rhs_9f2c1a);
-                    }
-                }
-            })
-        }
+            }
+        })
         .expect("generated compound assignment must parse");
     }
 }
@@ -241,28 +245,22 @@ fn is_place_expr(expr: &Expr) -> bool {
     }
 }
 
-/// A place that may be assigned through by name: a bare path. A field behind
-/// `&mut` cannot be moved out of, so field chains take the `&mut` route.
-fn is_simple_place(expr: &Expr) -> bool {
-    match ungroup(expr) {
-        Expr::Path(_) => true,
-        Expr::Paren(inner) => is_simple_place(&inner.expr),
-        _ => false,
-    }
-}
-
-/// A compile-time constant that is not float arithmetic: any non-float literal,
-/// a minus over one, or arithmetic over such. A denylist rather than an
-/// integer allowlist, so byte literals (which overflow like `u8`) and any
-/// literal kind added later are exempt from rewriting by default. `2f64` has
-/// no decimal point and reaches syn as `Lit::Int`, hence the suffix check.
+/// A compile-time proof that this is not float arithmetic: any non-float
+/// literal, a cast to an integer type, a minus over one, or arithmetic over
+/// such. A denylist rather than an integer allowlist, so byte literals (which
+/// overflow like `u8`) and any literal kind added later are exempt from
+/// rewriting by default. `2f64` has no decimal point and reaches syn as
+/// `Lit::Int`, hence the suffix check. Every paren layer is looked through
+/// here — `((200u8)) + ((100u8))` is still constant — where the emitter strips
+/// only the one its own delimiters make redundant.
 fn is_non_float_constant(expr: &Expr) -> bool {
-    match unparen(expr) {
+    match unparen_all(expr) {
         Expr::Lit(lit) => match &lit.lit {
             syn::Lit::Float(_) => false,
             syn::Lit::Int(int) => !is_float_suffix(int.suffix()),
             _ => true,
         },
+        Expr::Cast(cast) => is_integer_type(&cast.ty),
         Expr::Unary(unary) => {
             matches!(unary.op, UnOp::Neg(_)) && is_non_float_constant(&unary.expr)
         }
@@ -271,6 +269,40 @@ fn is_non_float_constant(expr: &Expr) -> bool {
                 && is_non_float_constant(&binary.left)
                 && is_non_float_constant(&binary.right)
         }
+        _ => false,
+    }
+}
+
+fn unparen_all(mut expr: &Expr) -> &Expr {
+    loop {
+        expr = match expr {
+            Expr::Group(inner) => &inner.expr,
+            Expr::Paren(inner) => &inner.expr,
+            expr => return expr,
+        };
+    }
+}
+
+/// A primitive integer type, named plainly. A cast to one proves the operand
+/// is an integer exactly as an integer literal does; `as f32` proves nothing
+/// and a path that is not one of these (an alias, say) is not assumed either.
+fn is_integer_type(ty: &syn::Type) -> bool {
+    const INTS: [&str; 12] = [
+        "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
+    ];
+    let mut ty = ty;
+    loop {
+        ty = match ty {
+            syn::Type::Group(inner) => &inner.elem,
+            syn::Type::Paren(inner) => &inner.elem,
+            _ => break,
+        };
+    }
+    match ty {
+        syn::Type::Path(path) if path.qself.is_none() => path
+            .path
+            .get_ident()
+            .is_some_and(|i| INTS.iter().any(|n| i == n)),
         _ => false,
     }
 }

@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/double_paren_overflow.rs:8:5
+  |
+8 |     ((200u8)) + ((100u8))
+  |     ^^^^^^^^^^^^^^^^^^^^^ attempt to compute `200_u8 + 100_u8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default

@@ -25,6 +25,14 @@ impl_dispatched!(
     AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *;
     DivRhs, div_rhs, /; RemRhs, rem_rhs, %;
 );
+macro_rules! synth { ($($t:ident),*) => {$( impl reassoc::traits::$t<Dispatched> for Dispatched {} )*}; }
+synth!(
+    SynthAddAssign,
+    SynthSubAssign,
+    SynthMulAssign,
+    SynthDivAssign,
+    SynthRemAssign
+);
 
 // ---------------------------------------------------------------------------
 // Rewritten: the five binary arithmetic operators
@@ -122,31 +130,31 @@ fn unary_minus_matches_native() {
 static mut TICKS: u32 = 0;
 
 /// Non-`Copy` on purpose, and `core`-only so this test runs without `alloc`.
+/// Has an in-place form and no `+`: exactly what native `+=` needs.
 #[derive(Debug, PartialEq)]
 struct Tally(u32);
-impl core::ops::Add<u32> for Tally {
-    type Output = Tally;
-    fn add(self, n: u32) -> Tally {
-        Tally(self.0 + n)
+impl core::ops::AddAssign<u32> for Tally {
+    fn add_assign(&mut self, n: u32) {
+        self.0 += n;
     }
 }
-reassoc::passthrough!(no_refs add: Tally, u32 => Tally);
+reassoc::passthrough!(no_refs add_assign: Tally, u32);
 
 // The assignment inside the RHS block is the point of the test: it proves the
 // RHS runs before the place is read, exactly as native `+=` orders them.
 #[allow(unused_assignments, clippy::blocks_in_conditions)]
 #[algebraic]
 fn compound_places(v: &mut [f64], mut s: Tally) -> (u32, f64, f64, Tally) {
-    // A `static mut` place. Edition 2024 denies `&mut` to one, so the rewrite
-    // must assign through the path rather than borrow it.
+    // A `static mut` place. Edition 2024 denies `&mut` to one; the rewrite
+    // allows it on the statement it generates, since native `+=` on a
+    // primitive static takes no reference at all.
     let ticks = unsafe {
         TICKS += 1;
         TICKS
     };
-    // A non-`Copy` local: moved out and reassigned, never read through `&mut`.
-    // A variable on the right, not a literal — a literal operand proves the
-    // operation is not float arithmetic and is left native, where this type
-    // has no `AddAssign`.
+    // A non-`Copy` local, updated in place through its own `AddAssign`. A
+    // variable on the right, not a literal — a literal operand proves the
+    // operation is not float arithmetic and is left native.
     let one = 1u32;
     s += one;
     // Index places still go through `&mut` (IndexMut), and can read themselves.
@@ -394,4 +402,41 @@ fn strict_inside_operators(a: f64, b: f64, c: f64) -> f64 {
 #[test]
 fn strict_wraps_an_operand() {
     assert_eq!(strict_inside_operators(2.0, 8.0, 4.0), 28.0);
+}
+
+// ---------------------------------------------------------------------------
+// Casts on an operand
+// ---------------------------------------------------------------------------
+
+impl reassoc::traits::MulRhs<f32, Dispatched> for Dispatched {
+    fn mul_rhs(self, lhs: f32) -> Dispatched {
+        Dispatched(lhs * self.0)
+    }
+}
+// Implemented by hand, so the output (not the left type) is declared by hand.
+reassoc::passthrough!(mul out f32, Dispatched => Dispatched);
+
+/// A cast *to an integer type* proves the operation is not float arithmetic,
+/// like an integer literal, and leaves it native (the must-fail direction,
+/// `(255 as u8) + (1 as u8)` staying visible to `arithmetic_overflow`, is
+/// `tests/ui/cast_overflow.rs`). A cast to a float type proves nothing of the
+/// kind and is rewritten like any other operand: this compiles only if it was.
+#[algebraic]
+fn float_cast_operand_is_rewritten(k: u32, d: Dispatched) -> Dispatched {
+    (k as f32) * d
+}
+
+#[test]
+fn a_cast_to_float_is_still_dispatched() {
+    assert_eq!(
+        float_cast_operand_is_rewritten(3, Dispatched(2.0)),
+        Dispatched(6.0)
+    );
+    // And a cast to an integer type on one side leaves plain integer
+    // arithmetic behaving exactly as it does natively.
+    #[algebraic]
+    fn idx(n: usize, k: u8) -> usize {
+        n + (k as usize)
+    }
+    assert_eq!(idx(2, 3), 5);
 }

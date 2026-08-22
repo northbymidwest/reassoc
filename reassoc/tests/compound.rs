@@ -522,20 +522,20 @@ fn non_copy_derive_in_place_through_field_and_index() {
 }
 
 // ---------------------------------------------------------------------------
-// The bare-path form, for completeness: locals, statics, non-Copy locals
+// Bare paths: locals, statics, non-Copy locals
 // ---------------------------------------------------------------------------
 
 static mut COUNTER: u64 = 0;
 
 #[test]
-fn bare_paths_assign_through_by_name() {
+fn bare_paths_including_a_static_mut() {
     #[algebraic]
     fn go(k: u64, t: Tag) -> (u64, Tag, f64) {
         let ticks = unsafe {
-            COUNTER += k; // static mut: no `&mut` may be taken
+            COUNTER += k; // static mut: `&mut` on it is allowed by the expansion
             COUNTER
         };
-        let mut s = t; // non-Copy local: moves and reassigns, no AddAssign needed
+        let mut s = t; // non-Copy local: in place through its `AddAssign`
         s += Tag("?".into());
         let (mut a, b) = (1.0, 2.0); // pattern-bound local
         a += b;
@@ -543,4 +543,125 @@ fn bare_paths_assign_through_by_name() {
     }
     let (ticks, s, a) = go(2, Tag("x".into()));
     assert_eq!((ticks, s, a), (2, Tag("x?".into()), 3.0));
+}
+
+// ---------------------------------------------------------------------------
+// Every place goes through `&mut`, bare paths included. A bare path used to
+// be assigned through by name (`s = add(s, rhs)`), which moved a non-`Copy`
+// local out of a closure or `async` block and needed `+` where native needs
+// `+=`. These pin the `&mut` route.
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "alloc")]
+#[test]
+fn non_copy_local_captured_by_a_closure_stays_fn_mut() {
+    #[algebraic]
+    fn go(parts: &[&str]) -> String {
+        let mut s = String::new();
+        let mut push = |p: &str| s += p; // FnMut natively; must not become FnOnce
+        for p in parts {
+            push(p);
+        }
+        s
+    }
+    assert_eq!(go(&["a", "b", "c"]), "abc");
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn non_copy_local_captured_by_an_async_block_is_borrowed_not_moved() {
+    use core::future::Future;
+    use core::pin::pin;
+    use core::task::{Context, Poll, Waker};
+    #[algebraic]
+    async fn go(t: &str) -> String {
+        let mut s = String::new();
+        let fut = async {
+            s += t;
+        };
+        fut.await;
+        s // still usable: the block borrowed `s`, it did not move it
+    }
+    let mut fut = pin!(go("x"));
+    let Poll::Ready(got) = fut.as_mut().poll(&mut Context::from_waker(Waker::noop())) else {
+        panic!("the future has no await points that pend");
+    };
+    assert_eq!(got, "x");
+}
+
+#[test]
+fn in_place_only_type_on_a_bare_path() {
+    // `AddAssign` without `Add`: native `a += b` works, and it must here too.
+    #[derive(Debug, PartialEq)]
+    struct Acc(f64);
+    impl core::ops::AddAssign<&Acc> for Acc {
+        fn add_assign(&mut self, o: &Acc) {
+            self.0 += o.0;
+        }
+    }
+    reassoc::passthrough!(add_assign: Acc, &Acc);
+    #[algebraic]
+    fn go(mut a: Acc, b: &Acc) -> Acc {
+        a += b;
+        a
+    }
+    assert_eq!(go(Acc(1.0), &Acc(2.0)), Acc(3.0));
+}
+
+#[test]
+fn struct_literal_rhs_on_both_paths() {
+    // The RHS is bound through a `match`; a bare struct literal is not allowed
+    // as a scrutinee, so the expansion must not put it there unwrapped.
+    #[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+    #[passthrough(add)]
+    struct P {
+        x: f64,
+    }
+    impl core::ops::Add for P {
+        type Output = P;
+        fn add(self, o: P) -> P {
+            P { x: self.x + o.x }
+        }
+    }
+    impl core::ops::Neg for P {
+        type Output = P;
+        fn neg(self) -> P {
+            P { x: -self.x }
+        }
+    }
+    #[allow(unused_parens)]
+    #[algebraic]
+    fn go(mut acc: P, v: &mut [P]) -> P {
+        acc += P { x: 1.0 };
+        acc += (P { x: 2.0 });
+        acc += -P { x: 4.0 };
+        acc += P { x: 8.0 }.x.into_p();
+        v[0] += P { x: 16.0 };
+        acc + v[0]
+    }
+    trait IntoP {
+        fn into_p(self) -> P;
+    }
+    impl IntoP for f64 {
+        fn into_p(self) -> P {
+            P { x: self }
+        }
+    }
+    let mut v = [P { x: 0.0 }];
+    assert_eq!(go(P { x: 0.0 }, &mut v), P { x: 23.0 });
+}
+
+#[test]
+fn a_user_variable_named_like_the_generated_binding_on_the_right_still_resolves() {
+    // The binding resolves at the call site (see the emitter for why not
+    // mixed-site hygiene), so a same-named user variable on the right is
+    // shadowed by its own value, harmlessly. The same name as the *place* is a
+    // compile error rather than a misresolve; `tests/ui/binding_collision.rs`.
+    let __reassoc_rhs_9f2c1a = 2.0f64;
+    let mut x = 10.0f64;
+    alg!(x += __reassoc_rhs_9f2c1a);
+    assert_eq!(x, 12.0);
+    let mut v = [1.0f64];
+    alg!(v[0] += __reassoc_rhs_9f2c1a * x);
+    assert_eq!(v[0], 25.0);
 }

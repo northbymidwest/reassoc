@@ -1,0 +1,20 @@
+error[E0596]: cannot borrow `__reassoc_rhs_9f2c1a` as mutable, as it is not declared as mutable
+  --> tests/ui/binding_collision.rs:10:10
+   |
+10 |     alg!(__reassoc_rhs_9f2c1a += k);
+   |          ^^^^^^^^^^^^^^^^^^^^^^ cannot borrow as mutable
+   |
+help: consider changing this to be mutable
+   |
+10 |     alg!(__reassoc_rhs_9f2c1a mut += k);
+   |                               +++
+
+error[E0503]: cannot use `__reassoc_rhs_9f2c1a` because it was mutably borrowed
+  --> tests/ui/binding_collision.rs:10:31
+   |
+10 |     alg!(__reassoc_rhs_9f2c1a += k);
+   |     --------------------------^----
+   |     |    |                    |
+   |     |    |                    use of borrowed `__reassoc_rhs_9f2c1a`
+   |     |    `__reassoc_rhs_9f2c1a` is borrowed here
+   |     borrow later used by call

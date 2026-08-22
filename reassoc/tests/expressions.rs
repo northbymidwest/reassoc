@@ -39,6 +39,8 @@ impl_dispatched!(
     DivRhs, div_rhs, /;
     RemRhs, rem_rhs, %;
 );
+impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::SynthSubAssign<Dispatched> for Dispatched {}
 
 // ---------------------------------------------------------------------------
 // 1. Exact equivalence against plain arithmetic
