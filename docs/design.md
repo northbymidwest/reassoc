@@ -176,8 +176,12 @@ in the same foreign pair are two impls coherence can no longer reject, and a
 crate seeing both is ambiguous at the operator (`tests/ui/foreign_diamond.rs`).
 That hazard is the price of the capability, the same one serde's `remote`
 derives carry, and is managed by guidance (opt in once, at the top of the
-tree). Measured: the tag costs nothing in inference (every pinned literal and
-iterator case still resolves) and `#[doc(hidden)]` on `traits` is not an
+tree). Measured: the tag changes no inference result (every pinned literal
+and iterator case still resolves) but is not free to type-check — on the
+`scripts/compile-bench.sh` workload (1800 fns, ~72k operators) the dispatch
+half of `cargo check` went from 2.21s to 2.75s over plain, about +7µs per
+rewritten operator, ~+7% on the whole `#[algebraic]` check; one more
+inference variable per call. And `#[doc(hidden)]` on `traits` is not an
 option — rustc stops trimming paths in diagnostics under a hidden module, and
 every error would read `reassoc::traits::AddRhs<..>`. Shipping impls for
 popular crates behind features would avoid the tag for those types; not done,

@@ -36,7 +36,9 @@ Notable changes per release. Dates are the publish date.
   foreign pair give a third `E0283` at each use — is pinned
   (`tests/ui/foreign_diamond.rs`) and documented with the rule that avoids it:
   opt in once, in the binary or one shared crate. `consumers/foreign-types/`
-  supplies genuinely foreign types to the tests.
+  supplies genuinely foreign types to the tests. Measured cost: about +7µs of
+  type-check per rewritten operator (one more inference variable), ~+7% on a
+  `cargo check` of algebraic code; no runtime cost, codegen guard unchanged.
 - `uN / NonZero<uN>`, `%`, `/=` and `%=` for every unsigned width, by value,
   exactly the set core implements.
 - `String += &Cow<str>`, `&Box<str>`, `&&str`, `&&String`, `&Rc<str>`,
