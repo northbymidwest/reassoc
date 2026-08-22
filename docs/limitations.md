@@ -40,13 +40,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
   have. Primitive `+=` is RHS-first natively and matches.
-- Compound assignment on a non-`Copy` value works for a local or a field of
-  one (`s += "x"` on an owned `String` moves and reassigns), but not for a
-  field reached through a reference or an indexed element: those go through
-  `*place = ops::add(*place, ..)`, which moves out of a `&mut`, so
-  `self.name += "!"` fails with `E0507` and a garbled suggestion from rustc.
-  Native `+=` uses `AddAssign` and has no such restriction. Binary operators
-  (`s = s + "x"`) are unaffected.
+- Compound assignment on a non-`Copy` user type through a reference or an
+  index (`self.tags += t`, `v[i] += t`) needs the type's `AddAssign` declared:
+  `passthrough!(add_assign: Ty, Rhs)` or `add_assign` on the derive. A `Copy`
+  type gets `+=` from `+` without it, `String` is covered, and a non-`Copy`
+  local (`s += t`) is assigned through directly either way.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —

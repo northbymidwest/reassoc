@@ -1,0 +1,98 @@
+error[E0277]: binary assignment operation `+=` cannot be applied to type `Owned`
+  --> tests/ui/compound_assign_not_opted_in.rs:20:10
+   |
+18 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+19 | fn f(o: &mut [Owned], p: &mut [Plain], s: &str, x: f64) {
+20 |     o[0] += s;
+   |          ^ binary assignment operation `+=` cannot be applied to type `Owned`
+   |
+help: the trait `SynthAddAssign<&str>` is not implemented for `Owned`
+  --> tests/ui/compound_assign_not_opted_in.rs:7:1
+   |
+ 7 | struct Owned(String);
+   | ^^^^^^^^^^^^
+   = note: `Owned` has no `+=` with `&str` on the right: a `Copy` type gets one from `reassoc::passthrough!(Owned);`, and a type with its own `AddAssign<&str>` impl declares it with `reassoc::passthrough!(add_assign: Owned, &str);`
+   = note: if the place is a reference, dereference it: `*place` rather than `place`
+   = help: the following other types implement trait `SynthAddAssign<B>`:
+             `Duration` implements `SynthAddAssign<&Duration>`
+             `Duration` implements `SynthAddAssign<Duration>`
+             `Instant` implements `SynthAddAssign<&Duration>`
+             `Instant` implements `SynthAddAssign<Duration>`
+             `Saturating<T>` implements `SynthAddAssign<&Saturating<T>>`
+             `Saturating<T>` implements `SynthAddAssign<Saturating<T>>`
+             `SystemTime` implements `SynthAddAssign<&Duration>`
+             `SystemTime` implements `SynthAddAssign<Duration>`
+           and $N others
+   = note: required for `&str` to implement `AddAssignRhs<Owned>`
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A>>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+
+error[E0277]: binary assignment operation `+=` cannot be applied to type `Plain`
+  --> tests/ui/compound_assign_not_opted_in.rs:21:10
+   |
+18 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+...
+21 |     p[0] += x;
+   |          ^ binary assignment operation `+=` cannot be applied to type `Plain`
+   |
+help: the trait `SynthAddAssign<f64>` is not implemented for `Plain`
+  --> tests/ui/compound_assign_not_opted_in.rs:16:1
+   |
+16 | struct Plain(f64); // never opted in at all
+   | ^^^^^^^^^^^^
+   = note: `Plain` has no `+=` with `f64` on the right: a `Copy` type gets one from `reassoc::passthrough!(Plain);`, and a type with its own `AddAssign<f64>` impl declares it with `reassoc::passthrough!(add_assign: Plain, f64);`
+   = note: if the place is a reference, dereference it: `*place` rather than `place`
+help: the trait `SynthAddAssign<f64>` is implemented for `f64`
+  --> src/impls/float.rs
+   |
+   |         impl $synth<$t> for $t {}
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+...
+   | alg_float!(f32 f64);
+   | ------------------- in this macro invocation
+   = note: required for `f64` to implement `AddAssignRhs<Plain>`
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A>>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `f64: AddAssignRhs<Plain>` is not satisfied
+  --> tests/ui/compound_assign_not_opted_in.rs:21:10
+   |
+18 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+...
+21 |     p[0] += x;
+   |          ^ the trait `AddRhs<Plain, Plain>` is not implemented for `f64`
+   |
+help: the following other types implement trait `AddRhs<Lhs, O>`
+  --> src/impls/float.rs
+   |
+   |         impl $rhs_trait<$t, $t> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<f64, f64>`
+...
+   |         impl $rhs_trait<$t, $t> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<f64, f64>`
+...
+   |         impl $rhs_trait<&$t, $t> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<&f64, f64>`
+...
+   |         impl $rhs_trait<&$t, $t> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<&f64, f64>`
+...
+   | alg_float!(f32 f64);
+   | ------------------- in this macro invocation
+   = note: required for `f64` to implement `AddAssignRhs<Plain>`
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A>>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: `#[algebraic]` applies to functions with a body; this trait method has none to rewrite
+ --> tests/ui/bodiless_trait_method.rs:7:8
+  |
+7 |     fn area(&self) -> f64;
+  |        ^^^^

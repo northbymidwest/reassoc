@@ -271,8 +271,8 @@ help: the following other types implement trait `AddRhs<Lhs, O>`
    | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
    | |_______________________________________________________^ `&Wrapping<T>` implements `AddRhs<&Wrapping<T>, Wrapping<T>>`
 ...
-   |   plain_wrapper!(Wrapping: AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *; DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
-   |   ----------------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
+   |   plain_wrapper!(Wrapping: AddRhs, SynthAddAssign, add_rhs, Add, +; SubRhs, SynthSubAssign, sub_rhs, Sub, -; MulRhs, SynthMulAssign, mul_rhs, Mul, *; DivRhs, SynthDivAssign, div_rhs, Div, /; RemRhs, SynthRemAssign, rem_rhs, Rem, %);
+   |   ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |

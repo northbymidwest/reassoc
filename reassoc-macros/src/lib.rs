@@ -59,6 +59,17 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => {
             // Not a function at all gets an authored message; a function
             // with a syntax error keeps syn's, which points at the problem.
+            if let Ok(f) = syn::parse::<syn::TraitItemFn>(item.clone())
+                && f.default.is_none()
+            {
+                return syn::Error::new_spanned(
+                    f.sig.ident,
+                    "`#[algebraic]` applies to functions with a body; this trait method has \
+                     none to rewrite",
+                )
+                .to_compile_error()
+                .into();
+            }
             return match syn::parse::<syn::Item>(item) {
                 Ok(syn::Item::Fn(_)) | Err(_) => err,
                 Ok(_) => syn::Error::new(

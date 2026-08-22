@@ -17,6 +17,18 @@ struct Op {
     bound: &'static str,
     /// The operator token the generated body uses.
     token: &'static str,
+    /// The marker saying `+=` may be formed from `+` by reading the place.
+    synth: &'static str,
+    /// The in-place compound form, named `add_assign` etc. in the attribute.
+    assign: AssignOp,
+}
+
+struct AssignOp {
+    name: &'static str,
+    trait_name: &'static str,
+    method: &'static str,
+    bound: &'static str,
+    token: &'static str,
 }
 
 const OPS: [Op; 5] = [
@@ -26,6 +38,14 @@ const OPS: [Op; 5] = [
         method: "add_rhs",
         bound: "Add",
         token: "+",
+        synth: "SynthAddAssign",
+        assign: AssignOp {
+            name: "add_assign",
+            trait_name: "AddAssignRhs",
+            method: "add_assign_rhs",
+            bound: "AddAssign",
+            token: "+=",
+        },
     },
     Op {
         name: "sub",
@@ -33,6 +53,14 @@ const OPS: [Op; 5] = [
         method: "sub_rhs",
         bound: "Sub",
         token: "-",
+        synth: "SynthSubAssign",
+        assign: AssignOp {
+            name: "sub_assign",
+            trait_name: "SubAssignRhs",
+            method: "sub_assign_rhs",
+            bound: "SubAssign",
+            token: "-=",
+        },
     },
     Op {
         name: "mul",
@@ -40,6 +68,14 @@ const OPS: [Op; 5] = [
         method: "mul_rhs",
         bound: "Mul",
         token: "*",
+        synth: "SynthMulAssign",
+        assign: AssignOp {
+            name: "mul_assign",
+            trait_name: "MulAssignRhs",
+            method: "mul_assign_rhs",
+            bound: "MulAssign",
+            token: "*=",
+        },
     },
     Op {
         name: "div",
@@ -47,6 +83,14 @@ const OPS: [Op; 5] = [
         method: "div_rhs",
         bound: "Div",
         token: "/",
+        synth: "SynthDivAssign",
+        assign: AssignOp {
+            name: "div_assign",
+            trait_name: "DivAssignRhs",
+            method: "div_assign_rhs",
+            bound: "DivAssign",
+            token: "/=",
+        },
     },
     Op {
         name: "rem",
@@ -54,11 +98,19 @@ const OPS: [Op; 5] = [
         method: "rem_rhs",
         bound: "Rem",
         token: "%",
+        synth: "SynthRemAssign",
+        assign: AssignOp {
+            name: "rem_assign",
+            trait_name: "RemAssignRhs",
+            method: "rem_assign_rhs",
+            bound: "RemAssign",
+            token: "%=",
+        },
     },
 ];
 
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
-    let (selected, with_refs) = selected_ops(&input)?;
+    let (selected, assigns, with_refs) = selected_ops(&input)?;
 
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -75,11 +127,15 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // into this expansion.
     let ref_bound = quote! { #ty: #krate::traits::RefOperand };
 
-    let impls = selected.into_iter().map(|op| {
+    let impls = selected.iter().map(|op| {
         let trait_ident = Ident::new(op.trait_name, Span::call_site());
         let method_ident = Ident::new(op.method, Span::call_site());
         let bound_ident = Ident::new(op.bound, Span::call_site());
+        let synth_ident = Ident::new(op.synth, Span::call_site());
         let op_token: TokenStream = op.token.parse().expect("operator token must parse");
+        // A `Copy` type's `+=` is formed from `+` unless it asked for the
+        // in-place form, whose impl would overlap the blanket one.
+        let in_place = assigns.iter().any(|a| a.name == op.assign.name);
 
         // The `where` bound defers to the type's own `core::ops` impl, which is
         // what lets this work for generic types: without it the body would have
@@ -91,11 +147,20 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         // left type. The blanket impl in `reassoc::traits` turns that into the
         // operator. Two opt-ins for the same type — say same-type `Mul` and a
         // scalar `Mul` — add two of these and never overlap.
+        // The marker's `Copy` supertrait must be provable for a generic type.
+        let copy_bounds = bounds(quote! { #ty: ::core::marker::Copy });
+        let synth_value = (with_refs && !in_place).then(|| {
+            quote! {
+                impl #impl_generics #krate::traits::#synth_ident<#ty> for #ty #copy_bounds {}
+            }
+        });
         let by_value = quote! {
+            #synth_value
             impl #impl_generics #krate::traits::#trait_ident<#ty, #ty> for #ty
             #by_value_bounds
             {
                 #[inline(always)]
+                #[track_caller]
                 fn #method_ident(self, lhs: #ty) -> #ty { lhs #op_token self }
             }
         };
@@ -104,14 +169,21 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             return by_value;
         }
 
+        let synth_ref = (!in_place).then(|| {
+            quote! {
+                impl #impl_generics #krate::traits::#synth_ident<&#ty> for #ty #copy_bounds {}
+            }
+        });
         let ref_bounds = bounds(quote! { #ref_bound, #op_bound });
         quote! {
             #by_value
+            #synth_ref
 
             impl #impl_generics #krate::traits::#trait_ident<#ty, #ty> for &#ty
             #ref_bounds
             {
                 #[inline(always)]
+                #[track_caller]
                 fn #method_ident(self, lhs: #ty) -> #ty {
                     lhs #op_token #krate::traits::RefOperand::reassoc_dup(self)
                 }
@@ -121,6 +193,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             #ref_bounds
             {
                 #[inline(always)]
+                #[track_caller]
                 fn #method_ident(self, lhs: &#ty) -> #ty {
                     #krate::traits::RefOperand::reassoc_dup(lhs) #op_token self
                 }
@@ -130,6 +203,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             #ref_bounds
             {
                 #[inline(always)]
+                #[track_caller]
                 fn #method_ident(self, lhs: &#ty) -> #ty {
                     #krate::traits::RefOperand::reassoc_dup(lhs)
                         #op_token #krate::traits::RefOperand::reassoc_dup(self)
@@ -138,17 +212,58 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         }
     });
 
-    Ok(quote! { #(#impls)* })
+    // In-place compound forms, through the type's own `AddAssign` etc.
+    let assign_impls = assigns.iter().map(|op| {
+        let trait_ident = Ident::new(op.trait_name, Span::call_site());
+        let method_ident = Ident::new(op.method, Span::call_site());
+        let bound_ident = Ident::new(op.bound, Span::call_site());
+        let op_token: TokenStream = op.token.parse().expect("operator token must parse");
+        let op_bound = quote! { #ty: ::core::ops::#bound_ident<#ty> };
+        let by_value_bounds = bounds(quote! { #op_bound });
+        let by_value = quote! {
+            impl #impl_generics #krate::traits::#trait_ident<#ty> for #ty
+            #by_value_bounds
+            {
+                #[inline(always)]
+                #[track_caller]
+                fn #method_ident(self, lhs: &mut #ty) { *lhs #op_token self }
+            }
+        };
+        if !with_refs {
+            return by_value;
+        }
+        let ref_bounds = bounds(quote! { #ref_bound, #op_bound });
+        quote! {
+            #by_value
+
+            impl #impl_generics #krate::traits::#trait_ident<#ty> for &#ty
+            #ref_bounds
+            {
+                #[inline(always)]
+                #[track_caller]
+                fn #method_ident(self, lhs: &mut #ty) {
+                    *lhs #op_token #krate::traits::RefOperand::reassoc_dup(self)
+                }
+            }
+        }
+    });
+
+    Ok(quote! { #(#impls)* #(#assign_impls)* })
 }
 
-/// Reads an optional `#[passthrough(add, mul)]` attribute.
+/// Reads an optional `#[passthrough(add, mul, add_assign, no_refs)]` attribute.
 ///
-/// Defaults to all five operators. A type implementing only some of them must
-/// name the ones it has: an impl whose `where` bound is known unsatisfiable for
-/// a concrete type is a hard error at the definition rather than a
-/// lazily-checked one, so generating all five unconditionally would not compile.
-fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
+/// Defaults to all five binary operators and no in-place forms. A type
+/// implementing only some of them must name the ones it has: an impl whose
+/// `where` bound is known unsatisfiable for a concrete type is a hard error at
+/// the definition rather than a lazily-checked one, so generating all five
+/// unconditionally would not compile. `add_assign` etc. are never assumed,
+/// since a `Copy` type gets `+=` from `+` without them.
+type Selected = (Vec<&'static Op>, Vec<&'static AssignOp>, bool);
+
+fn selected_ops(input: &DeriveInput) -> syn::Result<Selected> {
     let mut chosen: Vec<&'static Op> = Vec::new();
+    let mut assigns: Vec<&'static AssignOp> = Vec::new();
     let mut with_refs = true;
 
     for attr in &input.attrs {
@@ -160,25 +275,29 @@ fn selected_ops(input: &DeriveInput) -> syn::Result<(Vec<&'static Op>, bool)> {
                 with_refs = false;
                 return Ok(());
             }
-            match OPS.iter().find(|op| meta.path.is_ident(op.name)) {
-                Some(op) => {
-                    if !chosen.iter().any(|already| already.name == op.name) {
-                        chosen.push(op);
-                    }
-                    Ok(())
+            if let Some(op) = OPS.iter().find(|op| meta.path.is_ident(op.name)) {
+                if !chosen.iter().any(|already| already.name == op.name) {
+                    chosen.push(op);
                 }
-                None => Err(meta.error(
-                    "expected `no_refs` or one or more of `add`, `sub`, `mul`, `div`, `rem`",
-                )),
+                return Ok(());
             }
+            if let Some(op) = OPS.iter().find(|op| meta.path.is_ident(op.assign.name)) {
+                if !assigns.iter().any(|already| already.name == op.assign.name) {
+                    assigns.push(&op.assign);
+                }
+                return Ok(());
+            }
+            Err(meta.error(
+                "expected `no_refs`, one or more of `add`, `sub`, `mul`, `div`, `rem`, \
+                 or the in-place forms `add_assign` .. `rem_assign`",
+            ))
         })?;
     }
 
     if chosen.is_empty() {
-        Ok((OPS.iter().collect(), with_refs))
-    } else {
-        Ok((chosen, with_refs))
+        chosen = OPS.iter().collect();
     }
+    Ok((chosen, assigns, with_refs))
 }
 
 /// `declare_output!($crate, MulOut, refs|no_refs, A, B, O)` — state that

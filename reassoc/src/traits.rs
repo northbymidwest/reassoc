@@ -7,7 +7,9 @@
 
 macro_rules! declare_op_trait {
     ($rhs_trait:ident, $out_trait:ident, $rhs_method:ident, $msg:literal,
-     $undeclared:literal) => {
+     $undeclared:literal,
+     $assign_trait:ident, $synth_trait:ident, $assign_method:ident, $assign_msg:literal,
+     $assign_hint:literal) => {
         /// The right-hand operand of one operator, for a given left type.
         /// Opting in means implementing this; keying it on the left type is
         /// what lets `passthrough!(Vec3)` and `passthrough!(mul: Vec3, f32 =>
@@ -49,6 +51,33 @@ macro_rules! declare_op_trait {
 
         impl<A, B> $out_trait<B, A> for A {}
         impl<A, B> $out_trait<B, A> for &A {}
+
+        /// The right-hand operand of the compound form: `b.add_assign_rhs(&mut
+        /// a)` is `a += b`. `Copy` pairs get it from the blanket below; a type
+        /// with its own `AddAssign` implements it directly, in place.
+        pub trait $assign_trait<Lhs> {
+            fn $assign_method(self, lhs: &mut Lhs);
+        }
+
+        /// Marks a `Copy` pair whose `+=` is formed from `+` by reading the
+        /// place. Enumerated per pair, not blanket over `Copy`, so the blanket
+        /// below cannot overlap an in-place impl; it carries the user-facing
+        /// message because it is the bound rustc reports.
+        #[diagnostic::on_unimplemented(
+            message = $assign_msg,
+            label = $assign_msg,
+            note = $assign_hint,
+            note = "if the place is a reference, dereference it: `*place` rather than `place`"
+        )]
+        pub trait $synth_trait<B>: Copy {}
+
+        impl<A: $synth_trait<B>, B: $rhs_trait<A, A>> $assign_trait<A> for B {
+            #[inline(always)]
+            #[track_caller]
+            fn $assign_method(self, lhs: &mut A) {
+                *lhs = self.$rhs_method(*lhs);
+            }
+        }
     };
 }
 
@@ -57,35 +86,70 @@ declare_op_trait!(
     AddOut,
     add_rhs,
     "cannot add `{Self}` to `{Lhs}`",
-    "`+` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(add out {Self}, {B} => {O});`"
+    "`+` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(add out {Self}, {B} => {O});`",
+    AddAssignRhs,
+    SynthAddAssign,
+    add_assign_rhs,
+    "binary assignment operation `+=` cannot be applied to type `{Self}`",
+    "`{Self}` has no `+=` with `{B}` on the right: a `Copy` type gets one from \
+     `reassoc::passthrough!({Self});`, and a type with its own `AddAssign<{B}>` impl declares it \
+     with `reassoc::passthrough!(add_assign: {Self}, {B});`"
 );
 declare_op_trait!(
     SubRhs,
     SubOut,
     sub_rhs,
     "cannot subtract `{Self}` from `{Lhs}`",
-    "`-` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(sub out {Self}, {B} => {O});`"
+    "`-` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(sub out {Self}, {B} => {O});`",
+    SubAssignRhs,
+    SynthSubAssign,
+    sub_assign_rhs,
+    "binary assignment operation `-=` cannot be applied to type `{Self}`",
+    "`{Self}` has no `-=` with `{B}` on the right: a `Copy` type gets one from \
+     `reassoc::passthrough!({Self});`, and a type with its own `SubAssign<{B}>` impl declares it \
+     with `reassoc::passthrough!(sub_assign: {Self}, {B});`"
 );
 declare_op_trait!(
     MulRhs,
     MulOut,
     mul_rhs,
     "cannot multiply `{Lhs}` by `{Self}`",
-    "`*` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(mul out {Self}, {B} => {O});`"
+    "`*` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(mul out {Self}, {B} => {O});`",
+    MulAssignRhs,
+    SynthMulAssign,
+    mul_assign_rhs,
+    "binary assignment operation `*=` cannot be applied to type `{Self}`",
+    "`{Self}` has no `*=` with `{B}` on the right: a `Copy` type gets one from \
+     `reassoc::passthrough!({Self});`, and a type with its own `MulAssign<{B}>` impl declares it \
+     with `reassoc::passthrough!(mul_assign: {Self}, {B});`"
 );
 declare_op_trait!(
     DivRhs,
     DivOut,
     div_rhs,
     "cannot divide `{Lhs}` by `{Self}`",
-    "`/` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(div out {Self}, {B} => {O});`"
+    "`/` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(div out {Self}, {B} => {O});`",
+    DivAssignRhs,
+    SynthDivAssign,
+    div_assign_rhs,
+    "binary assignment operation `/=` cannot be applied to type `{Self}`",
+    "`{Self}` has no `/=` with `{B}` on the right: a `Copy` type gets one from \
+     `reassoc::passthrough!({Self});`, and a type with its own `DivAssign<{B}>` impl declares it \
+     with `reassoc::passthrough!(div_assign: {Self}, {B});`"
 );
 declare_op_trait!(
     RemRhs,
     RemOut,
     rem_rhs,
     "cannot calculate the remainder of `{Lhs}` divided by `{Self}`",
-    "`%` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(rem out {Self}, {B} => {O});`"
+    "`%` on `{Self}` has no declared output `{O}` with `{B}` on the right — add `reassoc::passthrough!(rem out {Self}, {B} => {O});`",
+    RemAssignRhs,
+    SynthRemAssign,
+    rem_assign_rhs,
+    "binary assignment operation `%=` cannot be applied to type `{Self}`",
+    "`{Self}` has no `%=` with `{B}` on the right: a `Copy` type gets one from \
+     `reassoc::passthrough!({Self});`, and a type with its own `RemAssign<{B}>` impl declares it \
+     with `reassoc::passthrough!(rem_assign: {Self}, {B});`"
 );
 
 /// `Copy`, under a name that carries its own message. `passthrough!`'s

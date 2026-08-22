@@ -273,7 +273,7 @@ fn two_opt_ins_with_the_same_foreign_output() {
 
 /// A non-`Copy` type opts out of the reference impls.
 #[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, no_refs)]
+#[passthrough(add, add_assign, no_refs)]
 struct Owned(String);
 
 impl core::ops::Add for Owned {
@@ -281,6 +281,71 @@ impl core::ops::Add for Owned {
     fn add(self, o: Owned) -> Owned {
         Owned(self.0 + &o.0)
     }
+}
+impl core::ops::AddAssign for Owned {
+    fn add_assign(&mut self, o: Owned) {
+        self.0 += &o.0;
+    }
+}
+
+/// A non-`Copy` type's `+=` through a `&mut` or an index goes through its own
+/// `AddAssign`, declared with `add_assign` on the derive or
+/// `passthrough!(add_assign: ..)`. A `Copy` type needs neither: its `+=` is
+/// formed from `+`.
+#[test]
+fn non_copy_compound_assignment_in_place() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn bump(v: &mut [Owned], suffix: Owned) {
+        v[0] += suffix;
+    }
+    let mut v = [Owned("a".into())];
+    bump(&mut v, Owned("b".into()));
+    assert_eq!(v[0], Owned("ab".into()));
+}
+
+/// The macro form, with a right-hand type that is itself a reference: the `&`
+/// arm routes to the value form, so no `&&str` impl and no lifetime to name.
+struct Label(String);
+impl core::ops::Add<&str> for Label {
+    type Output = Label;
+    fn add(self, o: &str) -> Label {
+        Label(self.0 + o)
+    }
+}
+impl core::ops::AddAssign<&str> for Label {
+    fn add_assign(&mut self, o: &str) {
+        self.0 += o;
+    }
+}
+passthrough!(add: Label, &str => Label);
+passthrough!(add_assign: Label, &str);
+
+#[test]
+fn reference_right_operand_takes_the_value_form() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn bump(v: &mut [Label], s: &str) -> Label {
+        v[0] += s;
+        Label("x".into()) + s
+    }
+    let mut v = [Label("a".into())];
+    let r = bump(&mut v, "!");
+    assert_eq!((v[0].0.as_str(), r.0.as_str()), ("a!", "x!"));
+}
+
+/// A `Copy` type opted in through the per-operator form alone still gets `*=`
+/// through an index, formed from `*`.
+#[test]
+fn copy_per_operator_opt_in_synthesises_compound_assignment() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn scale(v: &mut [Scaled], k: u32) {
+        v[0] *= k;
+    }
+    let mut v = [Scaled(3)];
+    scale(&mut v, 4);
+    assert_eq!(v[0], Scaled(12));
 }
 
 #[test]

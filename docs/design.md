@@ -114,12 +114,25 @@ native `E0689`.
 **Compound assignment** binds the RHS first through a `match`, then assigns.
 RHS first because native `+=` does, and because `&mut` on the place first
 makes `s += s * k` a borrow error. `match` rather than `let` because a `let`
-drops the RHS's temporaries before the place is evaluated. A bare path or
-field chain is assigned through directly (`a = add(a, rhs)`): taking `&mut`
-on it is denied for a `static mut` in edition 2024 and forces a `Copy` read of
-a non-`Copy` local. Anything else goes through a `&mut` binding so it is
-evaluated once. Binding names carry a nonsense suffix because a stable proc
-macro has no def-site hygiene.
+drops the RHS's temporaries before the place is evaluated. A bare path is
+assigned through directly (`a = add(a, rhs)`): taking `&mut` on it is denied
+for a `static mut` in edition 2024, and a non-`Copy` local moves and reassigns.
+Anything else — a field, an index, a deref — goes
+through `ops::add_assign(&mut place, rhs)`, bounded on `AddAssignRhs<Place>`.
+That trait has a blanket impl forming `+=` from `+` for any pair marked
+`SynthAddAssign<B>` (emitted by every reference-emitting `passthrough!` form,
+so every opted-in `Copy` pair), and direct in-place impls for `String` and for
+types that declare `add_assign`. The marker is enumerated per pair rather than
+a blanket over `Copy` because coherence cannot assume `String: !Copy` but can
+see that no other crate may implement a local trait for a foreign type; and it
+carries the user-facing message, because the blanket's header matches any pair
+so the marker is the bound rustc reports. `String`'s in-place impls are for
+`&str` and `&String` concretely, not `&T: AsRef<str>`: a downstream crate may
+implement the marker for `String` with a local type on the right, and a
+generic `&T` would overlap. Native place-first evaluation for overloaded `+=`
+is still not reproduced: it would need method-call syntax for the two-phase
+borrow, which fails on an unsuffixed literal place. Binding names carry a
+nonsense suffix because a stable proc macro has no def-site hygiene.
 
 **Const positions are never rewritten** — `ops::*` are not `const fn`, so a
 call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`

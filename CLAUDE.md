@@ -44,9 +44,10 @@ nothing but proc macros. `reassoc-macros` holds the rewriter
 parses the attribute's parameters); `reassoc` holds the traits, impls, and
 `passthrough!`, and re-exports the macros. Users depend only on `reassoc`.
 
-The dispatch layer is two traits per operator — `MulRhs<Lhs, O>` where opting
-in happens, `MulOut<B, O>` stating the output — and a free function per
-operator in `ops.rs` requiring both. Impls are enumerated: floats route to
+The dispatch layer is four traits per operator — `MulRhs<Lhs, O>` where opting
+in happens, `MulOut<B, O>` stating the output, `MulAssignRhs<Lhs>` for the
+compound form through a `&mut`, and the `SynthMulAssign<B>` marker that forms
+it from `*` for `Copy` pairs — and free functions in `ops.rs`. Impls are enumerated: floats route to
 `algebraic_*` (`impls/float.rs`), everything else to plain operators.
 `impls/int.rs` is generated with the crate's own public `passthrough!` on
 purpose, so a gap in the user-facing macro shows up in the crate's own tests.
@@ -70,8 +71,10 @@ reverts to a worse result if undone.
   to all literals (silently drops algebraic on float constants) or narrow to
   both sides (hides `arithmetic_overflow`).
 - Unary minus is not rewritten; constant method receivers are not special-cased.
-- Compound assignment: RHS first, bound by `match`; simple places assigned
-  through, everything else via one `&mut` binding.
+- Compound assignment: RHS first, bound by `match`; bare paths assigned
+  through, everything else via `ops::*_assign(&mut place, rhs)`. The synth
+  marker is per pair and carries the message; `String`'s in-place impls are
+  concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Generated code uses absolute paths, emits no parentheses, and is respanned

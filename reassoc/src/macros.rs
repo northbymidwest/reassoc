@@ -34,6 +34,13 @@
 /// - `passthrough!(mul out A, B => O)` — declares only what the operator yields,
 ///   for an operand trait implemented by hand. The forms above work it out for
 ///   themselves.
+/// - `passthrough!(add_assign: A, B)` — `A += B` in place through the type's
+///   own `AddAssign`. A `Copy` type needs none of this: every form above
+///   synthesises `+=` from `+`. This is for a non-`Copy` type whose `+=` must
+///   work through a `&mut` or an index, such as a `String` field.
+///
+/// A right-hand type that is already a reference, `&str` say, takes the plain
+/// form and is dispatched by value.
 #[macro_export]
 macro_rules! passthrough {
     ($t:ty) => {
@@ -64,17 +71,43 @@ macro_rules! passthrough {
     (div out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out DivOut, $a, $b, $o); };
     (rem out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out RemOut, $a, $b, $o); };
 
-    (add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs AddRhs, AddOut, add_rhs, +, $a, $b, $o); };
-    (sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs SubRhs, SubOut, sub_rhs, -, $a, $b, $o); };
-    (mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs MulRhs, MulOut, mul_rhs, *, $a, $b, $o); };
-    (div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs DivRhs, DivOut, div_rhs, /, $a, $b, $o); };
-    (rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs RemRhs, RemOut, rem_rhs, %, $a, $b, $o); };
+    // A reference right-hand type takes the value form: `&&str` is useless
+    // and `where &str: RefOperand` cannot name its lifetime.
+    (add: $a:ty, & $b:ty => $o:ty) => { $crate::passthrough!(no_refs add: $a, &$b => $o); };
+    (sub: $a:ty, & $b:ty => $o:ty) => { $crate::passthrough!(no_refs sub: $a, &$b => $o); };
+    (mul: $a:ty, & $b:ty => $o:ty) => { $crate::passthrough!(no_refs mul: $a, &$b => $o); };
+    (div: $a:ty, & $b:ty => $o:ty) => { $crate::passthrough!(no_refs div: $a, &$b => $o); };
+    (rem: $a:ty, & $b:ty => $o:ty) => { $crate::passthrough!(no_refs rem: $a, &$b => $o); };
 
-    (no_refs add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value AddRhs, AddOut, add_rhs, +, $a, $b, $o); };
-    (no_refs sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value SubRhs, SubOut, sub_rhs, -, $a, $b, $o); };
-    (no_refs mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value MulRhs, MulOut, mul_rhs, *, $a, $b, $o); };
-    (no_refs div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value DivRhs, DivOut, div_rhs, /, $a, $b, $o); };
-    (no_refs rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value RemRhs, RemOut, rem_rhs, %, $a, $b, $o); };
+    (add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs AddRhs, AddOut, SynthAddAssign, add_rhs, +, $a, $b, $o); };
+    (sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs SubRhs, SubOut, SynthSubAssign, sub_rhs, -, $a, $b, $o); };
+    (mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs MulRhs, MulOut, SynthMulAssign, mul_rhs, *, $a, $b, $o); };
+    (div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs DivRhs, DivOut, SynthDivAssign, div_rhs, /, $a, $b, $o); };
+    (rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@refs RemRhs, RemOut, SynthRemAssign, rem_rhs, %, $a, $b, $o); };
+
+    (add_assign: $a:ty, & $b:ty) => { $crate::passthrough!(no_refs add_assign: $a, &$b); };
+    (sub_assign: $a:ty, & $b:ty) => { $crate::passthrough!(no_refs sub_assign: $a, &$b); };
+    (mul_assign: $a:ty, & $b:ty) => { $crate::passthrough!(no_refs mul_assign: $a, &$b); };
+    (div_assign: $a:ty, & $b:ty) => { $crate::passthrough!(no_refs div_assign: $a, &$b); };
+    (rem_assign: $a:ty, & $b:ty) => { $crate::passthrough!(no_refs rem_assign: $a, &$b); };
+
+    (add_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign_refs AddAssignRhs, add_assign_rhs, +=, $a, $b); };
+    (sub_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign_refs SubAssignRhs, sub_assign_rhs, -=, $a, $b); };
+    (mul_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign_refs MulAssignRhs, mul_assign_rhs, *=, $a, $b); };
+    (div_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign_refs DivAssignRhs, div_assign_rhs, /=, $a, $b); };
+    (rem_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign_refs RemAssignRhs, rem_assign_rhs, %=, $a, $b); };
+
+    (no_refs add_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign AddAssignRhs, add_assign_rhs, +=, $a, $b); };
+    (no_refs sub_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign SubAssignRhs, sub_assign_rhs, -=, $a, $b); };
+    (no_refs mul_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign MulAssignRhs, mul_assign_rhs, *=, $a, $b); };
+    (no_refs div_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign DivAssignRhs, div_assign_rhs, /=, $a, $b); };
+    (no_refs rem_assign: $a:ty, $b:ty) => { $crate::passthrough!(@assign RemAssignRhs, rem_assign_rhs, %=, $a, $b); };
+
+    (no_refs add: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value AddRhs, AddOut, SynthAddAssign, add_rhs, +, $a, $b, $o); };
+    (no_refs sub: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value SubRhs, SubOut, SynthSubAssign, sub_rhs, -, $a, $b, $o); };
+    (no_refs mul: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value MulRhs, MulOut, SynthMulAssign, mul_rhs, *, $a, $b, $o); };
+    (no_refs div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value DivRhs, DivOut, SynthDivAssign, div_rhs, /, $a, $b, $o); };
+    (no_refs rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value RemRhs, RemOut, SynthRemAssign, rem_rhs, %, $a, $b, $o); };
 
     // Internal. `@out` states the output for a pair; `@value` is one operator
     // by value; `@refs` adds the three reference combinations on top of it.
@@ -87,21 +120,28 @@ macro_rules! passthrough {
         impl $crate::traits::$out<&$b, $o> for $a {}
         impl $crate::traits::$out<&$b, $o> for &$a {}
     };
-    (@value $rhs:ident, $out:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
+    // `@refs` pairs are `Copy` and get `+=` formed from `+` (`$synth`);
+    // `@value` types update in place through `@assign` instead.
+    // `#[track_caller]` is free once inlined.
+    (@value $rhs:ident, $out:ident, $synth:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
         $crate::declare_output!($crate, $out, no_refs, $a, $b, $o);
 
         impl $crate::traits::$rhs<$a, $o> for $b {
             #[inline(always)]
+            #[track_caller]
             fn $method(self, lhs: $a) -> $o { lhs $op self }
         }
     };
-    (@refs $rhs:ident, $out:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
-        $crate::passthrough!(@value $rhs, $out, $method, $op, $a, $b, $o);
+    (@refs $rhs:ident, $out:ident, $synth:ident, $method:ident, $op:tt, $a:ty, $b:ty, $o:ty) => {
+        $crate::passthrough!(@value $rhs, $out, $synth, $method, $op, $a, $b, $o);
         $crate::declare_output!($crate, $out, refs, $a, $b, $o);
+        impl $crate::traits::$synth<$b> for $a {}
+        impl $crate::traits::$synth<&$b> for $a {}
 
         impl $crate::traits::$rhs<$a, $o> for &$b
         where $b: $crate::traits::RefOperand {
             #[inline(always)]
+            #[track_caller]
             fn $method(self, lhs: $a) -> $o {
                 lhs $op $crate::traits::RefOperand::reassoc_dup(self)
             }
@@ -109,6 +149,7 @@ macro_rules! passthrough {
         impl $crate::traits::$rhs<&$a, $o> for $b
         where $a: $crate::traits::RefOperand {
             #[inline(always)]
+            #[track_caller]
             fn $method(self, lhs: &$a) -> $o {
                 $crate::traits::RefOperand::reassoc_dup(lhs) $op self
             }
@@ -116,9 +157,29 @@ macro_rules! passthrough {
         impl $crate::traits::$rhs<&$a, $o> for &$b
         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
             #[inline(always)]
+            #[track_caller]
             fn $method(self, lhs: &$a) -> $o {
                 $crate::traits::RefOperand::reassoc_dup(lhs)
                     $op $crate::traits::RefOperand::reassoc_dup(self)
+            }
+        }
+    };
+    (@assign $assign:ident, $method:ident, $op:tt, $a:ty, $b:ty) => {
+        impl $crate::traits::$assign<$a> for $b {
+            #[inline(always)]
+            #[track_caller]
+            fn $method(self, lhs: &mut $a) { *lhs $op self }
+        }
+    };
+    (@assign_refs $assign:ident, $method:ident, $op:tt, $a:ty, $b:ty) => {
+        $crate::passthrough!(@assign $assign, $method, $op, $a, $b);
+
+        impl $crate::traits::$assign<$a> for &$b
+        where $b: $crate::traits::RefOperand {
+            #[inline(always)]
+            #[track_caller]
+            fn $method(self, lhs: &mut $a) {
+                *lhs $op $crate::traits::RefOperand::reassoc_dup(self)
             }
         }
     };

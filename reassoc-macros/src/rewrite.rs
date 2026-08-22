@@ -164,15 +164,11 @@ impl VisitMut for Rewriter {
             return;
         }
 
-        // The RHS is bound first, as native `+=` evaluates it first — and so a
-        // RHS that reads the place (`s += s * k`) is not a borrow conflict.
-        // Bound through a `match`, not a `let`, so its temporaries live to the
-        // end of the statement as they do natively. A path or field chain is
-        // then assigned through directly: taking `&mut` on it would be denied
-        // for a `static mut` and would force a `Copy` read of a non-`Copy`
-        // local. Anything else is evaluated once through a `&mut` binding. The
-        // binding names carry a nonsense suffix because a stable proc macro
-        // has no def-site hygiene.
+        // RHS first, through a `match` (native order; native temporary
+        // lifetime). A bare path is then assigned through by name — `&mut` on
+        // it is denied for a `static mut`, and a non-`Copy` local moves and
+        // reassigns. Anything else goes through `ops::add_assign(&mut place,
+        // rhs)`. The suffix stands in for def-site hygiene.
         *expr = if is_simple_place(left) {
             syn::parse2(quote_spanned! {span=>
                 match #right {
@@ -182,12 +178,11 @@ impl VisitMut for Rewriter {
                 }
             })
         } else {
+            let func_assign = syn::Ident::new(&format!("{name}_assign"), Span::call_site());
             syn::parse2(quote_spanned! {span=>
                 match #right {
                     __reassoc_rhs_9f2c1a => {
-                        let __reassoc_place_9f2c1a = &mut #left;
-                        *__reassoc_place_9f2c1a =
-                            #krate::ops::#func(*__reassoc_place_9f2c1a, __reassoc_rhs_9f2c1a);
+                        #krate::ops::#func_assign(&mut #left, __reassoc_rhs_9f2c1a);
                     }
                 }
             })
@@ -246,11 +241,11 @@ fn is_place_expr(expr: &Expr) -> bool {
     }
 }
 
-/// A place free to name twice: a bare path, or a field chain rooted in one.
+/// A place that may be assigned through by name: a bare path. A field behind
+/// `&mut` cannot be moved out of, so field chains take the `&mut` route.
 fn is_simple_place(expr: &Expr) -> bool {
     match ungroup(expr) {
         Expr::Path(_) => true,
-        Expr::Field(field) => is_simple_place(&field.base),
         Expr::Paren(inner) => is_simple_place(&inner.expr),
         _ => false,
     }

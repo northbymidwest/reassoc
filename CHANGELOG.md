@@ -2,6 +2,27 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- **Compound assignment on a non-`Copy` type through a reference or an
+  index.** `self.name += s` on a `String` field and `v[i] += t` now work:
+  the expansion for such places is `ops::add_assign(&mut place, rhs)`, which
+  reads a `Copy` place back (every opted-in `Copy` type, as before) or updates
+  a non-`Copy` one in place through its own `AddAssign`. `String` is covered;
+  a user type declares its in-place form with `passthrough!(add_assign: Ty,
+  Rhs)` or `add_assign` on the derive. A type with no such form reports
+  rustc's own wording, "binary assignment operation `+=` cannot be applied
+  to type `Ty`", with the opt-in spelled out.
+- **`passthrough!` with a reference right-hand type** (`add: Owned, &str =>
+  Owned`) takes the value form automatically instead of failing with `E0637`
+  on a `where &str: RefOperand` bound it could not name a lifetime for.
+- **`#[track_caller]` on the dispatch functions and impls.** A debug-build
+  integer overflow panics at the user's operator rather than inside the crate.
+  Free in release: codegen is byte-identical.
+- `#[algebraic]` on a trait method without a body now says that is why.
+
 ## 0.3.5 — 2026-08-21
 
 ### Added

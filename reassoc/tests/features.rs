@@ -23,6 +23,33 @@ fn string_concatenation_works() {
     assert_eq!(add(String::from("a"), &boxed), "ab");
 }
 
+#[cfg(feature = "alloc")]
+#[test]
+fn string_compound_assignment_through_a_reference_or_index() {
+    use reassoc::algebraic;
+    struct Acc {
+        name: String,
+    }
+    impl Acc {
+        #[algebraic]
+        fn tag(&mut self, s: &str, t: &String) {
+            // A `&mut self` field is not a simple place: this goes through
+            // `ops::add_assign` and `String`'s own `AddAssign`, in place.
+            self.name += s;
+            self.name += t;
+        }
+    }
+    #[algebraic]
+    fn tag_all(names: &mut [String], s: &str) {
+        names[0] += s;
+    }
+    let mut a = Acc { name: "n".into() };
+    a.tag("!", &"?".to_string());
+    let mut names = [String::from("a")];
+    tag_all(&mut names, "x");
+    assert_eq!((a.name.as_str(), names[0].as_str()), ("n!?", "ax"));
+}
+
 #[cfg(feature = "std")]
 #[test]
 fn instant_minus_instant_is_a_duration() {
