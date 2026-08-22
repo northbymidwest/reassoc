@@ -31,7 +31,7 @@ for k in range(k_types):
         )
     out.append(f"impl core::ops::Mul<f32> for V{k} {{ type Output = V{k}; #[inline] fn mul(self, k: f32) -> V{k} {{ V{k}(self.0 * k, self.1 * k) }} }}")
     out.append(f"impl core::ops::AddAssign for V{k} {{ #[inline] fn add_assign(&mut self, o: V{k}) {{ self.0 += o.0; self.1 += o.1; }} }}")
-    out.append(f"passthrough!(V{k}); passthrough!(mul: V{k}, f32 => V{k});")
+    out.append(f"passthrough!(V{k});")  # one line: every operator V{k} implements, `* f32` included
 
 VARS = ["a", "b", "c", "d"]
 
