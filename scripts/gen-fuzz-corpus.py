@@ -17,6 +17,7 @@ Usage:
 
 import argparse
 import random
+import re
 from fractions import Fraction
 
 # Keep numerators far below 2^53 so every intermediate is exact in f64, and
@@ -105,6 +106,17 @@ def rust_lit(v: Fraction) -> str:
     return f"{f!r}" + ("" if "." in repr(f) or "e" in repr(f) else ".0")
 
 
+LITERAL = re.compile(r"(?<![\w.])(-?\d+\.\d+)")
+
+
+def dispatched(src: str) -> str:
+    """The same tree over `Disp`, a type with the dispatch traits and no
+    `std::ops`: every literal leaf becomes `Disp(lit)`, so the expression
+    compiles only if every operator in it was rewritten. The f64 form cannot
+    tell — its native operators give the same bits as the dispatched ones."""
+    return LITERAL.sub(r"Disp(\1)", src)
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--seed", type=int, default=1)
@@ -146,12 +158,32 @@ def main() -> None:
 //!    bug in the rewrite.
 //! 3. The same tree inside `#[algebraic]` agrees too, so the attribute and the
 //!    expression macro cannot drift apart.
+//! 4. The same tree over `Disp` — a type with the dispatch traits and no
+//!    `std::ops`, every literal leaf wrapped as `Disp(lit)` — compiles and agrees.
+//!    The f64 forms pass even if an operator is left unrewritten, since native
+//!    and dispatched f64 give the same bits; this one fails to compile instead.
 //!
 //! Seed {args.seed}, {args.count} trees of ~{args.nodes} nodes.
 #![allow(clippy::float_cmp, clippy::eq_op, clippy::neg_multiply)]
 #![allow(unused_parens)]
 
 use reassoc::{{alg, algebraic}};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Disp(f64);
+macro_rules! impl_dispatched {{
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {{$(
+        impl reassoc::traits::$t<Disp, Disp> for Disp {{
+            #[inline(always)]
+            fn $m(self, lhs: Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
+        }}
+    )*}};
+}}
+impl_dispatched!(AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *; DivRhs, div_rhs, /; RemRhs, rem_rhs, %);
+impl core::ops::Neg for Disp {{
+    type Output = Disp;
+    fn neg(self) -> Disp {{ Disp(-self.0) }}
+}}
 
 const A: f64 = {rust_lit(env["a"])};
 const B: f64 = {rust_lit(env["b"])};
@@ -175,14 +207,24 @@ const H: f64 = {rust_lit(env["h"])};
             out.append(f"        {src},")
         out.append("    ]\n}\n")
 
+        # The dispatch-proof twin: compiles only if every operator is rewritten.
+        out.append(f"#[algebraic]\nfn disp_{idx}() -> [Disp; {len(chunk)}] {{")
+        out.append("    let (a, b, c, d, e, f, g, h) = (Disp(A), Disp(B), Disp(C), Disp(D), Disp(E), Disp(F), Disp(G), Disp(H));")
+        out.append("    [")
+        for src, _ in chunk:
+            out.append(f"        {dispatched(src)},")
+        out.append("    ]\n}\n")
+
         out.append(f"#[test]\nfn corpus_{idx}() {{")
         out.append("    let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);")
         out.append(f"    let attr = attr_{idx}();")
+        out.append(f"    let disp = disp_{idx}();")
         for i, (src, value) in enumerate(chunk):
             out.append(f"    // case {start + i}")
             out.append(f"    assert_eq!(alg!({src}), {rust_lit(value)}, \"case {start + i}: exact value\");")
             out.append(f"    assert_eq!(alg!({src}), {src}, \"case {start + i}: differs from plain\");")
             out.append(f"    assert_eq!(attr[{i}], {rust_lit(value)}, \"case {start + i}: attribute form\");")
+            out.append(f"    assert_eq!(disp[{i}], Disp({rust_lit(value)}), \"case {start + i}: dispatched form\");")
         out.append("}\n")
 
     print("\n".join(out))

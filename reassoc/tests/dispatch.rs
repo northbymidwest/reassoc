@@ -59,3 +59,45 @@ fn unannotated_integer_literals_infer_from_return_type() {
     }
     assert_eq!(count(), 7);
 }
+
+/// `#[track_caller]` on the dispatch functions and the passthrough impls: a
+/// debug-build integer overflow must be reported at the user's operator, not
+/// inside this crate. Debug only — release builds do not check overflow.
+#[cfg(debug_assertions)]
+#[test]
+fn integer_overflow_panics_at_the_users_operator() {
+    use std::panic;
+    use std::sync::{Arc, Mutex};
+    let seen: Arc<Mutex<Option<(String, u32)>>> = Arc::new(Mutex::new(None));
+    let hook_seen = Arc::clone(&seen);
+    let previous = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        if let Some(loc) = info.location() {
+            *hook_seen.lock().unwrap() = Some((loc.file().to_string(), loc.line()));
+        }
+    }));
+    let expected_line = std::sync::atomic::AtomicU32::new(0);
+    let result = panic::catch_unwind(|| {
+        let (a, b) = (u8::MAX, 1u8);
+        expected_line.store(line!() + 1, std::sync::atomic::Ordering::Relaxed);
+        add(a, b) // <- the panic must point here
+    });
+    panic::set_hook(previous);
+    assert!(
+        result.is_err(),
+        "u8::MAX + 1 must overflow in a debug build"
+    );
+    let (file, line) = seen
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("panic hook saw no location");
+    assert!(
+        file.ends_with("dispatch.rs"),
+        "panicked in {file}, not at the caller"
+    );
+    assert_eq!(
+        line,
+        expected_line.load(std::sync::atomic::Ordering::Relaxed)
+    );
+}

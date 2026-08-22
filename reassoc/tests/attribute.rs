@@ -508,3 +508,135 @@ fn compound_assignment_matches_native_order() {
     };
     assert_eq!(order(true), order(false), "diverges from native `+=`");
 }
+
+// ---- every position the rewriter enters, with Dispatched so a miss is a ----
+// ---- compile error; each of these was found working by probing, and is  ----
+// ---- pinned here so it stays that way                                   ----
+
+impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
+impl PartialOrd for Dispatched {
+    fn partial_cmp(&self, o: &Dispatched) -> Option<core::cmp::Ordering> {
+        self.0.partial_cmp(&o.0)
+    }
+}
+
+trait Shape {
+    #[algebraic]
+    fn default_method(&self, a: Dispatched, b: Dispatched) -> Dispatched {
+        a * b
+    }
+    fn required(&self, a: Dispatched, b: Dispatched) -> Dispatched;
+}
+struct Unit;
+impl Shape for Unit {
+    #[algebraic]
+    fn required(&self, a: Dispatched, b: Dispatched) -> Dispatched {
+        a + b
+    }
+}
+
+#[algebraic]
+async fn async_fn(a: Dispatched, b: Dispatched) -> Dispatched {
+    let inner = async { a * b };
+    inner.await + a
+}
+
+#[algebraic]
+unsafe fn unsafe_fn(a: Dispatched, b: Dispatched) -> Dispatched {
+    a * b
+}
+
+#[algebraic]
+extern "C" fn extern_fn(a: f32, b: f32) -> f32 {
+    a * b
+}
+
+#[algebraic]
+fn generic_environment<T>(_t: T, a: Dispatched, b: Dispatched) -> Dispatched
+where
+    T: core::fmt::Debug + Clone,
+{
+    // Arithmetic on concrete types inside a generic fn is fine; only
+    // arithmetic on `T` itself is out (`docs/limitations.md`).
+    a * b
+}
+
+// The loop shapes are the point: each is a position the rewriter enters.
+#[allow(clippy::while_let_on_iterator, clippy::never_loop)]
+#[algebraic]
+fn control_flow(a: Dispatched, b: Dispatched, n: usize, o: Option<Dispatched>) -> Dispatched {
+    let Some(t) = o else { return a * b }; // let-else
+    let mut acc = if let Some(u) = o
+        && u * b > a
+    {
+        u + t // let chain
+    } else {
+        a
+    };
+    let mut it = [a, b].into_iter();
+    while let Some(x) = it.next() {
+        acc += x * x; // while-let, compound on a bare path
+    }
+    let labeled = 'blk: {
+        if n > 1 {
+            break 'blk a * b; // labeled break with a value
+        }
+        a + b
+    };
+    let looped = loop {
+        break labeled * a;
+    };
+    acc = match n {
+        0 => acc,
+        k if k * 2 > 2 => acc + looped, // integer arithmetic in a guard
+        _ => acc * looped,
+    };
+    let (p, q) = (a + b, a * b); // tuple pattern over rewritten initialisers
+    let Wrapper { inner } = Wrapper { inner: p * q }; // struct pattern + literal
+    acc + inner
+}
+struct Wrapper {
+    inner: Dispatched,
+}
+
+#[test]
+fn every_entered_position_is_rewritten() {
+    let (a, b) = (Dispatched(2.0), Dispatched(3.0));
+    assert_eq!(Unit.default_method(a, b), Dispatched(6.0));
+    assert_eq!(Unit.required(a, b), Dispatched(5.0));
+    assert_eq!(unsafe { unsafe_fn(a, b) }, Dispatched(6.0));
+    assert_eq!(extern_fn(2.0, 3.0), 6.0);
+    assert_eq!(generic_environment("tag", a, b), Dispatched(6.0));
+    // let-else: None -> a * b; Some: let chain (3*3 > 2 -> 3+3 = 6), then
+    // += 4 and += 9 -> 19; labeled (n=2 > 1) = 6, looped = 12; guard 2*2>2 ->
+    // 19 + 12 = 31; p = 5, q = 6, inner = 30; 31 + 30 = 61.
+    assert_eq!(control_flow(a, b, 2, None), Dispatched(6.0));
+    assert_eq!(control_flow(a, b, 2, Some(b)), Dispatched(61.0));
+    // Poll the async fn to completion: it never pends.
+    use core::future::Future;
+    use core::pin::pin;
+    use core::task::{Context, Poll, Waker};
+    let mut fut = pin!(async_fn(a, b));
+    let Poll::Ready(got) = fut.as_mut().poll(&mut Context::from_waker(Waker::noop())) else {
+        panic!("never pends")
+    };
+    assert_eq!(got, Dispatched(8.0));
+}
+
+// `#[test]` and `#[algebraic]` compose in either order. The product is bound
+// outside `assert_eq!` because macro arguments are never rewritten.
+#[test]
+#[algebraic]
+fn test_then_algebraic() {
+    let w = Dispatched(3.0);
+    let sq = w * w;
+    assert_eq!(sq, Dispatched(9.0));
+}
+
+#[algebraic]
+#[test]
+fn algebraic_then_test() {
+    let w = Dispatched(3.0);
+    let sq = w * w;
+    assert_eq!(sq, Dispatched(9.0));
+}

@@ -18,12 +18,34 @@
 //!    bug in the rewrite.
 //! 3. The same tree inside `#[algebraic]` agrees too, so the attribute and the
 //!    expression macro cannot drift apart.
+//! 4. The same tree over `Disp` — a type with the dispatch traits and no
+//!    `std::ops`, every literal leaf wrapped as `Disp(lit)` — compiles and agrees.
+//!    The f64 forms pass even if an operator is left unrewritten, since native
+//!    and dispatched f64 give the same bits; this one fails to compile instead.
 //!
 //! Seed 1, 200 trees of ~40 nodes.
 #![allow(clippy::float_cmp, clippy::eq_op, clippy::neg_multiply)]
 #![allow(unused_parens)]
 
 use reassoc::{alg, algebraic};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Disp(f64);
+macro_rules! impl_dispatched {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl reassoc::traits::$t<Disp, Disp> for Disp {
+            #[inline(always)]
+            fn $m(self, lhs: Disp) -> Disp { Disp(lhs.0 $op self.0) }
+        }
+    )*};
+}
+impl_dispatched!(AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *; DivRhs, div_rhs, /; RemRhs, rem_rhs, %);
+impl core::ops::Neg for Disp {
+    type Output = Disp;
+    fn neg(self) -> Disp {
+        Disp(-self.0)
+    }
+}
 
 const A: f64 = 3.0;
 const B: f64 = -2.0;
@@ -104,10 +126,111 @@ fn attr_0() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_0() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        ((h * (Disp(1.0) / Disp(4.0)))
+            % (((a * Disp(4.0))
+                - ((((((Disp(3.0) - Disp(4.0)) - b) / Disp(2.0)) - Disp(-2.0)) + Disp(-1.0))
+                    / Disp(4.0)))
+                / Disp(2.0))),
+        (((-(((((Disp(3.0) % Disp(-1.0)) % ((-(Disp(3.0) * a)) + a)) + (h % d))
+            % ((h % d) / Disp(4.0)))
+            + g))
+            - ((-((Disp(-1.0) * Disp(4.0)) / Disp(2.0))) * (c * ((-(e - d)) - ((g % a) + e)))))
+            - (((a * Disp(4.0)) + (c + c)) / Disp(2.0))),
+        (((((Disp(3.0) / Disp(8.0)) * (d + e))
+            - (((e % a)
+                + (((a % (Disp(-2.0) % (Disp(1.0) + Disp(2.0)))) * (Disp(2.0) + Disp(4.0)))
+                    / Disp(8.0)))
+                / Disp(2.0)))
+            * (a - d))
+            - (e * (Disp(4.0) * Disp(2.0)))),
+        (((a + ((e - f) % (h * g)))
+            - (((((Disp(4.0) % g) + Disp(3.0)) - d) / Disp(8.0)) + (c * g)))
+            % (e % (((((-(e - g)) * (c + g)) - d)
+                % ((f + (e / Disp(4.0))) * ((Disp(-2.0) - a) * Disp(4.0))))
+                / Disp(2.0)))),
+        ((((Disp(4.0) - g) / Disp(2.0)) % (((c * (h + c)) * g) / Disp(4.0)))
+            % ((Disp(3.0) + Disp(-1.0))
+                + ((-((c
+                    - (e % ((Disp(1.0) / Disp(2.0))
+                        - ((c + (g * (-(Disp(-2.0) * d)))) + ((Disp(-1.0) % d) * b)))))
+                    - (-(d + Disp(1.0)))))
+                    - (((h / Disp(4.0)) / Disp(8.0)) % Disp(-2.0))))),
+        ((c - Disp(2.0))
+            - (((b * (Disp(2.0) % c)) + h)
+                % (((-((d / Disp(2.0)) / Disp(4.0))) - (e * (Disp(-1.0) % e)))
+                    * (((-(((-((c % a) - Disp(-1.0))) / Disp(4.0))
+                        % (-(((c / Disp(2.0)) * (e * Disp(4.0))) * (h / Disp(4.0))))))
+                        % (-(Disp(1.0) - (b * c))))
+                        % (((-(Disp(1.0) * ((c + a) % b))) - h) + ((d + e) + Disp(-1.0))))))),
+        (((-((b + e) * c)) + a) / Disp(4.0)),
+        (((((a + a) / Disp(4.0)) - (h * h))
+            * ((f + f)
+                + ((((Disp(-2.0) - f) % (f + f))
+                    - ((b - ((Disp(-2.0) % a) % (((f - h) - (d * g)) - (g * a))))
+                        % ((Disp(1.0) - (d * g)) % ((d - c) - (g % a)))))
+                    - d)))
+            * b),
+        ((Disp(1.0) % (g * c)) / Disp(2.0)),
+        (((b * Disp(4.0))
+            % (Disp(3.0)
+                % (((g - ((b * Disp(2.0)) * (b * c))) - (e - b))
+                    * ((f - ((f - (-(Disp(4.0) + Disp(-1.0)))) * g))
+                        % ((Disp(-1.0) % e)
+                            - (((-(a % h)) / Disp(2.0)) + ((e + f) + (d + (Disp(-1.0) % h)))))))))
+            * (d * (-((h % c) % (g % e))))),
+        ((((-(((f / Disp(4.0)) - Disp(3.0)) / Disp(2.0))) - (g - h))
+            % (((d + (c / Disp(8.0))) - Disp(-2.0)) - (a / Disp(4.0))))
+            * ((e / Disp(2.0))
+                * ((((a + f) + d) + e)
+                    + ((-(h / Disp(2.0)))
+                        - ((-(Disp(2.0) - (Disp(3.0) - (((b - a) + d) + Disp(-1.0)))))
+                            * (f * g)))))),
+        ((((-((-((f * g) % f)) / Disp(4.0))) + f)
+            + (-((h * (Disp(-2.0) % Disp(-2.0)))
+                + ((c + ((d + d) + a)) - (Disp(3.0) % (((e + b) - b) / Disp(4.0)))))))
+            % (g * (-(h * (-(Disp(2.0) - d)))))),
+        (((h / Disp(8.0)) - (-(d % Disp(2.0)))) * a),
+        ((((((c / Disp(8.0)) - d) - ((-(Disp(3.0) / Disp(4.0))) % (c / Disp(4.0))))
+            % ((-(c - Disp(2.0))) % c))
+            * (a % c))
+            * (((c + (Disp(3.0) - Disp(3.0))) + h) % (a - (d * (-(Disp(1.0) + Disp(3.0))))))),
+        (((((-((-(d - (g - h))) * Disp(-1.0))) / Disp(8.0)) * (((b + c) + c) * a))
+            * ((b + g) % g))
+            - (((-(f + (d + (-(g + Disp(2.0)))))) * (((h + e) * Disp(4.0)) / Disp(8.0)))
+                / Disp(8.0))),
+        ((-((((-(e / Disp(8.0))) % (f / Disp(8.0)))
+            - ((((a / Disp(4.0)) / Disp(2.0)) % (h - (c * (a % e)))) + (-(g - a))))
+            + (((h * (f % Disp(-1.0))) - g) * g)))
+            - (g - (-((g % b) + ((Disp(4.0) + (-(b * g))) - (d - g)))))),
+        (-((-(((f + h) + ((d * (e - Disp(3.0))) * ((Disp(2.0) - (c + b)) / Disp(8.0))))
+            + ((-((e + Disp(3.0)) + ((-(Disp(-2.0) + Disp(4.0))) * h))) / Disp(2.0))))
+            * (Disp(1.0) - e))),
+        (((((h * ((a - Disp(2.0)) % g)) % Disp(1.0)) / Disp(4.0)) % (Disp(3.0) * c))
+            * (-((b / Disp(8.0)) - ((-((Disp(-2.0) / Disp(2.0)) - f)) / Disp(8.0))))),
+        ((d + ((a - (c - g)) / Disp(2.0))) - ((c % b) / Disp(4.0))),
+        ((-((((g + Disp(3.0)) / Disp(2.0)) / Disp(4.0)) + ((d / Disp(8.0)) % (Disp(4.0) + g))))
+            / Disp(8.0)),
+    ]
+}
+
 #[test]
 fn corpus_0() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_0();
+    let disp = disp_0();
     // case 0
     assert_eq!(
         alg!(
@@ -127,6 +250,7 @@ fn corpus_0() {
         "case 0: differs from plain"
     );
     assert_eq!(attr[0], -0.03125, "case 0: attribute form");
+    assert_eq!(disp[0], Disp(-0.03125), "case 0: dispatched form");
     // case 1
     assert_eq!(
         alg!(
@@ -149,6 +273,7 @@ fn corpus_0() {
         "case 1: differs from plain"
     );
     assert_eq!(attr[1], -147.0, "case 1: attribute form");
+    assert_eq!(disp[1], Disp(-147.0), "case 1: dispatched form");
     // case 2
     assert_eq!(
         alg!(
@@ -174,6 +299,7 @@ fn corpus_0() {
         "case 2: differs from plain"
     );
     assert_eq!(attr[2], 50.21875, "case 2: attribute form");
+    assert_eq!(disp[2], Disp(50.21875), "case 2: dispatched form");
     // case 3
     assert_eq!(
         alg!(
@@ -196,6 +322,7 @@ fn corpus_0() {
         "case 3: differs from plain"
     );
     assert_eq!(attr[3], -4.1875, "case 3: attribute form");
+    assert_eq!(disp[3], Disp(-4.1875), "case 3: dispatched form");
     // case 4
     assert_eq!(
         alg!(
@@ -229,6 +356,7 @@ fn corpus_0() {
         "case 4: differs from plain"
     );
     assert_eq!(attr[4], -3.5, "case 4: attribute form");
+    assert_eq!(disp[4], Disp(-3.5), "case 4: dispatched form");
     // case 5
     assert_eq!(
         alg!(
@@ -263,6 +391,7 @@ fn corpus_0() {
         "case 5: differs from plain"
     );
     assert_eq!(attr[5], 7.125, "case 5: attribute form");
+    assert_eq!(disp[5], Disp(7.125), "case 5: dispatched form");
     // case 6
     assert_eq!(
         alg!((((-((b + e) * c)) + a) / 4.0)),
@@ -275,6 +404,7 @@ fn corpus_0() {
         "case 6: differs from plain"
     );
     assert_eq!(attr[6], 12.0, "case 6: attribute form");
+    assert_eq!(disp[6], Disp(12.0), "case 6: dispatched form");
     // case 7
     assert_eq!(
         alg!(
@@ -309,6 +439,7 @@ fn corpus_0() {
         "case 7: differs from plain"
     );
     assert_eq!(attr[7], 0.7421875, "case 7: attribute form");
+    assert_eq!(disp[7], Disp(0.7421875), "case 7: dispatched form");
     // case 8
     assert_eq!(alg!(((1.0 % (g * c)) / 2.0)), 0.5, "case 8: exact value");
     assert_eq!(
@@ -317,6 +448,7 @@ fn corpus_0() {
         "case 8: differs from plain"
     );
     assert_eq!(attr[8], 0.5, "case 8: attribute form");
+    assert_eq!(disp[8], Disp(0.5), "case 8: dispatched form");
     // case 9
     assert_eq!(
         alg!(
@@ -350,6 +482,7 @@ fn corpus_0() {
         "case 9: differs from plain"
     );
     assert_eq!(attr[9], -0.125, "case 9: attribute form");
+    assert_eq!(disp[9], Disp(-0.125), "case 9: dispatched form");
     // case 10
     assert_eq!(
         alg!(
@@ -375,6 +508,7 @@ fn corpus_0() {
         "case 10: differs from plain"
     );
     assert_eq!(attr[10], -11.5185546875, "case 10: attribute form");
+    assert_eq!(disp[10], Disp(-11.5185546875), "case 10: dispatched form");
     // case 11
     assert_eq!(
         alg!(
@@ -399,6 +533,7 @@ fn corpus_0() {
         "case 11: differs from plain"
     );
     assert_eq!(attr[11], -1.3125, "case 11: attribute form");
+    assert_eq!(disp[11], Disp(-1.3125), "case 11: dispatched form");
     // case 12
     assert_eq!(
         alg!((((h / 8.0) - (-(d % 2.0))) * a)),
@@ -411,6 +546,7 @@ fn corpus_0() {
         "case 12: differs from plain"
     );
     assert_eq!(attr[12], 1.453125, "case 12: attribute form");
+    assert_eq!(disp[12], Disp(1.453125), "case 12: dispatched form");
     // case 13
     assert_eq!(
         alg!(
@@ -430,6 +566,7 @@ fn corpus_0() {
         "case 13: differs from plain"
     );
     assert_eq!(attr[13], 12.796875, "case 13: attribute form");
+    assert_eq!(disp[13], Disp(12.796875), "case 13: dispatched form");
     // case 14
     assert_eq!(
         alg!(
@@ -449,6 +586,7 @@ fn corpus_0() {
         "case 14: differs from plain"
     );
     assert_eq!(attr[14], 292.330078125, "case 14: attribute form");
+    assert_eq!(disp[14], Disp(292.330078125), "case 14: dispatched form");
     // case 15
     assert_eq!(
         alg!(
@@ -474,6 +612,7 @@ fn corpus_0() {
         "case 15: differs from plain"
     );
     assert_eq!(attr[15], 65.21875, "case 15: attribute form");
+    assert_eq!(disp[15], Disp(65.21875), "case 15: dispatched form");
     // case 16
     assert_eq!(
         alg!(
@@ -496,6 +635,7 @@ fn corpus_0() {
         "case 16: differs from plain"
     );
     assert_eq!(attr[16], 21.0, "case 16: attribute form");
+    assert_eq!(disp[16], Disp(21.0), "case 16: dispatched form");
     // case 17
     assert_eq!(
         alg!(
@@ -515,6 +655,7 @@ fn corpus_0() {
         "case 17: differs from plain"
     );
     assert_eq!(attr[17], -0.0126953125, "case 17: attribute form");
+    assert_eq!(disp[17], Disp(-0.0126953125), "case 17: dispatched form");
     // case 18
     assert_eq!(
         alg!(((d + ((a - (c - g)) / 2.0)) - ((c % b) / 4.0))),
@@ -527,6 +668,7 @@ fn corpus_0() {
         "case 18: differs from plain"
     );
     assert_eq!(attr[18], 4.75, "case 18: attribute form");
+    assert_eq!(disp[18], Disp(4.75), "case 18: dispatched form");
     // case 19
     assert_eq!(
         alg!(((-((((g + 3.0) / 2.0) / 4.0) + ((d / 8.0) % (4.0 + g)))) / 8.0)),
@@ -539,6 +681,7 @@ fn corpus_0() {
         "case 19: differs from plain"
     );
     assert_eq!(attr[19], -0.2265625, "case 19: attribute form");
+    assert_eq!(disp[19], Disp(-0.2265625), "case 19: dispatched form");
 }
 
 #[algebraic]
@@ -624,10 +767,134 @@ fn attr_1() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_1() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        (((h / Disp(4.0)) + (((-(e + d)) + f) % Disp(1.0)))
+            + (-((-(((((Disp(4.0) * (Disp(3.0) - Disp(1.0))) % (((a * c) - h) - b))
+                * ((Disp(1.0) - Disp(3.0)) - e))
+                * ((e - e) % (Disp(3.0) * h)))
+                * ((f + ((-(Disp(-1.0) + f)) + d)) - Disp(2.0))))
+                * h))),
+        ((((g - ((a / Disp(4.0)) % ((g - (h - ((a / Disp(2.0)) + h))) / Disp(4.0)))) / Disp(4.0))
+            - Disp(-2.0))
+            % Disp(4.0)),
+        ((((c * ((-(Disp(1.0) % Disp(4.0))) * b)) / Disp(4.0)) / Disp(8.0))
+            % ((Disp(-2.0) + ((-(Disp(2.0) * (-(c / Disp(8.0))))) - g)) - (h + Disp(2.0)))),
+        (((-(((-(Disp(-1.0) + (Disp(-2.0) * b)))
+            - (-(Disp(-2.0) % ((Disp(2.0) * Disp(4.0)) - (e + f)))))
+            % ((((Disp(1.0) * Disp(-2.0)) - a) - (-(Disp(-2.0) % a))) / Disp(8.0))))
+            % (((-(Disp(-2.0) * (Disp(-2.0) + ((f * Disp(3.0)) / Disp(2.0)))))
+                * (h + (-((Disp(-2.0) - (e % d)) + Disp(3.0)))))
+                + (-(h - Disp(-2.0)))))
+            * ((c % (Disp(4.0) / Disp(8.0)))
+                - (-((-(((g % (b * a)) % c) * Disp(-1.0))) * Disp(3.0))))),
+        ((((h / Disp(8.0)) % (c / Disp(8.0))) % (d + (-((g - a) * Disp(4.0)))))
+            + ((((((d + ((b + (e - h)) + Disp(2.0))) + Disp(1.0)) * (e % Disp(4.0)))
+                / Disp(4.0))
+                / Disp(2.0))
+                * ((c + c) - (-(g / Disp(2.0)))))),
+        (-((Disp(2.0) - (-((Disp(3.0) / Disp(2.0)) % h)))
+            % ((-(((Disp(1.0) % c) * h) * ((h + (a + Disp(1.0))) + (e % (Disp(4.0) + f)))))
+                - (((Disp(2.0) * (c % b)) % b)
+                    * (((-(((e - c) % Disp(-2.0)) / Disp(8.0)))
+                        % ((Disp(2.0) * Disp(-2.0)) - ((-((a + b) % e)) + Disp(4.0))))
+                        / Disp(8.0)))))),
+        (((Disp(-1.0) - e)
+            - ((-(a + ((d + (b * a)) % (h - (Disp(2.0) + (-(c % b)))))))
+                - (b * (-(Disp(2.0) * (b / Disp(4.0)))))))
+            % ((((((a - b) - (f + Disp(4.0)))
+                % ((e * (Disp(4.0) - (a - Disp(-2.0)))) % Disp(2.0)))
+                - ((e + b) * (-(g * (Disp(-2.0) / Disp(8.0))))))
+                % (b / Disp(8.0)))
+                - ((e + h) * g))),
+        ((-(d
+            % ((((c / Disp(8.0)) - c) + c)
+                * (-((-(h / Disp(8.0))) - (-(((g / Disp(2.0)) * e) + Disp(1.0))))))))
+            - (((-(((c % Disp(4.0)) % h)
+                - ((d
+                    - (((Disp(2.0) % ((e + f) - g)) * Disp(-1.0))
+                        % (Disp(3.0) - (Disp(4.0) * e))))
+                    + ((Disp(-2.0) - f) / Disp(2.0)))))
+                / Disp(2.0))
+                * e)),
+        (((h * (((g - Disp(3.0)) * Disp(4.0)) * c)) + ((a - e) * (g / Disp(4.0))))
+            % (((g / Disp(4.0)) / Disp(2.0))
+                - ((-((Disp(4.0) + ((a / Disp(4.0)) / Disp(4.0)))
+                    * (((e * h) * Disp(1.0)) - d)))
+                    / Disp(8.0)))),
+        (((((Disp(-1.0) - (c % Disp(4.0))) % (Disp(2.0) * (a * a)))
+            + (d + (c - (-((-(f + Disp(-1.0))) / Disp(2.0))))))
+            / Disp(2.0))
+            - ((((f % (((f - b) - b) + (f % Disp(-1.0)))) / Disp(2.0)) % Disp(-2.0)) / Disp(2.0))),
+        (-((h + d)
+            % (-(((-(Disp(2.0) * (b * Disp(2.0))))
+                % (Disp(1.0) % (-((g / Disp(8.0)) / Disp(4.0)))))
+                * ((((a + b) + g) % ((Disp(2.0) * Disp(-2.0)) * a))
+                    - ((Disp(2.0) - (-(Disp(3.0) / Disp(4.0))))
+                        % (((Disp(-2.0) / Disp(4.0)) + d)
+                            - (d + (Disp(3.0) % (Disp(2.0) * f)))))))))),
+        (((-(((e * (-((d + f) * b))) - (a / Disp(2.0))) % (g / Disp(4.0))))
+            - ((((Disp(1.0) + h) + (h * c)) - a)
+                + (-((h - ((Disp(4.0) % Disp(-2.0)) * d)) % ((d % Disp(3.0)) * Disp(-1.0))))))
+            * (-(Disp(3.0) * d))),
+        ((((d * Disp(2.0)) + d) + (a / Disp(2.0)))
+            - ((h / Disp(2.0)) % ((((e * f) % g) / Disp(2.0)) % ((e / Disp(2.0)) + (h * e))))),
+        ((((Disp(4.0) * Disp(3.0)) - ((g - b) / Disp(8.0))) + Disp(2.0))
+            % ((((h + d) + h) + (((e + (a / Disp(2.0))) / Disp(8.0)) - a)) / Disp(2.0))),
+        (((h / Disp(8.0)) * (e * (Disp(3.0) / Disp(8.0))))
+            % ((((-(Disp(2.0) % g)) * ((-((c % Disp(1.0)) / Disp(8.0))) + h))
+                + ((Disp(-1.0) + Disp(3.0)) * (-(Disp(-2.0) / Disp(2.0)))))
+                - Disp(-2.0))),
+        (Disp(1.0)
+            - (((Disp(2.0) / Disp(8.0)) / Disp(2.0))
+                + ((((e / Disp(2.0)) % (Disp(4.0) + (b * (Disp(-2.0) % h))))
+                    + ((d - Disp(-2.0)) + (Disp(2.0) / Disp(4.0))))
+                    / Disp(2.0)))),
+        (((((h + e) + Disp(4.0)) - (e % b)) % (Disp(4.0) + f))
+            % ((((((h + c) % Disp(-1.0)) + (Disp(1.0) / Disp(2.0)))
+                - ((c + (h * g)) - (g % ((((c % b) / Disp(4.0)) + (Disp(3.0) % d)) - d))))
+                - ((c - (Disp(3.0) * (-(((-(f % Disp(-1.0))) + a) - h)))) - (b / Disp(8.0))))
+                / Disp(8.0))),
+        ((h - ((Disp(-2.0) + d)
+            - ((((Disp(2.0) / Disp(8.0)) + (c - (d / Disp(2.0)))) % Disp(4.0))
+                % (-((h + (h + Disp(4.0))) * Disp(4.0))))))
+            / Disp(8.0)),
+        (((e / Disp(8.0)) - b)
+            % ((-((-(((Disp(1.0)
+                - ((-(Disp(-2.0) - (a % h)))
+                    - (-((Disp(4.0) - (Disp(-1.0) - ((h * h) % c))) - a))))
+                + Disp(-1.0))
+                + (c - (-(Disp(-2.0) / Disp(2.0))))))
+                * Disp(4.0)))
+                + (((-((f - (f + g)) / Disp(4.0))) - e) - c))),
+        ((-((-((-(a + e)) + h)) + a))
+            * ((Disp(1.0) % ((c % Disp(4.0)) / Disp(4.0)))
+                % (((Disp(-2.0)
+                    - (((e - (Disp(2.0) - c)) / Disp(4.0)) + (Disp(3.0) - Disp(1.0))))
+                    % (a * ((((Disp(4.0) % (Disp(4.0) / Disp(8.0)))
+                        + (((a + b) + h) % (e + (e * Disp(4.0)))))
+                        + g)
+                        / Disp(8.0))))
+                    - (c % f)))),
+    ]
+}
+
 #[test]
 fn corpus_1() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_1();
+    let disp = disp_1();
     // case 20
     assert_eq!(
         alg!(
@@ -656,6 +923,7 @@ fn corpus_1() {
         "case 20: differs from plain"
     );
     assert_eq!(attr[0], 0.71875, "case 20: attribute form");
+    assert_eq!(disp[0], Disp(0.71875), "case 20: dispatched form");
     // case 21
     assert_eq!(
         alg!(((((g - ((a / 4.0) % ((g - (h - ((a / 2.0) + h))) / 4.0))) / 4.0) - -2.0) % 4.0)),
@@ -668,6 +936,7 @@ fn corpus_1() {
         "case 21: differs from plain"
     );
     assert_eq!(attr[1], 0.5625, "case 21: attribute form");
+    assert_eq!(disp[1], Disp(0.5625), "case 21: dispatched form");
     // case 22
     assert_eq!(
         alg!(
@@ -687,6 +956,7 @@ fn corpus_1() {
         "case 22: differs from plain"
     );
     assert_eq!(attr[2], 0.3125, "case 22: attribute form");
+    assert_eq!(disp[2], Disp(0.3125), "case 22: dispatched form");
     // case 23
     assert_eq!(
         alg!(
@@ -715,6 +985,7 @@ fn corpus_1() {
         "case 23: differs from plain"
     );
     assert_eq!(attr[3], 0.0, "case 23: attribute form");
+    assert_eq!(disp[3], Disp(0.0), "case 23: dispatched form");
     // case 24
     assert_eq!(
         alg!(
@@ -737,6 +1008,7 @@ fn corpus_1() {
         "case 24: differs from plain"
     );
     assert_eq!(attr[4], 31.2265625, "case 24: attribute form");
+    assert_eq!(disp[4], Disp(31.2265625), "case 24: dispatched form");
     // case 25
     assert_eq!(
         alg!(
@@ -768,6 +1040,7 @@ fn corpus_1() {
         "case 25: differs from plain"
     );
     assert_eq!(attr[5], -0.03125, "case 25: attribute form");
+    assert_eq!(disp[5], Disp(-0.03125), "case 25: dispatched form");
     // case 26
     assert_eq!(
         alg!(
@@ -801,6 +1074,7 @@ fn corpus_1() {
         "case 26: differs from plain"
     );
     assert_eq!(attr[6], 6.0, "case 26: attribute form");
+    assert_eq!(disp[6], Disp(6.0), "case 26: dispatched form");
     // case 27
     assert_eq!(
         alg!(
@@ -832,6 +1106,7 @@ fn corpus_1() {
         "case 27: differs from plain"
     );
     assert_eq!(attr[7], 4.3125, "case 27: attribute form");
+    assert_eq!(disp[7], Disp(4.3125), "case 27: dispatched form");
     // case 28
     assert_eq!(
         alg!(
@@ -853,6 +1128,7 @@ fn corpus_1() {
         "case 28: differs from plain"
     );
     assert_eq!(attr[8], 1.21484375, "case 28: attribute form");
+    assert_eq!(disp[8], Disp(1.21484375), "case 28: dispatched form");
     // case 29
     assert_eq!(
         alg!(
@@ -874,6 +1150,7 @@ fn corpus_1() {
         "case 29: differs from plain"
     );
     assert_eq!(attr[9], 1.875, "case 29: attribute form");
+    assert_eq!(disp[9], Disp(1.875), "case 29: dispatched form");
     // case 30
     assert_eq!(
         alg!(
@@ -902,6 +1179,7 @@ fn corpus_1() {
         "case 30: differs from plain"
     );
     assert_eq!(attr[10], 0.0, "case 30: attribute form");
+    assert_eq!(disp[10], Disp(0.0), "case 30: dispatched form");
     // case 31
     assert_eq!(
         alg!(
@@ -926,6 +1204,7 @@ fn corpus_1() {
         "case 31: differs from plain"
     );
     assert_eq!(attr[11], -5.4375, "case 31: attribute form");
+    assert_eq!(disp[11], Disp(-5.4375), "case 31: dispatched form");
     // case 32
     assert_eq!(
         alg!(
@@ -945,6 +1224,7 @@ fn corpus_1() {
         "case 32: differs from plain"
     );
     assert_eq!(attr[12], 3.0625, "case 32: attribute form");
+    assert_eq!(disp[12], Disp(3.0625), "case 32: dispatched form");
     // case 33
     assert_eq!(
         alg!(
@@ -964,6 +1244,7 @@ fn corpus_1() {
         "case 33: differs from plain"
     );
     assert_eq!(attr[13], 0.34375, "case 33: attribute form");
+    assert_eq!(disp[13], Disp(0.34375), "case 33: dispatched form");
     // case 34
     assert_eq!(
         alg!(
@@ -988,6 +1269,7 @@ fn corpus_1() {
         "case 34: differs from plain"
     );
     assert_eq!(attr[14], 0.041015625, "case 34: attribute form");
+    assert_eq!(disp[14], Disp(0.041015625), "case 34: dispatched form");
     // case 35
     assert_eq!(
         alg!(
@@ -1007,6 +1289,7 @@ fn corpus_1() {
         "case 35: differs from plain"
     );
     assert_eq!(attr[15], 1.125, "case 35: attribute form");
+    assert_eq!(disp[15], Disp(1.125), "case 35: dispatched form");
     // case 36
     assert_eq!(
         alg!(
@@ -1035,6 +1318,7 @@ fn corpus_1() {
         "case 36: differs from plain"
     );
     assert_eq!(attr[16], -0.109375, "case 36: attribute form");
+    assert_eq!(disp[16], Disp(-0.109375), "case 36: dispatched form");
     // case 37
     assert_eq!(
         alg!(
@@ -1057,6 +1341,7 @@ fn corpus_1() {
         "case 37: differs from plain"
     );
     assert_eq!(attr[17], 0.296875, "case 37: attribute form");
+    assert_eq!(disp[17], Disp(0.296875), "case 37: dispatched form");
     // case 38
     assert_eq!(
         alg!(
@@ -1091,6 +1376,7 @@ fn corpus_1() {
         "case 38: differs from plain"
     );
     assert_eq!(attr[18], 1.125, "case 38: attribute form");
+    assert_eq!(disp[18], Disp(1.125), "case 38: dispatched form");
     // case 39
     assert_eq!(
         alg!(
@@ -1124,6 +1410,7 @@ fn corpus_1() {
         "case 39: differs from plain"
     );
     assert_eq!(attr[19], 0.0, "case 39: attribute form");
+    assert_eq!(disp[19], Disp(0.0), "case 39: dispatched form");
 }
 
 #[algebraic]
@@ -1199,10 +1486,115 @@ fn attr_2() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_2() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        ((((f / Disp(2.0)) + g) * ((Disp(4.0) % Disp(2.0)) - (d - (-(Disp(2.0) + f)))))
+            * (((f + (d + g)) + f)
+                % ((((Disp(-1.0) % g) * Disp(3.0)) - (((b % Disp(-1.0)) * e) * Disp(3.0)))
+                    + ((g / Disp(4.0)) * (f - e))))),
+        (-((b
+            * (((-(c % (((-(c - g)) + Disp(2.0)) + (h + a)))) / Disp(8.0))
+                - ((((c + Disp(2.0)) - (a / Disp(8.0))) + f) + c)))
+            * (((((-((-(d + Disp(2.0))) * (f % g))) / Disp(8.0))
+                % ((Disp(-2.0) + b) / Disp(2.0)))
+                % (((g * f) / Disp(2.0)) - (-((Disp(-1.0) * Disp(4.0)) - Disp(-2.0)))))
+                * Disp(2.0)))),
+        ((Disp(-1.0) * Disp(4.0))
+            - ((((d - Disp(2.0)) / Disp(8.0)) + (Disp(-1.0) - g))
+                + (((Disp(-1.0) - e) / Disp(2.0)) / Disp(8.0)))),
+        ((-((g / Disp(8.0)) + (a / Disp(8.0))))
+            - ((((d - f) * (Disp(-2.0) - a)) + g)
+                - (((((g * b) - g) % (c * Disp(-1.0))) * d)
+                    + ((-(((Disp(1.0) + h) * ((b + h) * (b % b))) * f))
+                        * (Disp(-2.0) + (d * Disp(2.0))))))),
+        (((-((c - (Disp(2.0) - (c % f)))
+            * (-((a * Disp(1.0)) - ((-(Disp(-1.0) / Disp(8.0))) / Disp(4.0))))))
+            / Disp(2.0))
+            - ((Disp(2.0) / Disp(2.0)) * (((f / Disp(8.0)) + c) / Disp(2.0)))),
+        (-((c / Disp(8.0))
+            * (((-(e % (g + f))) / Disp(2.0))
+                - ((b - a)
+                    % (((b / Disp(2.0))
+                        - ((((Disp(4.0) * e) / Disp(8.0))
+                            % (((Disp(3.0) - (-(b + g))) + (h / Disp(2.0)))
+                                + (h + (g / Disp(8.0)))))
+                            / Disp(8.0)))
+                        % (g % (-(Disp(3.0) % (Disp(3.0) - Disp(-1.0)))))))))),
+        (((((d * Disp(-1.0)) * c) / Disp(4.0)) / Disp(2.0))
+            + (((Disp(1.0) * (b + f)) - (Disp(-2.0) - Disp(4.0)))
+                * ((Disp(1.0)
+                    % ((g + (Disp(4.0) * Disp(-1.0)))
+                        - (f - (((Disp(1.0) * Disp(2.0)) - c) - ((g * Disp(1.0)) - h)))))
+                    * ((e + Disp(2.0)) / Disp(8.0))))),
+        (((((Disp(-2.0) % (e / Disp(8.0))) + h) + Disp(-1.0))
+            % ((-(Disp(4.0) / Disp(2.0))) / Disp(8.0)))
+            * ((e % ((-(d + Disp(3.0))) + ((f / Disp(2.0)) - a))) - ((e - (b * d)) % d))),
+        (((-((a + (-((d - ((b % c) + (-(g % a)))) - (a + f))))
+            * ((((d * b) % Disp(1.0)) % (b + c)) / Disp(2.0))))
+            + (((Disp(4.0) % h) * ((Disp(-1.0) - g) + ((Disp(1.0) - c) / Disp(4.0)))) - (g + e)))
+            + (-(d / Disp(8.0)))),
+        ((-(d % b))
+            - ((-(((Disp(3.0) / Disp(2.0)) - (d + h))
+                * (((Disp(-2.0) % (c * f))
+                    - ((b + (-(g * Disp(-2.0)))) - ((h / Disp(8.0)) - g)))
+                    % (-(((c + e) % (((Disp(3.0) / Disp(8.0)) + h) - Disp(2.0)))
+                        - (-(e - Disp(2.0))))))))
+                * (((d - e) * f) * d))),
+        (((((((-(Disp(4.0) + (d * Disp(1.0)))) + (d + h)) % (-(Disp(-2.0) % (Disp(-2.0) - a))))
+            * (c / Disp(4.0)))
+            * (d * c))
+            / Disp(8.0))
+            + ((((b * Disp(1.0)) - ((b + b) / Disp(2.0))) - d) % ((e + Disp(-2.0)) - h))),
+        ((((((-(g % g)) * (h * d)) - (a - c)) % (-(Disp(-2.0) * Disp(-1.0)))) / Disp(8.0))
+            * (((-(c / Disp(2.0))) * (Disp(2.0) / Disp(4.0))) / Disp(8.0))),
+        ((((-(a % Disp(-2.0))) - Disp(-2.0)) / Disp(8.0))
+            % (-(((d + (-(c - ((g / Disp(8.0)) - (e - f)))))
+                - (Disp(2.0) % (-((-(Disp(1.0) / Disp(8.0))) % (Disp(-1.0) % c)))))
+                - (e + c)))),
+        ((h - ((-((h / Disp(4.0)) / Disp(2.0)))
+            + (-((((g % (a - f)) - (((Disp(-1.0) % Disp(3.0)) * f) * b)) + Disp(3.0))
+                * (b % (f / Disp(2.0)))))))
+            % (-((-((a % g) - ((c * g) / Disp(2.0))))
+                % (((Disp(4.0) * Disp(-1.0)) * ((-((-(g * f)) + a)) % (Disp(2.0) - e)))
+                    + (-((d * (f / Disp(8.0))) + a)))))),
+        ((((f % c) + a) / Disp(2.0)) + (-(((Disp(1.0) / Disp(8.0)) % g) / Disp(2.0)))),
+        (((-(((((-((-(Disp(3.0) + e)) - Disp(-1.0))) / Disp(2.0)) / Disp(4.0))
+            + ((-(g / Disp(2.0))) - Disp(-1.0)))
+            / Disp(2.0)))
+            - ((-(Disp(2.0) + (a / Disp(2.0)))) + d))
+            - (((-((g + (-(f - b))) + ((b % c) % (Disp(3.0) * b)))) * (Disp(4.0) + Disp(2.0)))
+                % d)),
+        ((d + ((c - (b / Disp(2.0))) + (Disp(-2.0) % b)))
+            + (-((((h / Disp(2.0)) % Disp(1.0)) - ((a + ((Disp(2.0) % f) % Disp(3.0))) - c))
+                % ((((Disp(2.0) % c) + d) - (e / Disp(4.0)))
+                    * (g * ((-(Disp(-2.0) * b)) / Disp(2.0))))))),
+        ((((((((e % e) + (d / Disp(8.0))) % (-((-(b + d)) % (g / Disp(8.0)))))
+            * (a + (f / Disp(2.0))))
+            % Disp(1.0))
+            + Disp(3.0))
+            / Disp(4.0))
+            / Disp(2.0)),
+        ((((h + a) - c) - (e % Disp(3.0))) / Disp(4.0)),
+        (((-(((d % h) / Disp(4.0)) - f)) + g) / Disp(8.0)),
+    ]
+}
+
 #[test]
 fn corpus_2() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_2();
+    let disp = disp_2();
     // case 40
     assert_eq!(
         alg!(
@@ -1225,6 +1617,7 @@ fn corpus_2() {
         "case 40: differs from plain"
     );
     assert_eq!(attr[0], -367.125, "case 40: attribute form");
+    assert_eq!(disp[0], Disp(-367.125), "case 40: dispatched form");
     // case 41
     assert_eq!(
         alg!(
@@ -1256,6 +1649,7 @@ fn corpus_2() {
         "case 41: differs from plain"
     );
     assert_eq!(attr[1], -3.90625, "case 41: attribute form");
+    assert_eq!(disp[1], Disp(-3.90625), "case 41: dispatched form");
     // case 42
     assert_eq!(
         alg!(((-1.0 * 4.0) - ((((d - 2.0) / 8.0) + (-1.0 - g)) + (((-1.0 - e) / 2.0) / 8.0)))),
@@ -1268,6 +1662,7 @@ fn corpus_2() {
         "case 42: differs from plain"
     );
     assert_eq!(attr[2], 7.8125, "case 42: attribute form");
+    assert_eq!(disp[2], Disp(7.8125), "case 42: dispatched form");
     // case 43
     assert_eq!(
         alg!(
@@ -1293,6 +1688,7 @@ fn corpus_2() {
         "case 43: differs from plain"
     );
     assert_eq!(attr[3], -13.0, "case 43: attribute form");
+    assert_eq!(disp[3], Disp(-13.0), "case 43: dispatched form");
     // case 44
     assert_eq!(
         alg!(
@@ -1312,6 +1708,7 @@ fn corpus_2() {
         "case 44: differs from plain"
     );
     assert_eq!(attr[4], 1.9375, "case 44: attribute form");
+    assert_eq!(disp[4], Disp(1.9375), "case 44: dispatched form");
     // case 45
     assert_eq!(
         alg!(
@@ -1349,6 +1746,7 @@ fn corpus_2() {
         "case 45: differs from plain"
     );
     assert_eq!(attr[5], -2.5, "case 45: attribute form");
+    assert_eq!(disp[5], Disp(-2.5), "case 45: dispatched form");
     // case 46
     assert_eq!(
         alg!(
@@ -1376,6 +1774,7 @@ fn corpus_2() {
         "case 46: differs from plain"
     );
     assert_eq!(attr[6], -2.96875, "case 46: attribute form");
+    assert_eq!(disp[6], Disp(-2.96875), "case 46: dispatched form");
     // case 47
     assert_eq!(
         alg!(
@@ -1395,6 +1794,7 @@ fn corpus_2() {
         "case 47: differs from plain"
     );
     assert_eq!(attr[7], 0.078125, "case 47: attribute form");
+    assert_eq!(disp[7], Disp(0.078125), "case 47: dispatched form");
     // case 48
     assert_eq!(
         alg!(
@@ -1420,6 +1820,7 @@ fn corpus_2() {
         "case 48: differs from plain"
     );
     assert_eq!(attr[8], -4.0625, "case 48: attribute form");
+    assert_eq!(disp[8], Disp(-4.0625), "case 48: dispatched form");
     // case 49
     assert_eq!(
         alg!(
@@ -1448,6 +1849,7 @@ fn corpus_2() {
         "case 49: differs from plain"
     );
     assert_eq!(attr[9], -4.7352294921875, "case 49: attribute form");
+    assert_eq!(disp[9], Disp(-4.7352294921875), "case 49: dispatched form");
     // case 50
     assert_eq!(
         alg!(
@@ -1472,6 +1874,7 @@ fn corpus_2() {
         "case 50: differs from plain"
     );
     assert_eq!(attr[10], -0.548828125, "case 50: attribute form");
+    assert_eq!(disp[10], Disp(-0.548828125), "case 50: dispatched form");
     // case 51
     assert_eq!(
         alg!(
@@ -1491,6 +1894,7 @@ fn corpus_2() {
         "case 51: differs from plain"
     );
     assert_eq!(attr[11], 0.0, "case 51: attribute form");
+    assert_eq!(disp[11], Disp(0.0), "case 51: dispatched form");
     // case 52
     assert_eq!(
         alg!(
@@ -1516,6 +1920,7 @@ fn corpus_2() {
         "case 52: differs from plain"
     );
     assert_eq!(attr[12], 0.125, "case 52: attribute form");
+    assert_eq!(disp[12], Disp(0.125), "case 52: dispatched form");
     // case 53
     assert_eq!(
         alg!(
@@ -1544,6 +1949,7 @@ fn corpus_2() {
         "case 53: differs from plain"
     );
     assert_eq!(attr[13], -0.140625, "case 53: attribute form");
+    assert_eq!(disp[13], Disp(-0.140625), "case 53: dispatched form");
     // case 54
     assert_eq!(
         alg!(((((f % c) + a) / 2.0) + (-(((1.0 / 8.0) % g) / 2.0)))),
@@ -1556,6 +1962,7 @@ fn corpus_2() {
         "case 54: differs from plain"
     );
     assert_eq!(attr[14], 1.5625, "case 54: attribute form");
+    assert_eq!(disp[14], Disp(1.5625), "case 54: dispatched form");
     // case 55
     assert_eq!(
         alg!(
@@ -1578,6 +1985,7 @@ fn corpus_2() {
         "case 55: differs from plain"
     );
     assert_eq!(attr[15], 5.5625, "case 55: attribute form");
+    assert_eq!(disp[15], Disp(5.5625), "case 55: dispatched form");
     // case 56
     assert_eq!(
         alg!(
@@ -1600,6 +2008,7 @@ fn corpus_2() {
         "case 56: differs from plain"
     );
     assert_eq!(attr[16], 4.5625, "case 56: attribute form");
+    assert_eq!(disp[16], Disp(4.5625), "case 56: dispatched form");
     // case 57
     assert_eq!(
         alg!(
@@ -1625,6 +2034,7 @@ fn corpus_2() {
         "case 57: differs from plain"
     );
     assert_eq!(attr[17], 0.3994140625, "case 57: attribute form");
+    assert_eq!(disp[17], Disp(0.3994140625), "case 57: dispatched form");
     // case 58
     assert_eq!(
         alg!(((((h + a) - c) - (e % 3.0)) / 4.0)),
@@ -1637,6 +2047,7 @@ fn corpus_2() {
         "case 58: differs from plain"
     );
     assert_eq!(attr[18], -0.28125, "case 58: attribute form");
+    assert_eq!(disp[18], Disp(-0.28125), "case 58: dispatched form");
     // case 59
     assert_eq!(
         alg!((((-(((d % h) / 4.0) - f)) + g) / 8.0)),
@@ -1649,6 +2060,7 @@ fn corpus_2() {
         "case 59: differs from plain"
     );
     assert_eq!(attr[19], 1.40625, "case 59: attribute form");
+    assert_eq!(disp[19], Disp(1.40625), "case 59: dispatched form");
 }
 
 #[algebraic]
@@ -1722,10 +2134,110 @@ fn attr_3() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_3() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        ((d / Disp(8.0))
+            + ((((((-(Disp(4.0) % d)) - (b - (g / Disp(2.0))))
+                % (((((a + Disp(4.0)) % h) + Disp(4.0)) + c) / Disp(2.0)))
+                % d)
+                * (b / Disp(8.0)))
+                / Disp(4.0))),
+        (((g - d) - e)
+            * ((((((e + ((c % (b + c)) * b))
+                + (Disp(-1.0)
+                    % ((((Disp(-1.0) / Disp(2.0)) / Disp(4.0))
+                        + ((d + Disp(-1.0)) - (e % (f - (Disp(-1.0) / Disp(4.0))))))
+                        - ((-(g - (g - (e % h)))) * Disp(3.0)))))
+                * (d % (b - Disp(-1.0))))
+                % (f * f))
+                - ((f + Disp(1.0)) + b))
+                * ((a - a) / Disp(4.0)))),
+        ((((-((b - a) * e)) - (b * (c + b))) / Disp(8.0)) - (Disp(-1.0) - g)),
+        ((((-(f - b)) * (-(h * ((g % ((a * Disp(-2.0)) - f)) / Disp(2.0))))) / Disp(2.0))
+            / Disp(4.0)),
+        ((((c / Disp(4.0)) / Disp(8.0))
+            % (((((((-(Disp(4.0) - Disp(2.0))) + b) - Disp(4.0)) * (d / Disp(2.0)))
+                - (h * ((Disp(2.0) * b) * Disp(3.0))))
+                / Disp(2.0))
+                * ((a % Disp(2.0)) - (-((Disp(2.0) / Disp(4.0)) % Disp(1.0))))))
+            * (d % Disp(-2.0))),
+        ((((((-(a % Disp(1.0))) - (-((Disp(2.0) - d) * g))) + (e - (Disp(-1.0) / Disp(8.0))))
+            * ((b + c) / Disp(8.0)))
+            - ((d / Disp(2.0)) % ((b - g) + b)))
+            * ((Disp(-1.0) % d) - (((b - (a - g)) - Disp(3.0)) % (-(((a - c) - d) + (h - f)))))),
+        (((b * (((h % h) + (d * Disp(-2.0))) * (b % Disp(1.0))))
+            - (-((h + d)
+                + (((c % b) + Disp(2.0))
+                    - (f * ((Disp(1.0) + (-(Disp(4.0) + b))) * (-((a + b) / Disp(2.0)))))))))
+            / Disp(8.0)),
+        (((((((Disp(-2.0) * (c * a)) % g) - (b % f)) % (b / Disp(8.0))) + (Disp(2.0) * e))
+            * ((-((((Disp(-2.0) - b) * (e * g)) / Disp(8.0)) / Disp(8.0))) * (f - c)))
+            - ((Disp(2.0) * Disp(1.0)) - Disp(1.0))),
+        ((a + (d - a)) / Disp(2.0)),
+        (((((c * g) * Disp(-2.0)) / Disp(4.0)) + ((a % ((d % c) / Disp(2.0))) * (a + d)))
+            % (((h + d) % (h - (e * g))) % ((f % g) - (b % e)))),
+        ((-((h % ((-(((Disp(4.0) / Disp(2.0)) * Disp(-1.0)) / Disp(2.0))) / Disp(4.0)))
+            / Disp(4.0)))
+            + (((b % c) - (d * Disp(-1.0))) % ((-(((a - c) / Disp(8.0)) - b)) - (a + Disp(-2.0))))),
+        (-((-(h * (a - Disp(2.0))))
+            % (((((-(b % d)) - (b * (-((-(((e % h) / Disp(2.0)) * Disp(3.0))) * a))))
+                - (((Disp(-2.0) - (f + e)) * b) + (g - Disp(2.0))))
+                / Disp(8.0))
+                + (((-(a / Disp(2.0))) * (Disp(2.0) - h)) / Disp(2.0))))),
+        ((-((e + (Disp(-1.0) / Disp(8.0)))
+            % ((((a % Disp(-1.0)) * g) + (-(f / Disp(4.0))))
+                + (((Disp(3.0) % f) % c) % (d - (f / Disp(4.0)))))))
+            - (((-(Disp(-1.0) + h)) / Disp(8.0)) + Disp(3.0))),
+        (-((Disp(2.0) - ((h - Disp(1.0)) - (((-(d - Disp(-2.0))) - f) * (-(Disp(3.0) * d)))))
+            * (-(((-(((e % Disp(4.0)) % (Disp(4.0) - e)) / Disp(4.0))) % (e + Disp(-2.0)))
+                + (h + ((d - ((e / Disp(2.0)) % f)) - (g - Disp(-1.0)))))))),
+        (((-((((((Disp(4.0) / Disp(4.0)) + d) / Disp(4.0))
+            - ((-((e / Disp(8.0)) % ((-((d - c) + e)) / Disp(4.0)))) / Disp(2.0)))
+            * ((-(f % (c + e))) - b))
+            / Disp(8.0)))
+            * ((c % Disp(-2.0)) * f))
+            * ((-(f % (e / Disp(2.0)))) % (a * ((-(c + b)) % b)))),
+        (((((-(h * (Disp(2.0) + c))) + a)
+            + ((((a % Disp(-2.0)) / Disp(2.0)) % (-(a * b))) + (d * (-(d - Disp(4.0))))))
+            + ((g + c) - (((c * (Disp(3.0) % f)) + (f + c)) * b)))
+            - (((((Disp(-1.0) * e) / Disp(8.0)) % (a + (-(f * h)))) % (e - (-(Disp(1.0) % g))))
+                + e)),
+        (-((((-(Disp(4.0) * ((b / Disp(8.0)) / Disp(2.0)))) / Disp(2.0)) - (-(Disp(-2.0) * g)))
+            + ((((d + (((Disp(-2.0) + (e * c)) - (e + e)) - ((Disp(1.0) / Disp(8.0)) - h)))
+                / Disp(4.0))
+                / Disp(8.0))
+                * ((h - c) / Disp(4.0))))),
+        (((Disp(-1.0) * g) - (((Disp(3.0) + f) / Disp(8.0)) % (d % (g + (-(f - d))))))
+            % (-(((a * Disp(4.0)) / Disp(8.0))
+                * (((h * c) - e)
+                    - (((Disp(1.0) * Disp(3.0)) + e)
+                        * ((((e / Disp(2.0)) * Disp(-2.0)) / Disp(8.0)) * ((c * (e * h)) % e))))))),
+        (((((h / Disp(4.0)) % h)
+            - (-(((d + Disp(-2.0)) % e) * ((h * h) % ((f / Disp(8.0)) - a)))))
+            - ((d - ((c % d) / Disp(2.0))) * (-(Disp(2.0) + c))))
+            / Disp(2.0)),
+        ((((e / Disp(4.0)) + c)
+            % (((Disp(2.0) % c) + (-(Disp(4.0) * Disp(2.0)))) * ((Disp(2.0) / Disp(8.0)) - c)))
+            / Disp(8.0)),
+    ]
+}
+
 #[test]
 fn corpus_3() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_3();
+    let disp = disp_3();
     // case 60
     assert_eq!(
         alg!(
@@ -1753,6 +2265,7 @@ fn corpus_3() {
         "case 60: differs from plain"
     );
     assert_eq!(attr[0], 0.0625, "case 60: attribute form");
+    assert_eq!(disp[0], Disp(0.0625), "case 60: dispatched form");
     // case 61
     assert_eq!(
         alg!(
@@ -1793,6 +2306,7 @@ fn corpus_3() {
         "case 61: differs from plain"
     );
     assert_eq!(attr[1], 0.0, "case 61: attribute form");
+    assert_eq!(disp[1], Disp(0.0), "case 61: dispatched form");
     // case 62
     assert_eq!(
         alg!(((((-((b - a) * e)) - (b * (c + b))) / 8.0) - (-1.0 - g))),
@@ -1805,6 +2319,7 @@ fn corpus_3() {
         "case 62: differs from plain"
     );
     assert_eq!(attr[2], 8.375, "case 62: attribute form");
+    assert_eq!(disp[2], Disp(8.375), "case 62: dispatched form");
     // case 63
     assert_eq!(
         alg!(((((-(f - b)) * (-(h * ((g % ((a * -2.0) - f)) / 2.0)))) / 2.0) / 4.0)),
@@ -1817,6 +2332,7 @@ fn corpus_3() {
         "case 63: differs from plain"
     );
     assert_eq!(attr[3], -0.08349609375, "case 63: attribute form");
+    assert_eq!(disp[3], Disp(-0.08349609375), "case 63: dispatched form");
     // case 64
     assert_eq!(
         alg!(
@@ -1844,6 +2360,7 @@ fn corpus_3() {
         "case 64: differs from plain"
     );
     assert_eq!(attr[4], 0.078125, "case 64: attribute form");
+    assert_eq!(disp[4], Disp(0.078125), "case 64: dispatched form");
     // case 65
     assert_eq!(
         alg!(
@@ -1866,6 +2383,7 @@ fn corpus_3() {
         "case 65: differs from plain"
     );
     assert_eq!(attr[5], -0.419921875, "case 65: attribute form");
+    assert_eq!(disp[5], Disp(-0.419921875), "case 65: dispatched form");
     // case 66
     assert_eq!(
         alg!(
@@ -1891,6 +2409,7 @@ fn corpus_3() {
         "case 66: differs from plain"
     );
     assert_eq!(attr[6], 0.40625, "case 66: attribute form");
+    assert_eq!(disp[6], Disp(0.40625), "case 66: dispatched form");
     // case 67
     assert_eq!(
         alg!(
@@ -1913,6 +2432,7 @@ fn corpus_3() {
         "case 67: differs from plain"
     );
     assert_eq!(attr[7], -1.0, "case 67: attribute form");
+    assert_eq!(disp[7], Disp(-1.0), "case 67: dispatched form");
     // case 68
     assert_eq!(alg!(((a + (d - a)) / 2.0)), 0.25, "case 68: exact value");
     assert_eq!(
@@ -1921,6 +2441,7 @@ fn corpus_3() {
         "case 68: differs from plain"
     );
     assert_eq!(attr[8], 0.25, "case 68: attribute form");
+    assert_eq!(disp[8], Disp(0.25), "case 68: dispatched form");
     // case 69
     assert_eq!(
         alg!(
@@ -1940,6 +2461,7 @@ fn corpus_3() {
         "case 69: differs from plain"
     );
     assert_eq!(attr[9], -0.125, "case 69: attribute form");
+    assert_eq!(disp[9], Disp(-0.125), "case 69: dispatched form");
     // case 70
     assert_eq!(
         alg!(
@@ -1959,6 +2481,7 @@ fn corpus_3() {
         "case 70: differs from plain"
     );
     assert_eq!(attr[10], -1.46875, "case 70: attribute form");
+    assert_eq!(disp[10], Disp(-1.46875), "case 70: dispatched form");
     // case 71
     assert_eq!(
         alg!(
@@ -1987,6 +2510,7 @@ fn corpus_3() {
         "case 71: differs from plain"
     );
     assert_eq!(attr[11], -0.125, "case 71: attribute form");
+    assert_eq!(disp[11], Disp(-0.125), "case 71: dispatched form");
     // case 72
     assert_eq!(
         alg!(
@@ -2009,6 +2533,7 @@ fn corpus_3() {
         "case 72: differs from plain"
     );
     assert_eq!(attr[12], -3.140625, "case 72: attribute form");
+    assert_eq!(disp[12], Disp(-3.140625), "case 72: dispatched form");
     // case 73
     assert_eq!(
         alg!(
@@ -2031,6 +2556,7 @@ fn corpus_3() {
         "case 73: differs from plain"
     );
     assert_eq!(attr[13], -78.84375, "case 73: attribute form");
+    assert_eq!(disp[13], Disp(-78.84375), "case 73: dispatched form");
     // case 74
     assert_eq!(
         alg!(
@@ -2061,6 +2587,7 @@ fn corpus_3() {
         "case 74: differs from plain"
     );
     assert_eq!(attr[14], -0.0008544921875, "case 74: attribute form");
+    assert_eq!(disp[14], Disp(-0.0008544921875), "case 74: dispatched form");
     // case 75
     assert_eq!(
         alg!(
@@ -2085,6 +2612,7 @@ fn corpus_3() {
         "case 75: differs from plain"
     );
     assert_eq!(attr[15], 38.75, "case 75: attribute form");
+    assert_eq!(disp[15], Disp(38.75), "case 75: dispatched form");
     // case 76
     assert_eq!(
         alg!(
@@ -2107,6 +2635,7 @@ fn corpus_3() {
         "case 76: differs from plain"
     );
     assert_eq!(attr[16], 20.839111328125, "case 76: attribute form");
+    assert_eq!(disp[16], Disp(20.839111328125), "case 76: dispatched form");
     // case 77
     assert_eq!(
         alg!(
@@ -2134,6 +2663,7 @@ fn corpus_3() {
         "case 77: differs from plain"
     );
     assert_eq!(attr[17], -11.40625, "case 77: attribute form");
+    assert_eq!(disp[17], Disp(-11.40625), "case 77: dispatched form");
     // case 78
     assert_eq!(
         alg!(
@@ -2156,6 +2686,7 @@ fn corpus_3() {
         "case 78: differs from plain"
     );
     assert_eq!(attr[18], 1.72265625, "case 78: attribute form");
+    assert_eq!(disp[18], Disp(1.72265625), "case 78: dispatched form");
     // case 79
     assert_eq!(
         alg!(((((e / 4.0) + c) % (((2.0 % c) + (-(4.0 * 2.0))) * ((2.0 / 8.0) - c))) / 8.0)),
@@ -2168,6 +2699,7 @@ fn corpus_3() {
         "case 79: differs from plain"
     );
     assert_eq!(attr[19], 0.40625, "case 79: attribute form");
+    assert_eq!(disp[19], Disp(0.40625), "case 79: dispatched form");
 }
 
 #[algebraic]
@@ -2248,10 +2780,119 @@ fn attr_4() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_4() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        (((-((Disp(3.0) * a) - b)) / Disp(8.0))
+            + (-((((b - d) - (b / Disp(2.0))) + ((Disp(-2.0) - (c / Disp(8.0))) * h))
+                % ((g + (f + e)) + b)))),
+        ((((-(g - a)) / Disp(2.0)) - (h / Disp(8.0)))
+            % (((-(Disp(4.0) * a)) / Disp(8.0))
+                * ((-(f
+                    % ((((d % b) + (Disp(3.0) - ((f - h) % (b * a)))) - d)
+                        % (c * (-(Disp(-1.0) + (Disp(-2.0) + (g - e))))))))
+                    + (-(((Disp(3.0) * h) - Disp(4.0))
+                        - ((-((h / Disp(4.0)) - c)) - (-((b + d) % e)))))))),
+        ((((-(f
+            - (-(((Disp(-2.0) / Disp(2.0)) / Disp(4.0))
+                % (-(((a + d) - (c - f)) - Disp(4.0)))))))
+            / Disp(4.0))
+            - ((a * g) % g))
+            % (((h + a) / Disp(4.0)) - (d % b))),
+        (((((Disp(-2.0) - Disp(2.0)) - d)
+            % ((a - Disp(-2.0)) % ((Disp(3.0) + (((e - a) + c) - e)) * Disp(3.0))))
+            - (-(d / Disp(2.0))))
+            / Disp(4.0)),
+        ((((g - ((Disp(-2.0) / Disp(2.0)) + h)) / Disp(4.0))
+            + ((c / Disp(8.0)) + ((d % (f + Disp(3.0))) + a)))
+            / Disp(2.0)),
+        ((-((-(((g * (-(a * e))) % f) * ((f / Disp(2.0)) % c)))
+            * ((e % ((Disp(-2.0) % Disp(4.0)) / Disp(2.0))) * e)))
+            * ((e + (Disp(3.0) - Disp(-2.0))) % (Disp(1.0) - (d + (h - e))))),
+        ((((d - g) + ((-(b - Disp(4.0))) % Disp(-2.0)))
+            * ((g % h)
+                - ((-((f / Disp(2.0)) / Disp(8.0)))
+                    - ((-(Disp(1.0) * f))
+                        - ((((Disp(4.0) * (d + h)) - f) % d) - (Disp(1.0) - Disp(-2.0)))))))
+            * (a % e)),
+        (-(((Disp(-2.0) + (f - Disp(-2.0)))
+            + (((-(((((-(Disp(1.0) + a)) % Disp(-1.0))
+                + ((Disp(2.0) * Disp(1.0)) - (a * b)))
+                * ((f % (-(e - h))) + (f % Disp(1.0))))
+                + (-(Disp(-2.0) / Disp(2.0)))))
+                + Disp(-1.0))
+                - Disp(1.0)))
+            - (f + a))),
+        ((f * (((e * d) / Disp(8.0)) * Disp(1.0)))
+            % ((-(a + ((a * e) / Disp(2.0))))
+                - ((((f / Disp(2.0)) * (-((e - c) + Disp(4.0))))
+                    * (-((((Disp(4.0) % g) / Disp(8.0)) + (-(f % a)))
+                        - ((Disp(2.0) * f) + (-(g / Disp(4.0)))))))
+                    * ((e * h) + (Disp(-2.0) - a))))),
+        ((((h / Disp(4.0)) - (c % (d * g))) * (-(c - c))) % (-(g / Disp(2.0)))),
+        ((-(((Disp(-2.0) / Disp(2.0)) / Disp(2.0)) / Disp(8.0)))
+            % (g + ((d * ((a + Disp(2.0)) * Disp(-2.0))) - Disp(1.0)))),
+        ((d - (((Disp(-1.0) % g) % (Disp(1.0) / Disp(8.0))) % Disp(-1.0))) / Disp(2.0)),
+        (((e % ((Disp(2.0) * a)
+            + ((((Disp(-1.0) / Disp(4.0)) % (Disp(1.0) - (-(Disp(-2.0) * (h % c)))))
+                * (Disp(2.0) - (g % e)))
+                % (((Disp(2.0) - Disp(4.0)) % (c / Disp(2.0))) - (Disp(-2.0) / Disp(8.0))))))
+            * (-((Disp(-1.0) / Disp(4.0)) % g)))
+            + (((h % h) % g) % (-((Disp(-1.0) / Disp(8.0)) + h)))),
+        (((Disp(4.0) + (Disp(-1.0) % g)) / Disp(8.0))
+            + (((Disp(2.0) % (-((a % ((d + Disp(3.0)) - f)) / Disp(8.0)))) / Disp(2.0))
+                * (-(c / Disp(8.0))))),
+        (-(((f % (a % ((((e / Disp(8.0)) / Disp(4.0)) % c) % g))) % b)
+            - ((g % a) % (((Disp(-1.0) * (d / Disp(4.0))) * (((h % e) + f) + d)) / Disp(2.0))))),
+        ((((((Disp(2.0) * a) + (g * g)) % b)
+            * (((Disp(-2.0) - (a * g))
+                + (-((-((b * Disp(1.0)) / Disp(2.0))) + ((c * (b * h)) * (a * g)))))
+                / Disp(8.0)))
+            % ((Disp(4.0) - g) % c))
+            % (-((b * (-(e + (Disp(4.0) / Disp(2.0))))) - (e / Disp(2.0))))),
+        ((-(((Disp(3.0) * f) + (-(b + b)))
+            * (((f / Disp(4.0)) * Disp(1.0))
+                * ((((e - Disp(4.0)) + (b % d)) - (a % Disp(1.0))) - g))))
+            * (-(((f * (-(d - (e % Disp(-2.0)))))
+                - ((((-(a - b)) + e) - (d - (a / Disp(4.0)))) % (-(c + (a * Disp(-2.0))))))
+                / Disp(2.0)))),
+        (-(((Disp(4.0) - (c + Disp(-2.0)))
+            * ((-(((c / Disp(4.0)) % (g / Disp(8.0))) * ((a / Disp(4.0)) + (Disp(1.0) - e))))
+                * (((f / Disp(8.0)) - a) * Disp(-1.0))))
+            / Disp(8.0))),
+        (-((-((Disp(-1.0) - Disp(2.0)) * ((c % h) + (b / Disp(4.0)))))
+            % (-((-(b
+                + (((d / Disp(2.0)) % ((Disp(2.0) * (e / Disp(8.0))) - (a * c)))
+                    + ((((-((h * Disp(3.0)) + e)) / Disp(2.0)) * (e / Disp(4.0))) - e))))
+                + (((a + (Disp(-1.0) - b))
+                    - ((Disp(1.0) + Disp(2.0)) % ((g % (d + Disp(2.0))) / Disp(2.0))))
+                    + ((-((Disp(1.0) * d) / Disp(4.0))) / Disp(4.0))))))),
+        (-((Disp(1.0) / Disp(2.0))
+            * ((((-(g / Disp(8.0))) % ((Disp(3.0) - h) * d))
+                - (((g - (e + ((f / Disp(4.0)) * b)))
+                    - ((((-(h - Disp(1.0))) / Disp(4.0))
+                        + (((d * b) - Disp(4.0)) % (g + (d / Disp(4.0)))))
+                        / Disp(8.0)))
+                    * (Disp(3.0) % e)))
+                * (c / Disp(4.0))))),
+    ]
+}
+
 #[test]
 fn corpus_4() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_4();
+    let disp = disp_4();
     // case 80
     assert_eq!(
         alg!(
@@ -2271,6 +2912,7 @@ fn corpus_4() {
         "case 80: differs from plain"
     );
     assert_eq!(attr[0], -0.203125, "case 80: attribute form");
+    assert_eq!(disp[0], Disp(-0.203125), "case 80: dispatched form");
     // case 81
     assert_eq!(
         alg!(
@@ -2302,6 +2944,7 @@ fn corpus_4() {
         "case 81: differs from plain"
     );
     assert_eq!(attr[1], -3.984375, "case 81: attribute form");
+    assert_eq!(disp[1], Disp(-3.984375), "case 81: dispatched form");
     // case 82
     assert_eq!(
         alg!(
@@ -2324,6 +2967,7 @@ fn corpus_4() {
         "case 82: differs from plain"
     );
     assert_eq!(attr[2], 0.0, "case 82: attribute form");
+    assert_eq!(disp[2], Disp(0.0), "case 82: dispatched form");
     // case 83
     assert_eq!(
         alg!(
@@ -2346,6 +2990,7 @@ fn corpus_4() {
         "case 83: differs from plain"
     );
     assert_eq!(attr[3], -1.0625, "case 83: attribute form");
+    assert_eq!(disp[3], Disp(-1.0625), "case 83: dispatched form");
     // case 84
     assert_eq!(
         alg!(((((g - ((-2.0 / 2.0) + h)) / 4.0) + ((c / 8.0) + ((d % (f + 3.0)) + a))) / 2.0)),
@@ -2358,6 +3003,7 @@ fn corpus_4() {
         "case 84: differs from plain"
     );
     assert_eq!(attr[4], 3.578125, "case 84: attribute form");
+    assert_eq!(disp[4], Disp(3.578125), "case 84: dispatched form");
     // case 85
     assert_eq!(
         alg!(
@@ -2377,6 +3023,7 @@ fn corpus_4() {
         "case 85: differs from plain"
     );
     assert_eq!(attr[5], 0.0, "case 85: attribute form");
+    assert_eq!(disp[5], Disp(0.0), "case 85: dispatched form");
     // case 86
     assert_eq!(
         alg!(
@@ -2405,6 +3052,7 @@ fn corpus_4() {
         "case 86: differs from plain"
     );
     assert_eq!(attr[6], -79.2421875, "case 86: attribute form");
+    assert_eq!(disp[6], Disp(-79.2421875), "case 86: dispatched form");
     // case 87
     assert_eq!(
         alg!(
@@ -2439,6 +3087,7 @@ fn corpus_4() {
         "case 87: differs from plain"
     );
     assert_eq!(attr[7], 10.0, "case 87: attribute form");
+    assert_eq!(disp[7], Disp(10.0), "case 87: dispatched form");
     // case 88
     assert_eq!(
         alg!(
@@ -2467,6 +3116,7 @@ fn corpus_4() {
         "case 88: differs from plain"
     );
     assert_eq!(attr[8], -0.109375, "case 88: attribute form");
+    assert_eq!(disp[8], Disp(-0.109375), "case 88: dispatched form");
     // case 89
     assert_eq!(
         alg!(((((h / 4.0) - (c % (d * g))) * (-(c - c))) % (-(g / 2.0)))),
@@ -2479,6 +3129,7 @@ fn corpus_4() {
         "case 89: differs from plain"
     );
     assert_eq!(attr[9], 0.0, "case 89: attribute form");
+    assert_eq!(disp[9], Disp(0.0), "case 89: dispatched form");
     // case 90
     assert_eq!(
         alg!(((-(((-2.0 / 2.0) / 2.0) / 8.0)) % (g + ((d * ((a + 2.0) * -2.0)) - 1.0)))),
@@ -2491,6 +3142,7 @@ fn corpus_4() {
         "case 90: differs from plain"
     );
     assert_eq!(attr[10], 0.0625, "case 90: attribute form");
+    assert_eq!(disp[10], Disp(0.0625), "case 90: dispatched form");
     // case 91
     assert_eq!(
         alg!(((d - (((-1.0 % g) % (1.0 / 8.0)) % -1.0)) / 2.0)),
@@ -2503,6 +3155,7 @@ fn corpus_4() {
         "case 91: differs from plain"
     );
     assert_eq!(attr[11], 0.25, "case 91: attribute form");
+    assert_eq!(disp[11], Disp(0.25), "case 91: dispatched form");
     // case 92
     assert_eq!(
         alg!(
@@ -2531,6 +3184,7 @@ fn corpus_4() {
         "case 92: differs from plain"
     );
     assert_eq!(attr[12], -0.125, "case 92: attribute form");
+    assert_eq!(disp[12], Disp(-0.125), "case 92: dispatched form");
     // case 93
     assert_eq!(
         alg!(
@@ -2550,6 +3204,7 @@ fn corpus_4() {
         "case 93: differs from plain"
     );
     assert_eq!(attr[13], 0.3359375, "case 93: attribute form");
+    assert_eq!(disp[13], Disp(0.3359375), "case 93: dispatched form");
     // case 94
     assert_eq!(
         alg!(
@@ -2569,6 +3224,7 @@ fn corpus_4() {
         "case 94: differs from plain"
     );
     assert_eq!(attr[14], -0.0859375, "case 94: attribute form");
+    assert_eq!(disp[14], Disp(-0.0859375), "case 94: dispatched form");
     // case 95
     assert_eq!(
         alg!(
@@ -2596,6 +3252,7 @@ fn corpus_4() {
         "case 95: differs from plain"
     );
     assert_eq!(attr[15], -1.65625, "case 95: attribute form");
+    assert_eq!(disp[15], Disp(-1.65625), "case 95: dispatched form");
     // case 96
     assert_eq!(
         alg!(
@@ -2624,6 +3281,7 @@ fn corpus_4() {
         "case 96: differs from plain"
     );
     assert_eq!(attr[16], -1.224609375, "case 96: attribute form");
+    assert_eq!(disp[16], Disp(-1.224609375), "case 96: dispatched form");
     // case 97
     assert_eq!(
         alg!(
@@ -2649,6 +3307,7 @@ fn corpus_4() {
         "case 97: differs from plain"
     );
     assert_eq!(attr[17], 4.058837890625, "case 97: attribute form");
+    assert_eq!(disp[17], Disp(4.058837890625), "case 97: dispatched form");
     // case 98
     assert_eq!(
         alg!(
@@ -2680,6 +3339,7 @@ fn corpus_4() {
         "case 98: differs from plain"
     );
     assert_eq!(attr[18], 1.5, "case 98: attribute form");
+    assert_eq!(disp[18], Disp(1.5), "case 98: dispatched form");
     // case 99
     assert_eq!(
         alg!(
@@ -2713,6 +3373,7 @@ fn corpus_4() {
         "case 99: differs from plain"
     );
     assert_eq!(attr[19], 35.94970703125, "case 99: attribute form");
+    assert_eq!(disp[19], Disp(35.94970703125), "case 99: dispatched form");
 }
 
 #[algebraic]
@@ -2798,10 +3459,116 @@ fn attr_5() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_5() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        (((((b / Disp(2.0)) * Disp(1.0)) / Disp(8.0))
+            + ((Disp(3.0) - (b + b))
+                + ((-(((-(g / Disp(4.0))) - e) / Disp(2.0))) + (g * Disp(4.0)))))
+            + (((((f * g) % (f % (h + Disp(-2.0)))) - Disp(4.0)) / Disp(4.0))
+                + ((d / Disp(4.0)) - e))),
+        ((((-((g + b) - (c + c)))
+            - (-(((-((Disp(1.0) % Disp(4.0)) / Disp(2.0))) + h) - (-(e * a)))))
+            % ((Disp(1.0) * (-(c - b))) * (h - (c - Disp(1.0)))))
+            * (((b - ((-(h / Disp(4.0))) / Disp(2.0))) / Disp(2.0)) / Disp(4.0))),
+        (((b / Disp(8.0)) + ((g / Disp(4.0)) - d))
+            - ((((e + (a * Disp(1.0))) - g)
+                + (((e - d) - f)
+                    * (((((d + Disp(-2.0)) % d) / Disp(4.0)) % f)
+                        * (((g - d) / Disp(2.0)) * (-((b - g) * a))))))
+                / Disp(4.0))),
+        (((g / Disp(8.0)) % a)
+            + ((((-(g / Disp(8.0))) - (a + e)) + ((Disp(4.0) * Disp(1.0)) - Disp(1.0)))
+                + ((-((e * b)
+                    * ((((c - ((h + c) / Disp(8.0))) / Disp(8.0))
+                        - (((-(((Disp(2.0) / Disp(4.0)) % a) / Disp(8.0))) * h) / Disp(8.0)))
+                        % Disp(1.0))))
+                    + ((g % f) % (Disp(3.0) * d))))),
+        (((-(g / Disp(8.0))) * (g % a))
+            - (((((((-((f % (e + g)) - h)) / Disp(2.0)) % (f % (e % g))) - (a * e)) - h)
+                + (-((Disp(4.0) - ((Disp(1.0) - h) - (g % (b * Disp(-2.0))))) + d)))
+                % c)),
+        ((h + (-((-(d - d))
+            % (((f - (g - Disp(-2.0)))
+                - (h + (-(((g + e) + c) % (((b - f) + h) / Disp(2.0))))))
+                / Disp(2.0)))))
+            - ((e + (e * g)) + ((Disp(-2.0) + d) + f))),
+        (-(((((Disp(3.0) + h) + (c * ((-(h - (a % c))) * g)))
+            * ((((d * c) / Disp(2.0)) + (f * (-((Disp(-2.0) / Disp(4.0)) % e)))) - Disp(4.0)))
+            * ((Disp(1.0) / Disp(4.0)) / Disp(4.0)))
+            - ((h + b) - (c + ((Disp(1.0) % Disp(2.0)) + a))))),
+        (((-(a % h)) / Disp(4.0))
+            % (((Disp(-1.0) / Disp(2.0)) + (g / Disp(2.0)))
+                * ((((Disp(4.0) + (b * (e / Disp(2.0)))) - (h + Disp(3.0)))
+                    % ((Disp(4.0) + (Disp(3.0) + g)) + ((-(e + c)) - ((d * d) - g))))
+                    + (Disp(-2.0) / Disp(4.0))))),
+        ((((Disp(3.0) - (b + e))
+            * (d * ((-((b - e) * (Disp(-2.0) + f))) % ((c % Disp(3.0)) / Disp(8.0)))))
+            - (Disp(1.0) * (b % b)))
+            - (-(((a % h) + (((b / Disp(2.0)) / Disp(4.0)) / Disp(2.0)))
+                % ((((a + d) - e) * g) - ((Disp(4.0) / Disp(2.0)) / Disp(8.0)))))),
+        ((((c / Disp(4.0))
+            % ((e + b)
+                * (((c * (h / Disp(4.0))) - (((d / Disp(8.0)) / Disp(8.0)) % (g + b)))
+                    * Disp(1.0))))
+            / Disp(2.0))
+            * ((((-((e + h) % h)) + (b + (e + d))) - (g * (d % (f - b))))
+                - ((g % (Disp(4.0) % c)) % ((a * c) + Disp(3.0))))),
+        (((a / Disp(8.0)) / Disp(8.0)) / Disp(2.0)),
+        (((-((((-((-((g + Disp(-2.0)) - a)) * c)) - Disp(2.0)) % ((a / Disp(2.0)) / Disp(8.0)))
+            - (-(((-(Disp(3.0) + (-(d % (a + c))))) - (Disp(1.0) / Disp(4.0))) / Disp(4.0)))))
+            * (((f / Disp(2.0)) + Disp(4.0)) / Disp(4.0)))
+            - (e - ((Disp(-2.0) % (a + a)) - (g - (b + a))))),
+        (((f / Disp(8.0)) / Disp(2.0)) - ((d - Disp(1.0)) / Disp(8.0))),
+        ((-(((b * b) * f) * ((Disp(4.0) - (Disp(1.0) / Disp(2.0))) % c))) / Disp(2.0)),
+        ((g / Disp(8.0)) / Disp(2.0)),
+        ((((-(((d * Disp(2.0)) + e) * (f % h))) % ((Disp(1.0) / Disp(4.0)) - e)) / Disp(8.0))
+            % ((((Disp(2.0) + Disp(1.0)) % (e - Disp(1.0))) / Disp(2.0)) * (-(c % g)))),
+        ((((((c * f) - (a + d)) + Disp(4.0))
+            + (((e + (a * ((g / Disp(2.0)) % (-((b * d) / Disp(2.0))))))
+                % ((b * f) / Disp(2.0)))
+                / Disp(2.0)))
+            % ((f * g) + (((d % Disp(-2.0)) * Disp(1.0)) / Disp(2.0))))
+            % ((g + (a / Disp(8.0))) % (g * (Disp(-2.0) * d)))),
+        ((((-(((Disp(4.0) * h) - ((-(a / Disp(8.0))) - f))
+            % ((Disp(-2.0) * b) + ((((g * a) - (-(Disp(2.0) * a))) - h) - h))))
+            % ((Disp(4.0) + Disp(1.0)) / Disp(2.0)))
+            * (((((e * (f + e)) - h) * f)
+                % ((b % Disp(4.0)) % (((h - a) % (((f * e) - h) * c)) - (f / Disp(8.0)))))
+                + b))
+            - e),
+        (((f + b) - Disp(-2.0))
+            % ((((h - Disp(4.0)) - g)
+                * ((-((((((-(f * (-(h * (Disp(3.0) / Disp(8.0)))))) / Disp(4.0))
+                    / Disp(8.0))
+                    % (f * ((Disp(2.0) * e) - Disp(1.0))))
+                    + ((d - (a % Disp(-1.0))) * (b / Disp(4.0))))
+                    + ((Disp(1.0) - d) + Disp(1.0))))
+                    + (Disp(1.0) % a)))
+                % (((e - d) - g) * g))),
+        ((d % Disp(4.0))
+            - (((-(((-(Disp(2.0) / Disp(8.0))) - (-((Disp(1.0) + e) * g)))
+                - (f + (((a % (e / Disp(2.0))) / Disp(8.0)) * ((d / Disp(4.0)) * Disp(2.0))))))
+                / Disp(2.0))
+                % (-((-(c / Disp(8.0))) + (-((Disp(4.0) * Disp(2.0)) / Disp(4.0))))))),
+    ]
+}
+
 #[test]
 fn corpus_5() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_5();
+    let disp = disp_5();
     // case 100
     assert_eq!(
         alg!(
@@ -2824,6 +3591,7 @@ fn corpus_5() {
         "case 100: differs from plain"
     );
     assert_eq!(attr[0], 54.875, "case 100: attribute form");
+    assert_eq!(disp[0], Disp(54.875), "case 100: dispatched form");
     // case 101
     assert_eq!(
         alg!(
@@ -2846,6 +3614,7 @@ fn corpus_5() {
         "case 101: differs from plain"
     );
     assert_eq!(attr[1], 5.196533203125, "case 101: attribute form");
+    assert_eq!(disp[1], Disp(5.196533203125), "case 101: dispatched form");
     // case 102
     assert_eq!(
         alg!(
@@ -2876,6 +3645,7 @@ fn corpus_5() {
         "case 102: differs from plain"
     );
     assert_eq!(attr[2], 5.75, "case 102: attribute form");
+    assert_eq!(disp[2], Disp(5.75), "case 102: dispatched form");
     // case 103
     assert_eq!(
         alg!(
@@ -2910,6 +3680,7 @@ fn corpus_5() {
         "case 103: differs from plain"
     );
     assert_eq!(attr[3], -0.669921875, "case 103: attribute form");
+    assert_eq!(disp[3], Disp(-0.669921875), "case 103: dispatched form");
     // case 104
     assert_eq!(
         alg!(
@@ -2935,6 +3706,7 @@ fn corpus_5() {
         "case 104: differs from plain"
     );
     assert_eq!(attr[4], -7.3125, "case 104: attribute form");
+    assert_eq!(disp[4], Disp(-7.3125), "case 104: dispatched form");
     // case 105
     assert_eq!(
         alg!(
@@ -2957,6 +3729,7 @@ fn corpus_5() {
         "case 105: differs from plain"
     );
     assert_eq!(attr[5], 85.125, "case 105: attribute form");
+    assert_eq!(disp[5], Disp(85.125), "case 105: dispatched form");
     // case 106
     assert_eq!(
         alg!(
@@ -2982,6 +3755,7 @@ fn corpus_5() {
         "case 106: differs from plain"
     );
     assert_eq!(attr[6], 17.544921875, "case 106: attribute form");
+    assert_eq!(disp[6], Disp(17.544921875), "case 106: dispatched form");
     // case 107
     assert_eq!(
         alg!(
@@ -3010,6 +3784,7 @@ fn corpus_5() {
         "case 107: differs from plain"
     );
     assert_eq!(attr[7], 0.0, "case 107: attribute form");
+    assert_eq!(disp[7], Disp(0.0), "case 107: dispatched form");
     // case 108
     assert_eq!(
         alg!(
@@ -3035,6 +3810,7 @@ fn corpus_5() {
         "case 108: differs from plain"
     );
     assert_eq!(attr[8], -0.125, "case 108: attribute form");
+    assert_eq!(disp[8], Disp(-0.125), "case 108: dispatched form");
     // case 109
     assert_eq!(
         alg!(
@@ -3060,6 +3836,7 @@ fn corpus_5() {
         "case 109: differs from plain"
     );
     assert_eq!(attr[9], -10.625, "case 109: attribute form");
+    assert_eq!(disp[9], Disp(-10.625), "case 109: dispatched form");
     // case 110
     assert_eq!(
         alg!((((a / 8.0) / 8.0) / 2.0)),
@@ -3072,6 +3849,7 @@ fn corpus_5() {
         "case 110: differs from plain"
     );
     assert_eq!(attr[10], 0.0234375, "case 110: attribute form");
+    assert_eq!(disp[10], Disp(0.0234375), "case 110: dispatched form");
     // case 111
     assert_eq!(
         alg!(
@@ -3097,6 +3875,7 @@ fn corpus_5() {
         "case 111: differs from plain"
     );
     assert_eq!(attr[11], -4.35546875, "case 111: attribute form");
+    assert_eq!(disp[11], Disp(-4.35546875), "case 111: dispatched form");
     // case 112
     assert_eq!(
         alg!((((f / 8.0) / 2.0) - ((d - 1.0) / 8.0))),
@@ -3109,6 +3888,7 @@ fn corpus_5() {
         "case 112: differs from plain"
     );
     assert_eq!(attr[12], 0.078125, "case 112: attribute form");
+    assert_eq!(disp[12], Disp(0.078125), "case 112: dispatched form");
     // case 113
     assert_eq!(
         alg!(((-(((b * b) * f) * ((4.0 - (1.0 / 2.0)) % c))) / 2.0)),
@@ -3121,6 +3901,7 @@ fn corpus_5() {
         "case 113: differs from plain"
     );
     assert_eq!(attr[13], -1.75, "case 113: attribute form");
+    assert_eq!(disp[13], Disp(-1.75), "case 113: dispatched form");
     // case 114
     assert_eq!(alg!(((g / 8.0) / 2.0)), 0.6875, "case 114: exact value");
     assert_eq!(
@@ -3129,6 +3910,7 @@ fn corpus_5() {
         "case 114: differs from plain"
     );
     assert_eq!(attr[14], 0.6875, "case 114: attribute form");
+    assert_eq!(disp[14], Disp(0.6875), "case 114: dispatched form");
     // case 115
     assert_eq!(
         alg!(
@@ -3148,6 +3930,7 @@ fn corpus_5() {
         "case 115: differs from plain"
     );
     assert_eq!(attr[15], 0.0, "case 115: attribute form");
+    assert_eq!(disp[15], Disp(0.0), "case 115: dispatched form");
     // case 116
     assert_eq!(
         alg!(
@@ -3173,6 +3956,7 @@ fn corpus_5() {
         "case 116: differs from plain"
     );
     assert_eq!(attr[16], 0.25, "case 116: attribute form");
+    assert_eq!(disp[16], Disp(0.25), "case 116: dispatched form");
     // case 117
     assert_eq!(
         alg!(
@@ -3207,6 +3991,7 @@ fn corpus_5() {
         "case 117: differs from plain"
     );
     assert_eq!(attr[17], 7.01953125, "case 117: attribute form");
+    assert_eq!(disp[17], Disp(7.01953125), "case 117: dispatched form");
     // case 118
     assert_eq!(
         alg!(
@@ -3244,6 +4029,7 @@ fn corpus_5() {
         "case 118: differs from plain"
     );
     assert_eq!(attr[18], 0.25, "case 118: attribute form");
+    assert_eq!(disp[18], Disp(0.25), "case 118: dispatched form");
     // case 119
     assert_eq!(
         alg!(
@@ -3272,6 +4058,7 @@ fn corpus_5() {
         "case 119: differs from plain"
     );
     assert_eq!(attr[19], -1.296875, "case 119: attribute form");
+    assert_eq!(disp[19], Disp(-1.296875), "case 119: dispatched form");
 }
 
 #[algebraic]
@@ -3346,10 +4133,115 @@ fn attr_6() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_6() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        ((-((f - (Disp(4.0) - a))
+            % ((((e / Disp(4.0)) * (b % (-(Disp(4.0) / Disp(2.0))))) - (-(c - c)))
+                - (-(b * (d % c))))))
+            % ((Disp(3.0)
+                - (d + ((Disp(2.0) + (((-(c + Disp(-2.0))) - g) % (f * f)))
+                    * ((Disp(1.0) / Disp(8.0)) % Disp(4.0)))))
+                % (-((-(Disp(-2.0) / Disp(2.0))) / Disp(2.0))))),
+        (((Disp(4.0) * ((d / Disp(8.0)) + (Disp(-1.0) - Disp(1.0))))
+            * ((a / Disp(2.0)) % ((-((h * Disp(-2.0)) % (e + (-(Disp(3.0) / Disp(4.0)))))) + a)))
+            * ((((Disp(4.0) / Disp(4.0)) * (-((-(g % d)) * (((-(f % b)) * g) * h)))) * b)
+                + (h * (d + f)))),
+        ((-(((f
+            * ((Disp(4.0) * ((Disp(2.0) + Disp(4.0)) - Disp(-1.0)))
+                - ((e - ((f / Disp(4.0)) - f)) % ((Disp(4.0) * Disp(2.0)) / Disp(2.0)))))
+            + (Disp(-2.0) - (h / Disp(4.0))))
+            + (Disp(2.0) / Disp(4.0))))
+            - ((((a + (d % ((a % c) / Disp(4.0))))
+                - (((a % c) + (f * Disp(4.0))) % (f * ((b * c) * (e + f)))))
+                / Disp(2.0))
+                % (c * (((e * b) % e) - e)))),
+        ((Disp(-2.0) % a)
+            % ((a % ((((g / Disp(8.0)) % c) / Disp(4.0)) % (-(e / Disp(2.0)))))
+                * ((b * (d * ((Disp(1.0) + Disp(3.0)) * c))) * ((f / Disp(4.0)) % g)))),
+        (((g / Disp(4.0)) % (Disp(2.0) + (-(h - (-(b * (d + Disp(-1.0))))))))
+            % (((Disp(3.0) * e) * (c % b))
+                + ((-((((Disp(2.0) % b) - (g - Disp(4.0))) % (Disp(-1.0) % Disp(-2.0)))
+                    + (((Disp(2.0) - h) / Disp(4.0)) + Disp(-2.0))))
+                    / Disp(8.0)))),
+        (-((-((((h / Disp(8.0))
+            - (((Disp(1.0) + d) % (g * (f - a))) + ((f + Disp(4.0)) + (b * (h % f)))))
+            - ((-(b % b)) / Disp(8.0)))
+            * (-(a % (a - (b + a))))))
+            % ((f % (d - Disp(1.0))) * (h - c)))),
+        (-(((Disp(3.0) / Disp(2.0)) / Disp(2.0)) / Disp(8.0))),
+        ((((((-(d / Disp(8.0))) / Disp(2.0)) / Disp(2.0))
+            + (Disp(-1.0) - (-((-(e % (h * (-(Disp(2.0) + g))))) - (b + Disp(3.0))))))
+            - (((e - (-((-(e / Disp(2.0))) / Disp(4.0)))) + ((f / Disp(8.0)) + h)) - Disp(-1.0)))
+            % (((h + (e % Disp(4.0)))
+                + ((((-(a - ((Disp(4.0) - e) / Disp(8.0)))) % d) * f) % Disp(-1.0)))
+                % ((g - (Disp(4.0) % Disp(4.0))) / Disp(8.0)))),
+        (((Disp(1.0) / Disp(8.0))
+            - ((-(a + ((Disp(-2.0) - Disp(-2.0)) * a)))
+                * ((-(Disp(4.0) / Disp(2.0))) + (f / Disp(4.0)))))
+            * (((-(e / Disp(2.0))) + (Disp(-1.0) % e))
+                - ((e - (b - d)) * (Disp(-2.0) / Disp(2.0))))),
+        ((((-(((g - a) - f) * f)) / Disp(2.0)) - (-((((((h % d) - e) + g) / Disp(8.0)) % d) * c)))
+            - (((((g / Disp(2.0)) - (-(h + b))) % (a + (-(Disp(3.0) + Disp(-1.0))))) / Disp(8.0))
+                % (f + (Disp(-2.0) / Disp(2.0))))),
+        (((((c * (h / Disp(4.0))) - Disp(-1.0)) + d) / Disp(8.0)) / Disp(8.0)),
+        (-((((((e / Disp(4.0)) * (Disp(-1.0) + Disp(-1.0))) + (-(h * e)))
+            - (Disp(4.0) - (-(h + e))))
+            % (h % ((f * a) * (e / Disp(2.0)))))
+            + (d / Disp(2.0)))),
+        ((-((g * (g % ((b / Disp(8.0)) + (h / Disp(4.0)))))
+            % (-(((e - f) + (((Disp(2.0) * e) + (-(e - (d - (f + Disp(4.0)))))) - d))
+                - (((c + f) - e) % (Disp(2.0) * d))))))
+            * ((((-(a / Disp(4.0))) / Disp(8.0))
+                + (((g % f) - (c + (((e / Disp(8.0)) * g) + (c % f)))) + c))
+                * (Disp(3.0) - Disp(-2.0)))),
+        ((b * (((-((f % Disp(2.0)) / Disp(8.0))) * ((g - (-(f - a))) / Disp(2.0)))
+            + (Disp(4.0) / Disp(4.0))))
+            / Disp(4.0)),
+        (((((e * Disp(4.0)) - (b % f)) - (Disp(3.0) / Disp(8.0))) / Disp(2.0))
+            - (((((g / Disp(2.0)) - Disp(-2.0)) + (Disp(1.0) * (Disp(-1.0) / Disp(8.0))))
+                - (((h * c) + g) % (h % (g - Disp(1.0)))))
+                % (f % c))),
+        (((((Disp(4.0)
+            - ((d + (b / Disp(4.0)))
+                * ((a % d) - (Disp(2.0) + (-((a / Disp(8.0)) * Disp(-1.0)))))))
+            % (((((-(f + Disp(1.0))) + (Disp(-2.0) - (-(g + c))))
+                % (b + (-(Disp(-1.0) + h))))
+                % ((e + (Disp(-2.0) / Disp(8.0))) / Disp(2.0)))
+                % ((-((Disp(1.0) % b) + (c - g))) % Disp(4.0))))
+            / Disp(4.0))
+            % (-((e / Disp(4.0)) - (e * ((g % (g * e)) / Disp(4.0))))))
+            % (e + ((-(Disp(1.0) / Disp(8.0))) * (b % f)))),
+        (((c * c) - ((f + e) % (d - (c * d)))) / Disp(2.0)),
+        (c / Disp(2.0)),
+        (((((g * e) - c) % h)
+            % ((((((e / Disp(4.0)) + Disp(1.0)) * f) * (e * e)) + (-(a / Disp(8.0))))
+                * (f * (Disp(-2.0) - (Disp(3.0) + e)))))
+            * (a - (g * (e * g)))),
+        ((((-(((-(f - Disp(3.0))) / Disp(2.0)) - (((b / Disp(2.0)) - e) % e)))
+            % (-((Disp(-1.0) + ((-(g * Disp(2.0))) % Disp(3.0)))
+                % ((Disp(4.0) + (Disp(1.0) - c))
+                    + ((g - (-(Disp(4.0) % c))) * (h % (Disp(3.0) + Disp(-1.0))))))))
+            * (-(Disp(3.0) - ((Disp(1.0) % (a + f)) - b))))
+            + (a % c)),
+    ]
+}
+
 #[test]
 fn corpus_6() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_6();
+    let disp = disp_6();
     // case 120
     assert_eq!(
         alg!(
@@ -3375,6 +4267,7 @@ fn corpus_6() {
         "case 120: differs from plain"
     );
     assert_eq!(attr[0], 0.0, "case 120: attribute form");
+    assert_eq!(disp[0], Disp(0.0), "case 120: dispatched form");
     // case 121
     assert_eq!(
         alg!(
@@ -3397,6 +4290,7 @@ fn corpus_6() {
         "case 121: differs from plain"
     );
     assert_eq!(attr[1], 1.08984375, "case 121: attribute form");
+    assert_eq!(disp[1], Disp(1.08984375), "case 121: dispatched form");
     // case 122
     assert_eq!(
         alg!(
@@ -3436,6 +4330,7 @@ fn corpus_6() {
         "case 122: differs from plain"
     );
     assert_eq!(attr[2], -5.984375, "case 122: attribute form");
+    assert_eq!(disp[2], Disp(-5.984375), "case 122: dispatched form");
     // case 123
     assert_eq!(
         alg!(
@@ -3458,6 +4353,7 @@ fn corpus_6() {
         "case 123: differs from plain"
     );
     assert_eq!(attr[3], -0.125, "case 123: attribute form");
+    assert_eq!(disp[3], Disp(-0.125), "case 123: dispatched form");
     // case 124
     assert_eq!(
         alg!(
@@ -3485,6 +4381,7 @@ fn corpus_6() {
         "case 124: differs from plain"
     );
     assert_eq!(attr[4], 0.5, "case 124: attribute form");
+    assert_eq!(disp[4], Disp(0.5), "case 124: dispatched form");
     // case 125
     assert_eq!(
         alg!(
@@ -3510,6 +4407,7 @@ fn corpus_6() {
         "case 125: differs from plain"
     );
     assert_eq!(attr[5], 0.890625, "case 125: attribute form");
+    assert_eq!(disp[5], Disp(0.890625), "case 125: dispatched form");
     // case 126
     assert_eq!(
         alg!((-(((3.0 / 2.0) / 2.0) / 8.0))),
@@ -3522,6 +4420,7 @@ fn corpus_6() {
         "case 126: differs from plain"
     );
     assert_eq!(attr[6], -0.09375, "case 126: attribute form");
+    assert_eq!(disp[6], Disp(-0.09375), "case 126: dispatched form");
     // case 127
     assert_eq!(
         alg!(
@@ -3549,6 +4448,7 @@ fn corpus_6() {
         "case 127: differs from plain"
     );
     assert_eq!(attr[7], 0.046875, "case 127: attribute form");
+    assert_eq!(disp[7], Disp(0.046875), "case 127: dispatched form");
     // case 128
     assert_eq!(
         alg!(
@@ -3568,6 +4468,7 @@ fn corpus_6() {
         "case 128: differs from plain"
     );
     assert_eq!(attr[8], 11.375, "case 128: attribute form");
+    assert_eq!(disp[8], Disp(11.375), "case 128: dispatched form");
     // case 129
     assert_eq!(
         alg!(
@@ -3589,6 +4490,7 @@ fn corpus_6() {
         "case 129: differs from plain"
     );
     assert_eq!(attr[9], 0.15625, "case 129: attribute form");
+    assert_eq!(disp[9], Disp(0.15625), "case 129: dispatched form");
     // case 130
     assert_eq!(
         alg!((((((c * (h / 4.0)) - -1.0) + d) / 8.0) / 8.0)),
@@ -3601,6 +4503,7 @@ fn corpus_6() {
         "case 130: differs from plain"
     );
     assert_eq!(attr[10], 0.02099609375, "case 130: attribute form");
+    assert_eq!(disp[10], Disp(0.02099609375), "case 130: dispatched form");
     // case 131
     assert_eq!(
         alg!(
@@ -3623,6 +4526,7 @@ fn corpus_6() {
         "case 131: differs from plain"
     );
     assert_eq!(attr[11], -0.25, "case 131: attribute form");
+    assert_eq!(disp[11], Disp(-0.25), "case 131: dispatched form");
     // case 132
     assert_eq!(
         alg!(
@@ -3651,6 +4555,7 @@ fn corpus_6() {
         "case 132: differs from plain"
     );
     assert_eq!(attr[12], -16.3818359375, "case 132: attribute form");
+    assert_eq!(disp[12], Disp(-16.3818359375), "case 132: dispatched form");
     // case 133
     assert_eq!(
         alg!(((b * (((-((f % 2.0) / 8.0)) * ((g - (-(f - a))) / 2.0)) + (4.0 / 4.0))) / 4.0)),
@@ -3663,6 +4568,7 @@ fn corpus_6() {
         "case 133: differs from plain"
     );
     assert_eq!(attr[13], -0.435546875, "case 133: attribute form");
+    assert_eq!(disp[13], Disp(-0.435546875), "case 133: dispatched form");
     // case 134
     assert_eq!(
         alg!(
@@ -3687,6 +4593,7 @@ fn corpus_6() {
         "case 134: differs from plain"
     );
     assert_eq!(attr[14], -14.3125, "case 134: attribute form");
+    assert_eq!(disp[14], Disp(-14.3125), "case 134: dispatched form");
     // case 135
     assert_eq!(
         alg!(
@@ -3721,6 +4628,7 @@ fn corpus_6() {
         "case 135: differs from plain"
     );
     assert_eq!(attr[15], 0.0, "case 135: attribute form");
+    assert_eq!(disp[15], Disp(0.0), "case 135: dispatched form");
     // case 136
     assert_eq!(
         alg!((((c * c) - ((f + e) % (d - (c * d)))) / 2.0)),
@@ -3733,10 +4641,12 @@ fn corpus_6() {
         "case 136: differs from plain"
     );
     assert_eq!(attr[16], 12.875, "case 136: attribute form");
+    assert_eq!(disp[16], Disp(12.875), "case 136: dispatched form");
     // case 137
     assert_eq!(alg!((c / 2.0)), 2.5, "case 137: exact value");
     assert_eq!(alg!((c / 2.0)), (c / 2.0), "case 137: differs from plain");
     assert_eq!(attr[17], 2.5, "case 137: attribute form");
+    assert_eq!(disp[17], Disp(2.5), "case 137: dispatched form");
     // case 138
     assert_eq!(
         alg!(
@@ -3761,6 +4671,7 @@ fn corpus_6() {
         "case 138: differs from plain"
     );
     assert_eq!(attr[18], 0.0, "case 138: attribute form");
+    assert_eq!(disp[18], Disp(0.0), "case 138: dispatched form");
     // case 139
     assert_eq!(
         alg!(
@@ -3789,6 +4700,7 @@ fn corpus_6() {
         "case 139: differs from plain"
     );
     assert_eq!(attr[19], 3.0, "case 139: attribute form");
+    assert_eq!(disp[19], Disp(3.0), "case 139: dispatched form");
 }
 
 #[algebraic]
@@ -3854,10 +4766,107 @@ fn attr_7() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_7() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        (e % (-(((f * Disp(-2.0))
+            + ((f * (g - ((b * Disp(3.0)) * d)))
+                + (((Disp(4.0) / Disp(8.0)) - Disp(1.0))
+                    - (h * ((c * Disp(2.0)) - Disp(1.0))))))
+            + (f * ((((a * f) % Disp(-1.0)) / Disp(8.0)) + (Disp(-1.0) % f)))))),
+        (((((h + (((g % b) % (Disp(1.0) - e)) + e)) * Disp(-1.0)) + (Disp(1.0) - f))
+            + ((f * c) - (-(Disp(-1.0) + b))))
+            - ((e * (Disp(3.0) + ((c % Disp(-1.0)) * d))) / Disp(8.0))),
+        ((((-((g % d) % Disp(1.0))) * (d / Disp(4.0)))
+            * ((b / Disp(2.0)) - (-(((h * Disp(-1.0)) + h) % d))))
+            * ((a - ((Disp(3.0) % c) - h)) / Disp(2.0))),
+        (((((Disp(3.0) % Disp(4.0)) * Disp(-2.0)) / Disp(2.0))
+            + (-(((-(h + (Disp(1.0) / Disp(8.0))))
+                % (-((c % (f - (Disp(-2.0) % (-(b % g)))))
+                    - ((Disp(4.0) + (Disp(3.0) - Disp(2.0))) + (-(c % (d % c)))))))
+                % ((-(a % (h % e))) - h))))
+            + (((((b * Disp(3.0)) + b) % Disp(-2.0)) * (a % (a - h))) * (Disp(-2.0) / Disp(2.0)))),
+        ((((((f + (d - (-(Disp(1.0) + Disp(4.0))))) * (-((f - c) - (h - g))))
+            % (((Disp(-2.0) % d) - c) / Disp(8.0)))
+            + (Disp(2.0) - (f - d)))
+            % d)
+            - (((((((Disp(-1.0) / Disp(8.0)) / Disp(8.0)) + (-(e % b))) + Disp(2.0))
+                * (g / Disp(2.0)))
+                + Disp(-2.0))
+                * (g * Disp(4.0)))),
+        ((-((a * b) / Disp(4.0)))
+            % (b * (d
+                - ((Disp(1.0)
+                    * (-(((c + Disp(2.0)) / Disp(2.0)) * ((f * Disp(2.0)) % (Disp(1.0) - g)))))
+                    - b)))),
+        ((-(g
+            + ((Disp(3.0) % ((-(e * f)) * (f / Disp(4.0))))
+                * ((((Disp(4.0) % c) - (d / Disp(8.0))) + Disp(2.0))
+                    % (-(((h - (c % b)) - ((c % g) % b)) / Disp(8.0)))))))
+            + (a + Disp(3.0))),
+        ((g - h)
+            - ((((Disp(3.0) / Disp(2.0)) * (Disp(2.0) * (b / Disp(2.0))))
+                % ((-(Disp(1.0) % e)) * ((Disp(-2.0) / Disp(4.0)) * e)))
+                % ((Disp(4.0) * g) / Disp(2.0)))),
+        ((f - (f - f))
+            - ((a - d) * ((f % (-(g - ((Disp(-1.0) % Disp(3.0)) + (d + a))))) / Disp(4.0)))),
+        ((((-(Disp(2.0) / Disp(8.0)))
+            + (((Disp(3.0) % Disp(4.0)) + ((Disp(3.0) + f) - f))
+                % (((-(h - e)) + c) * Disp(-2.0))))
+            * ((((-(Disp(-2.0) * h)) / Disp(4.0))
+                + ((((a % e) * (d / Disp(2.0))) % (Disp(-2.0) + (e / Disp(4.0)))) - f))
+                * ((c % (f * (g - Disp(3.0)))) - e)))
+            % (f % (Disp(2.0) * g))),
+        (((e / Disp(8.0)) % ((Disp(-2.0) + ((Disp(-1.0) % (g / Disp(8.0))) / Disp(2.0))) + b))
+            * (Disp(3.0)
+                * (-(a
+                    % ((-((b - (c / Disp(2.0))) / Disp(4.0))) % ((g / Disp(2.0)) + Disp(3.0))))))),
+        (Disp(-1.0)
+            + (Disp(-1.0)
+                + (((((c % Disp(-2.0)) - Disp(4.0)) % ((-(((b - a) / Disp(4.0)) + f)) + d))
+                    % (((f / Disp(8.0)) + b) % Disp(4.0)))
+                    + ((d + Disp(3.0)) + ((e * (c * a)) % (Disp(2.0) % ((b * f) * g))))))),
+        ((((Disp(-1.0) - h) * ((a * Disp(1.0)) - Disp(-1.0))) + Disp(-2.0)) / Disp(2.0)),
+        (-((((Disp(4.0) / Disp(8.0)) + (h + d)) * (f / Disp(8.0)))
+            * ((Disp(2.0) * c)
+                - (((f + Disp(4.0)) / Disp(2.0)) * (e + ((Disp(2.0) / Disp(2.0)) / Disp(4.0))))))),
+        (-((((a - (Disp(1.0) / Disp(8.0)))
+            % (-(((-((-(b * d)) / Disp(2.0))) + e)
+                + (((g + (g / Disp(2.0))) / Disp(8.0)) - (h * f)))))
+            * (((-(Disp(3.0) / Disp(4.0))) * (d + (e / Disp(2.0)))) + (b % (a / Disp(4.0)))))
+            + (((Disp(-1.0) + (b - d)) % (h % e))
+                - (Disp(4.0) % ((-(b * Disp(4.0))) / Disp(2.0)))))),
+        (((((h * Disp(-2.0)) % h) / Disp(8.0))
+            * (((-((d % b) * ((h + Disp(-2.0)) + (g % (-((Disp(-2.0) * a) % g)))))) - (h - h))
+                - (a * g)))
+            / Disp(2.0)),
+        (((Disp(-1.0) / Disp(4.0)) / Disp(2.0))
+            + (((Disp(4.0) + Disp(4.0)) % ((b - ((c - g) * Disp(3.0))) - d))
+                * ((Disp(3.0) * Disp(1.0))
+                    - (h * ((b * (Disp(-1.0) * Disp(-1.0))) % ((Disp(-2.0) % Disp(-2.0)) - c)))))),
+        ((-(((a + (-((-(b * Disp(4.0))) + (Disp(3.0) + h)))) - (h - f)) * (d * e)))
+            % (((g + a) / Disp(4.0))
+                + (((-(Disp(-2.0) * f)) % (f + c)) * ((g * ((a - g) * Disp(-2.0))) / Disp(4.0))))),
+        (e / Disp(8.0)),
+        (-((g / Disp(2.0)) / Disp(8.0))),
+    ]
+}
+
 #[test]
 fn corpus_7() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_7();
+    let disp = disp_7();
     // case 140
     assert_eq!(
         alg!(
@@ -3882,6 +4891,7 @@ fn corpus_7() {
         "case 140: differs from plain"
     );
     assert_eq!(attr[0], -3.3515625, "case 140: attribute form");
+    assert_eq!(disp[0], Disp(-3.3515625), "case 140: dispatched form");
     // case 141
     assert_eq!(
         alg!(
@@ -3903,6 +4913,7 @@ fn corpus_7() {
         "case 141: differs from plain"
     );
     assert_eq!(attr[1], 7.75, "case 141: attribute form");
+    assert_eq!(disp[1], Disp(7.75), "case 141: dispatched form");
     // case 142
     assert_eq!(
         alg!(
@@ -3922,6 +4933,7 @@ fn corpus_7() {
         "case 142: differs from plain"
     );
     assert_eq!(attr[2], 0.0, "case 142: attribute form");
+    assert_eq!(disp[2], Disp(0.0), "case 142: dispatched form");
     // case 143
     assert_eq!(
         alg!(
@@ -3953,6 +4965,7 @@ fn corpus_7() {
         "case 143: differs from plain"
     );
     assert_eq!(attr[3], -3.0, "case 143: attribute form");
+    assert_eq!(disp[3], Disp(-3.0), "case 143: dispatched form");
     // case 144
     assert_eq!(
         alg!(
@@ -3980,6 +4993,7 @@ fn corpus_7() {
         "case 144: differs from plain"
     );
     assert_eq!(attr[4], -633.875, "case 144: attribute form");
+    assert_eq!(disp[4], Disp(-633.875), "case 144: dispatched form");
     // case 145
     assert_eq!(
         alg!(
@@ -3999,6 +5013,7 @@ fn corpus_7() {
         "case 145: differs from plain"
     );
     assert_eq!(attr[5], 0.0, "case 145: attribute form");
+    assert_eq!(disp[5], Disp(0.0), "case 145: dispatched form");
     // case 146
     assert_eq!(
         alg!(
@@ -4027,6 +5042,7 @@ fn corpus_7() {
         "case 146: differs from plain"
     );
     assert_eq!(attr[6], -5.00439453125, "case 146: attribute form");
+    assert_eq!(disp[6], Disp(-5.00439453125), "case 146: dispatched form");
     // case 147
     assert_eq!(
         alg!(
@@ -4049,6 +5065,7 @@ fn corpus_7() {
         "case 147: differs from plain"
     );
     assert_eq!(attr[7], 14.125, "case 147: attribute form");
+    assert_eq!(disp[7], Disp(14.125), "case 147: dispatched form");
     // case 148
     assert_eq!(
         alg!(((f - (f - f)) - ((a - d) * ((f % (-(g - ((-1.0 % 3.0) + (d + a))))) / 4.0)))),
@@ -4061,6 +5078,7 @@ fn corpus_7() {
         "case 148: differs from plain"
     );
     assert_eq!(attr[8], 0.09375, "case 148: attribute form");
+    assert_eq!(disp[8], Disp(0.09375), "case 148: dispatched form");
     // case 149
     assert_eq!(
         alg!(
@@ -4086,6 +5104,7 @@ fn corpus_7() {
         "case 149: differs from plain"
     );
     assert_eq!(attr[9], 0.0, "case 149: attribute form");
+    assert_eq!(disp[9], Disp(0.0), "case 149: dispatched form");
     // case 150
     assert_eq!(
         alg!(
@@ -4105,6 +5124,7 @@ fn corpus_7() {
         "case 150: differs from plain"
     );
     assert_eq!(attr[10], 1.96875, "case 150: attribute form");
+    assert_eq!(disp[10], Disp(1.96875), "case 150: dispatched form");
     // case 151
     assert_eq!(
         alg!(
@@ -4133,6 +5153,7 @@ fn corpus_7() {
         "case 151: differs from plain"
     );
     assert_eq!(attr[11], 0.5, "case 151: attribute form");
+    assert_eq!(disp[11], Disp(0.5), "case 151: dispatched form");
     // case 152
     assert_eq!(
         alg!(((((-1.0 - h) * ((a * 1.0) - -1.0)) + -2.0) / 2.0)),
@@ -4145,6 +5166,7 @@ fn corpus_7() {
         "case 152: differs from plain"
     );
     assert_eq!(attr[12], -2.75, "case 152: attribute form");
+    assert_eq!(disp[12], Disp(-2.75), "case 152: dispatched form");
     // case 153
     assert_eq!(
         alg!(
@@ -4164,6 +5186,11 @@ fn corpus_7() {
         "case 153: differs from plain"
     );
     assert_eq!(attr[13], -0.6656494140625, "case 153: attribute form");
+    assert_eq!(
+        disp[13],
+        Disp(-0.6656494140625),
+        "case 153: dispatched form"
+    );
     // case 154
     assert_eq!(
         alg!(
@@ -4189,6 +5216,7 @@ fn corpus_7() {
         "case 154: differs from plain"
     );
     assert_eq!(attr[14], -5.03125, "case 154: attribute form");
+    assert_eq!(disp[14], Disp(-5.03125), "case 154: dispatched form");
     // case 155
     assert_eq!(
         alg!(
@@ -4211,6 +5239,7 @@ fn corpus_7() {
         "case 155: differs from plain"
     );
     assert_eq!(attr[15], 0.0, "case 155: attribute form");
+    assert_eq!(disp[15], Disp(0.0), "case 155: dispatched form");
     // case 156
     assert_eq!(
         alg!(
@@ -4233,6 +5262,7 @@ fn corpus_7() {
         "case 156: differs from plain"
     );
     assert_eq!(attr[16], 21.875, "case 156: attribute form");
+    assert_eq!(disp[16], Disp(21.875), "case 156: dispatched form");
     // case 157
     assert_eq!(
         alg!(
@@ -4252,10 +5282,12 @@ fn corpus_7() {
         "case 157: differs from plain"
     );
     assert_eq!(attr[17], -0.75, "case 157: attribute form");
+    assert_eq!(disp[17], Disp(-0.75), "case 157: dispatched form");
     // case 158
     assert_eq!(alg!((e / 8.0)), -0.875, "case 158: exact value");
     assert_eq!(alg!((e / 8.0)), (e / 8.0), "case 158: differs from plain");
     assert_eq!(attr[18], -0.875, "case 158: attribute form");
+    assert_eq!(disp[18], Disp(-0.875), "case 158: dispatched form");
     // case 159
     assert_eq!(alg!((-((g / 2.0) / 8.0))), -0.6875, "case 159: exact value");
     assert_eq!(
@@ -4264,6 +5296,7 @@ fn corpus_7() {
         "case 159: differs from plain"
     );
     assert_eq!(attr[19], -0.6875, "case 159: attribute form");
+    assert_eq!(disp[19], Disp(-0.6875), "case 159: dispatched form");
 }
 
 #[algebraic]
@@ -4348,10 +5381,125 @@ fn attr_8() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_8() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        (((((Disp(2.0) % (Disp(-2.0) - c)) % e) - (-((d / Disp(4.0)) - Disp(1.0))))
+            - ((-(((f * (Disp(-2.0) % a)) % ((-(c * (b + (-(g * e))))) * d))
+                - ((-((e % e) * Disp(-1.0))) % (Disp(-1.0) * h))))
+                - (Disp(-1.0)
+                    % (((-(Disp(2.0) + ((Disp(3.0) % (h * Disp(3.0))) + h))) % Disp(2.0)) - c))))
+            - ((((Disp(-1.0) * a) - (Disp(-2.0) / Disp(4.0))) * Disp(-2.0)) / Disp(2.0))),
+        ((((-(c % a)) / Disp(2.0)) * ((e / Disp(2.0)) % Disp(3.0)))
+            + ((-(((Disp(-1.0) % g) - ((-(b - (-(g / Disp(2.0))))) / Disp(8.0))) % Disp(3.0)))
+                + (((h - a) % ((Disp(4.0) * (Disp(2.0) - f)) + (Disp(-2.0) + (h + d))))
+                    % (g + (b - c))))),
+        (((e % (-(((-(f / Disp(4.0))) % (c * Disp(-2.0)))
+            % ((d % d) + ((-(d * g)) - (f * ((-(Disp(3.0) / Disp(4.0))) / Disp(2.0))))))))
+            - (Disp(-1.0) * (h * (-((b % c) + d)))))
+            + b),
+        (b / Disp(8.0)),
+        (((b - (a % Disp(-1.0)))
+            % (Disp(2.0) + (-(((e / Disp(4.0)) / Disp(2.0)) - (f % Disp(4.0))))))
+            * ((-(((a - (Disp(-1.0) + ((b - Disp(3.0)) + (f * d)))) % f)
+                - (-(e - ((-(b % (h / Disp(4.0)))) % (-(a - h)))))))
+                / Disp(2.0))),
+        (((a - (e
+            - (-((((Disp(4.0) * g) % (a * (-(a * Disp(2.0))))) * (d + c))
+                * ((Disp(-1.0) / Disp(4.0)) - Disp(-1.0))))))
+            * ((((-((-(a - e)) - f)) * (-(Disp(-1.0) - Disp(2.0))))
+                - ((((((Disp(1.0) * Disp(1.0)) % a) % h) * (Disp(-2.0) % f)) % g) % Disp(4.0)))
+                % (h + e)))
+            + b),
+        ((-((g - (b % a)) + (e * (Disp(-2.0) + c))))
+            + (((((f % b) + (a * Disp(4.0))) / Disp(4.0)) - (e % b))
+                - (((Disp(3.0) - (a * a)) + (-((b * Disp(3.0)) * (a % Disp(1.0))))) / Disp(2.0)))),
+        (((f + ((Disp(2.0) / Disp(8.0))
+            - ((-((-((a - (d + e)) - (Disp(4.0) % Disp(-1.0)))) / Disp(8.0)))
+                % ((Disp(3.0) + (g - h)) - Disp(-1.0)))))
+            * (a % ((h / Disp(4.0)) % g)))
+            / Disp(4.0)),
+        (-(a - (((((a - d) / Disp(8.0))
+            + (((a + (((d * a) + d) + d)) % (-(Disp(2.0) % Disp(4.0)))) - Disp(4.0)))
+            / Disp(8.0))
+            - (((c / Disp(2.0)) + (((d + Disp(1.0)) + g) - g)) + h)))),
+        (-((-((c / Disp(4.0)) - (-(Disp(2.0) / Disp(2.0)))))
+            % ((-((-(((a % (-(Disp(3.0) * Disp(-1.0)))) - g) % b))
+                % (c * (c + (c / Disp(4.0))))))
+                - (-((b - (-(Disp(4.0) + (Disp(-2.0) - g)))) % ((g * f) + h)))))),
+        ((g % (((h - (((-(Disp(1.0) + c)) + (d * Disp(3.0))) / Disp(4.0)))
+            + (-(((((-(((Disp(-1.0) + f) - (d - Disp(4.0))) % h)) % e) - (e / Disp(4.0)))
+                * ((Disp(-1.0) - (e + Disp(1.0))) - (Disp(-2.0) / Disp(4.0))))
+                - ((-(e * c)) + c))))
+            + (f - (-(c - Disp(4.0))))))
+            % ((((-(f + Disp(-2.0))) + ((-((c % a) - d)) / Disp(2.0)))
+                * ((e * (g - Disp(-2.0))) / Disp(2.0)))
+                - d)),
+        ((((c % Disp(4.0)) + (-(e + a))) % (-(h * Disp(1.0))))
+            + (-((((((-(c % a)) % Disp(4.0)) + (b * Disp(-1.0))) / Disp(2.0))
+                - ((Disp(3.0) * g) % (Disp(4.0) - ((Disp(2.0) % a) % c))))
+                / Disp(4.0)))),
+        (((a * ((b - Disp(-1.0)) - (((g % h) - e) * (-(h / Disp(2.0)))))) / Disp(8.0))
+            * (-((((c + (Disp(-1.0) / Disp(8.0))) + h) - (-((Disp(4.0) % (b % g)) % a)))
+                + (((Disp(-1.0) * g) / Disp(8.0)) - (g + (h / Disp(4.0))))))),
+        ((((-((Disp(3.0) / Disp(8.0)) + g)) - (a % e)) - (-((e / Disp(2.0)) * c)))
+            % ((((((b - Disp(4.0)) + (h / Disp(4.0))) * a) / Disp(2.0)) + (-(d % e))) + Disp(3.0))),
+        ((((b / Disp(2.0)) + (Disp(1.0) % (b / Disp(4.0))))
+            + (d % (((((g * (b * Disp(-1.0))) * (f + Disp(3.0))) - (-(g / Disp(8.0))))
+                / Disp(8.0))
+                % (g * (c * g)))))
+            * g),
+        (((Disp(-2.0) + (((-(g + f)) - Disp(-2.0)) - Disp(-1.0)))
+            - ((b + (Disp(-1.0) - (-((c - a) / Disp(2.0)))))
+                % (-((a / Disp(8.0)) % (Disp(-1.0) - h)))))
+            * ((b + ((Disp(1.0) % Disp(4.0)) - ((b % c) % b)))
+                % (((b + g) * (d * Disp(1.0)))
+                    * ((f * (-(Disp(-2.0) * (d / Disp(8.0))))) / Disp(2.0))))),
+        (-((((-((b / Disp(8.0)) % (((d % Disp(2.0)) / Disp(2.0)) - (-(f - Disp(3.0))))))
+            * ((b % h) / Disp(8.0)))
+            * (-(((((a - Disp(2.0)) % c)
+                - (((Disp(3.0) / Disp(2.0)) + (d / Disp(8.0))) / Disp(4.0)))
+                / Disp(8.0))
+                * ((-(Disp(1.0) - f)) % (Disp(4.0) % e)))))
+            - ((e - (c - ((Disp(4.0) - e) - ((Disp(-2.0) - Disp(1.0)) / Disp(8.0)))))
+                - (-(h * d))))),
+        ((((f + b) / Disp(2.0))
+            + ((((-(d + (-(f % (d / Disp(8.0))))))
+                + (-(Disp(-2.0)
+                    * ((-(((a / Disp(4.0)) - ((d * (e / Disp(8.0))) - (c * Disp(1.0))))
+                        / Disp(2.0)))
+                        % (e * e)))))
+                + a)
+                + (f * ((e - ((g / Disp(8.0)) / Disp(8.0))) + c))))
+            * (Disp(-2.0) * (((-(Disp(1.0) * c)) - c) / Disp(4.0)))),
+        ((-(((b % h) - h) % ((-(Disp(3.0) * ((a / Disp(4.0)) / Disp(8.0)))) * Disp(-1.0))))
+            - (((c - (Disp(1.0) + Disp(3.0))) / Disp(4.0)) * ((c - Disp(3.0)) / Disp(8.0)))),
+        (-(((-((((f * a) - ((d + (b % f)) + d))
+            * (((d / Disp(8.0)) % ((-((c * h) / Disp(2.0))) - c)) - f))
+            * Disp(2.0)))
+            - ((((Disp(3.0) + ((h - f) - d)) - (Disp(2.0) / Disp(4.0))) / Disp(2.0))
+                - (-((e - c) - d))))
+            - ((((Disp(3.0) * (e + b)) * (-(h / Disp(4.0))))
+                * (f * ((h % b) % (e * Disp(2.0)))))
+                - ((Disp(-1.0) / Disp(2.0)) % f)))),
+    ]
+}
+
 #[test]
 fn corpus_8() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_8();
+    let disp = disp_8();
     // case 160
     assert_eq!(
         alg!(
@@ -4380,6 +5528,7 @@ fn corpus_8() {
         "case 160: differs from plain"
     );
     assert_eq!(attr[0], -2.875, "case 160: attribute form");
+    assert_eq!(disp[0], Disp(-2.875), "case 160: dispatched form");
     // case 161
     assert_eq!(
         alg!(
@@ -4402,6 +5551,7 @@ fn corpus_8() {
         "case 161: differs from plain"
     );
     assert_eq!(attr[1], -2.0625, "case 161: attribute form");
+    assert_eq!(disp[1], Disp(-2.0625), "case 161: dispatched form");
     // case 162
     assert_eq!(
         alg!(
@@ -4427,10 +5577,12 @@ fn corpus_8() {
         "case 162: differs from plain"
     );
     assert_eq!(attr[2], -2.1875, "case 162: attribute form");
+    assert_eq!(disp[2], Disp(-2.1875), "case 162: dispatched form");
     // case 163
     assert_eq!(alg!((b / 8.0)), -0.25, "case 163: exact value");
     assert_eq!(alg!((b / 8.0)), (b / 8.0), "case 163: differs from plain");
     assert_eq!(attr[3], -0.25, "case 163: attribute form");
+    assert_eq!(disp[3], Disp(-0.25), "case 163: dispatched form");
     // case 164
     assert_eq!(
         alg!(
@@ -4456,6 +5608,7 @@ fn corpus_8() {
         "case 164: differs from plain"
     );
     assert_eq!(attr[4], -6.875, "case 164: attribute form");
+    assert_eq!(disp[4], Disp(-6.875), "case 164: dispatched form");
     // case 165
     assert_eq!(
         alg!(
@@ -4486,6 +5639,7 @@ fn corpus_8() {
         "case 165: differs from plain"
     );
     assert_eq!(attr[5], -53.75, "case 165: attribute form");
+    assert_eq!(disp[5], Disp(-53.75), "case 165: dispatched form");
     // case 166
     assert_eq!(
         alg!(
@@ -4508,6 +5662,7 @@ fn corpus_8() {
         "case 166: differs from plain"
     );
     assert_eq!(attr[6], 15.0625, "case 166: attribute form");
+    assert_eq!(disp[6], Disp(15.0625), "case 166: dispatched form");
     // case 167
     assert_eq!(
         alg!(
@@ -4533,6 +5688,7 @@ fn corpus_8() {
         "case 167: differs from plain"
     );
     assert_eq!(attr[7], 0.0, "case 167: attribute form");
+    assert_eq!(disp[7], Disp(0.0), "case 167: dispatched form");
     // case 168
     assert_eq!(
         alg!(
@@ -4554,6 +5710,7 @@ fn corpus_8() {
         "case 168: differs from plain"
     );
     assert_eq!(attr[8], -7.1484375, "case 168: attribute form");
+    assert_eq!(disp[8], Disp(-7.1484375), "case 168: dispatched form");
     // case 169
     assert_eq!(
         alg!(
@@ -4576,6 +5733,7 @@ fn corpus_8() {
         "case 169: differs from plain"
     );
     assert_eq!(attr[9], 0.75, "case 169: attribute form");
+    assert_eq!(disp[9], Disp(0.75), "case 169: dispatched form");
     // case 170
     assert_eq!(
         alg!(
@@ -4607,6 +5765,7 @@ fn corpus_8() {
         "case 170: differs from plain"
     );
     assert_eq!(attr[10], 11.0, "case 170: attribute form");
+    assert_eq!(disp[10], Disp(11.0), "case 170: dispatched form");
     // case 171
     assert_eq!(
         alg!(
@@ -4632,6 +5791,7 @@ fn corpus_8() {
         "case 171: differs from plain"
     );
     assert_eq!(attr[11], 0.25, "case 171: attribute form");
+    assert_eq!(disp[11], Disp(0.25), "case 171: dispatched form");
     // case 172
     assert_eq!(
         alg!(
@@ -4654,6 +5814,7 @@ fn corpus_8() {
         "case 172: differs from plain"
     );
     assert_eq!(attr[12], -4.093505859375, "case 172: attribute form");
+    assert_eq!(disp[12], Disp(-4.093505859375), "case 172: dispatched form");
     // case 173
     assert_eq!(
         alg!(
@@ -4673,6 +5834,7 @@ fn corpus_8() {
         "case 173: differs from plain"
     );
     assert_eq!(attr[13], -5.6875, "case 173: attribute form");
+    assert_eq!(disp[13], Disp(-5.6875), "case 173: dispatched form");
     // case 174
     assert_eq!(
         alg!(
@@ -4695,6 +5857,7 @@ fn corpus_8() {
         "case 174: differs from plain"
     );
     assert_eq!(attr[14], -5.5, "case 174: attribute form");
+    assert_eq!(disp[14], Disp(-5.5), "case 174: dispatched form");
     // case 175
     assert_eq!(
         alg!(
@@ -4720,6 +5883,7 @@ fn corpus_8() {
         "case 175: differs from plain"
     );
     assert_eq!(attr[15], 0.158203125, "case 175: attribute form");
+    assert_eq!(disp[15], Disp(0.158203125), "case 175: dispatched form");
     // case 176
     assert_eq!(
         alg!(
@@ -4745,6 +5909,7 @@ fn corpus_8() {
         "case 176: differs from plain"
     );
     assert_eq!(attr[16], -0.6875, "case 176: attribute form");
+    assert_eq!(disp[16], Disp(-0.6875), "case 176: dispatched form");
     // case 177
     assert_eq!(
         alg!(
@@ -4779,6 +5944,7 @@ fn corpus_8() {
         "case 177: differs from plain"
     );
     assert_eq!(attr[17], -25.52734375, "case 177: attribute form");
+    assert_eq!(disp[17], Disp(-25.52734375), "case 177: dispatched form");
     // case 178
     assert_eq!(
         alg!(
@@ -4798,6 +5964,7 @@ fn corpus_8() {
         "case 178: differs from plain"
     );
     assert_eq!(attr[18], -0.1875, "case 178: attribute form");
+    assert_eq!(disp[18], Disp(-0.1875), "case 178: dispatched form");
     // case 179
     assert_eq!(
         alg!(
@@ -4829,6 +5996,7 @@ fn corpus_8() {
         "case 179: differs from plain"
     );
     assert_eq!(attr[19], -11.5673828125, "case 179: attribute form");
+    assert_eq!(disp[19], Disp(-11.5673828125), "case 179: dispatched form");
 }
 
 #[algebraic]
@@ -4910,10 +6078,128 @@ fn attr_9() -> [f64; 20] {
     ]
 }
 
+#[algebraic]
+fn disp_9() -> [Disp; 20] {
+    let (a, b, c, d, e, f, g, h) = (
+        Disp(A),
+        Disp(B),
+        Disp(C),
+        Disp(D),
+        Disp(E),
+        Disp(F),
+        Disp(G),
+        Disp(H),
+    );
+    [
+        ((-((-((Disp(1.0) % c) / Disp(4.0)))
+            + ((Disp(4.0) - ((-(h * h)) * f)) * ((Disp(-1.0) / Disp(2.0)) % (c + e)))))
+            * ((((e / Disp(4.0)) * (h * (a * Disp(-1.0)))) - (Disp(3.0) * a)) / Disp(2.0))),
+        ((((Disp(4.0) - Disp(-1.0)) * a) / Disp(8.0))
+            + ((((c - ((a / Disp(4.0)) % f)) + d) * (Disp(-1.0) * c)) / Disp(4.0))),
+        (((((((e / Disp(4.0)) / Disp(4.0))
+            % ((-((-(a * g)) % Disp(2.0))) - ((a - h) / Disp(2.0))))
+            % (c - e))
+            / Disp(4.0))
+            - (Disp(3.0) + Disp(4.0)))
+            % ((-(((g / Disp(2.0)) - Disp(-1.0)) - Disp(4.0))) / Disp(4.0))),
+        (((c - (d * (Disp(1.0) * (e + g))))
+            * (-(((Disp(-2.0) % ((-(e - (-(g * c)))) % ((e / Disp(2.0)) + (-(h * h)))))
+                - ((Disp(2.0) - (d - Disp(3.0))) / Disp(8.0)))
+                * (h + d))))
+            * (-((a + d) / Disp(2.0)))),
+        ((((-(g / Disp(8.0))) * (e - e)) % (Disp(3.0) - (c / Disp(4.0))))
+            * (((b + c) / Disp(8.0))
+                - ((((Disp(3.0) + h) % d)
+                    + (((-((f + Disp(2.0)) - (Disp(2.0) / Disp(2.0)))) / Disp(4.0))
+                        - ((Disp(-1.0) - (Disp(-2.0) % (-(e + f)))) + (-(b % Disp(3.0))))))
+                    * (-((-((-(Disp(4.0) + (c / Disp(8.0)))) - (-(a % g))))
+                        * (Disp(-1.0) - Disp(2.0))))))),
+        (-(((-((-(g * ((Disp(-1.0) - g) * b))) * (e - h)))
+            * (((((Disp(1.0) + c) * Disp(-2.0)) * Disp(2.0)) / Disp(8.0)) / Disp(2.0)))
+            % (-(((Disp(-2.0) / Disp(4.0)) % (g * (d / Disp(2.0))))
+                * (((Disp(3.0) / Disp(8.0)) / Disp(4.0)) / Disp(8.0)))))),
+        (((a + (a / Disp(8.0))) + (h / Disp(4.0)))
+            + (-((((h * f) % ((g + c) % ((g - (c - d)) + (Disp(4.0) * a)))) / Disp(2.0))
+                * (((d % Disp(4.0)) / Disp(4.0)) % (h - (Disp(-1.0) * Disp(4.0))))))),
+        ((((-((-((((Disp(2.0) - d) * c) * c) - d))
+            * ((h * (g + e))
+                - ((Disp(4.0) / Disp(2.0)) * ((d / Disp(8.0)) - (Disp(-1.0) * h))))))
+            - g)
+            % ((Disp(4.0) * (-(c * Disp(2.0))))
+                + (d - (((Disp(-1.0) - Disp(4.0)) * c) / Disp(4.0)))))
+            % (((((Disp(2.0) / Disp(4.0)) - c) % Disp(4.0)) / Disp(8.0))
+                * ((e % (-(g + (Disp(2.0) / Disp(8.0))))) - Disp(-2.0)))),
+        (h - ((-((-(e % (Disp(-1.0) / Disp(2.0)))) / Disp(8.0)))
+            - (((e % Disp(2.0)) + (((c % (e * g)) * b) - (-(Disp(-1.0) / Disp(8.0)))))
+                + ((f * (Disp(1.0) * Disp(4.0))) - g)))),
+        (Disp(-1.0)
+            - ((((c - (e / Disp(4.0))) + (((g / Disp(2.0)) % a) * (Disp(2.0) * d)))
+                - ((((((-(b + a)) + h) % g) - ((e * d) * ((a / Disp(4.0)) % d))) % c)
+                    - ((d - h) - ((c * g) % Disp(-1.0)))))
+                / Disp(2.0))),
+        (-(((((g % d) / Disp(8.0)) / Disp(2.0)) + b)
+            + ((((b - f) - g) / Disp(8.0))
+                * (-(((b - c) / Disp(2.0))
+                    * (((c / Disp(4.0)) + ((-((g * a) / Disp(4.0))) + f)) * (Disp(3.0) * h))))))),
+        ((((-((-((b + (-(a % Disp(-2.0))))
+            % ((e + (a * c)) * ((((d * g) - d) - Disp(-2.0)) + (b % e)))))
+            - (e / Disp(2.0))))
+            - Disp(4.0))
+            % ((Disp(4.0) * (f - h)) % g))
+            * (f * ((h / Disp(2.0)) % Disp(1.0)))),
+        ((-(Disp(-2.0) % (e + ((Disp(-1.0) + f) / Disp(2.0))))) / Disp(8.0)),
+        (((((e % h) * (-(Disp(4.0) * (Disp(-2.0) % g)))) % d)
+            - (((-((Disp(-1.0) % Disp(-2.0)) - (b % ((e / Disp(2.0)) - (-(d % g))))))
+                - (b / Disp(4.0)))
+                - Disp(2.0)))
+            % (((g % Disp(-2.0)) / Disp(8.0))
+                * (-(((-(Disp(-1.0) - h)) + c)
+                    + ((Disp(1.0) / Disp(4.0)) + (Disp(4.0) * (a / Disp(8.0)))))))),
+        ((((((Disp(-1.0) + (Disp(-2.0) / Disp(8.0))) * (e / Disp(4.0))) * (f / Disp(4.0)))
+            + Disp(-1.0))
+            + e)
+            + ((((g % b) + Disp(1.0)) / Disp(8.0))
+                - (((c - (-(e / Disp(8.0)))) + Disp(-1.0))
+                    - (((((Disp(-1.0) / Disp(4.0)) % (f + d)) - a) + (c / Disp(2.0)))
+                        / Disp(2.0))))),
+        ((((-((c / Disp(2.0))
+            - ((((a / Disp(8.0)) + (f * f)) % ((-(e + Disp(-2.0))) - a)) % e)))
+            - (Disp(1.0) - g))
+            - (e * (((Disp(3.0) / Disp(2.0)) % e) * Disp(-1.0))))
+            + Disp(2.0)),
+        ((g - a)
+            * ((((((Disp(2.0) + Disp(1.0)) + ((Disp(-1.0) + (h - b)) % (e % Disp(2.0))))
+                + ((e % a) % (g / Disp(2.0))))
+                * h)
+                + ((-(f + g)) / Disp(4.0)))
+                + ((-((-(Disp(-2.0) % a)) * Disp(2.0))) % (-(e + (Disp(3.0) * a)))))),
+        ((((((((-((h / Disp(4.0)) * b)) * (Disp(-1.0) / Disp(2.0))) + h)
+            - ((e - Disp(3.0)) * e))
+            - (((Disp(1.0) - (c - (a / Disp(8.0)))) * (g % Disp(1.0))) * (h / Disp(2.0))))
+            % (-(Disp(3.0) % e)))
+            * (-(g + (Disp(2.0) * d))))
+            * (a - (c
+                + ((c % b)
+                    - ((((a % ((h / Disp(4.0)) - Disp(2.0))) + (-(Disp(3.0) + e)))
+                        * ((d + (d % e)) / Disp(8.0)))
+                        % b))))),
+        (-(((((-(Disp(2.0) + (d % (c * e)))) % (-(a + f)))
+            - (c + ((b % f) - ((Disp(1.0) - b) + Disp(-1.0)))))
+            + (((h / Disp(2.0)) - (g * c)) / Disp(2.0)))
+            - e)),
+        ((((((b / Disp(2.0)) * (Disp(-1.0) % (Disp(3.0) + d)))
+            * ((c / Disp(4.0)) * ((-(g + ((Disp(-1.0) % a) + e))) / Disp(8.0))))
+            + (b - a))
+            % (Disp(1.0) / Disp(4.0)))
+            / Disp(4.0)),
+    ]
+}
+
 #[test]
 fn corpus_9() {
     let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);
     let attr = attr_9();
+    let disp = disp_9();
     // case 180
     assert_eq!(
         alg!(
@@ -4933,6 +6219,11 @@ fn corpus_9() {
         "case 180: differs from plain"
     );
     assert_eq!(attr[0], -10.872711181640625, "case 180: attribute form");
+    assert_eq!(
+        disp[0],
+        Disp(-10.872711181640625),
+        "case 180: dispatched form"
+    );
     // case 181
     assert_eq!(
         alg!(((((4.0 - -1.0) * a) / 8.0) + ((((c - ((a / 4.0) % f)) + d) * (-1.0 * c)) / 4.0))),
@@ -4945,6 +6236,7 @@ fn corpus_9() {
         "case 181: differs from plain"
     );
     assert_eq!(attr[1], -5.0, "case 181: attribute form");
+    assert_eq!(disp[1], Disp(-5.0), "case 181: dispatched form");
     // case 182
     assert_eq!(
         alg!(
@@ -4967,6 +6259,7 @@ fn corpus_9() {
         "case 182: differs from plain"
     );
     assert_eq!(attr[2], -0.234375, "case 182: attribute form");
+    assert_eq!(disp[2], Disp(-0.234375), "case 182: dispatched form");
     // case 183
     assert_eq!(
         alg!(
@@ -4995,6 +6288,7 @@ fn corpus_9() {
         "case 183: differs from plain"
     );
     assert_eq!(attr[3], -5.044921875, "case 183: attribute form");
+    assert_eq!(disp[3], Disp(-5.044921875), "case 183: dispatched form");
     // case 184
     assert_eq!(
         alg!(
@@ -5026,6 +6320,7 @@ fn corpus_9() {
         "case 184: differs from plain"
     );
     assert_eq!(attr[4], 0.0, "case 184: attribute form");
+    assert_eq!(disp[4], Disp(0.0), "case 184: dispatched form");
     // case 185
     assert_eq!(
         alg!(
@@ -5048,6 +6343,7 @@ fn corpus_9() {
         "case 185: differs from plain"
     );
     assert_eq!(attr[5], 0.0, "case 185: attribute form");
+    assert_eq!(disp[5], Disp(0.0), "case 185: dispatched form");
     // case 186
     assert_eq!(
         alg!(
@@ -5070,6 +6366,7 @@ fn corpus_9() {
         "case 186: differs from plain"
     );
     assert_eq!(attr[6], 3.345703125, "case 186: attribute form");
+    assert_eq!(disp[6], Disp(3.345703125), "case 186: dispatched form");
     // case 187
     assert_eq!(
         alg!(
@@ -5098,6 +6395,7 @@ fn corpus_9() {
         "case 187: differs from plain"
     );
     assert_eq!(attr[7], -0.1875, "case 187: attribute form");
+    assert_eq!(disp[7], Disp(-0.1875), "case 187: dispatched form");
     // case 188
     assert_eq!(
         alg!(
@@ -5119,6 +6417,7 @@ fn corpus_9() {
         "case 188: differs from plain"
     );
     assert_eq!(attr[8], -21.25, "case 188: attribute form");
+    assert_eq!(disp[8], Disp(-21.25), "case 188: dispatched form");
     // case 189
     assert_eq!(
         alg!(
@@ -5147,6 +6446,7 @@ fn corpus_9() {
         "case 189: differs from plain"
     );
     assert_eq!(attr[9], -6.0625, "case 189: attribute form");
+    assert_eq!(disp[9], Disp(-6.0625), "case 189: dispatched form");
     // case 190
     assert_eq!(
         alg!(
@@ -5171,6 +6471,7 @@ fn corpus_9() {
         "case 190: differs from plain"
     );
     assert_eq!(attr[10], 16.67333984375, "case 190: attribute form");
+    assert_eq!(disp[10], Disp(16.67333984375), "case 190: dispatched form");
     // case 191
     assert_eq!(
         alg!(
@@ -5201,6 +6502,7 @@ fn corpus_9() {
         "case 191: differs from plain"
     );
     assert_eq!(attr[11], 0.0, "case 191: attribute form");
+    assert_eq!(disp[11], Disp(0.0), "case 191: dispatched form");
     // case 192
     assert_eq!(
         alg!(((-(-2.0 % (e + ((-1.0 + f) / 2.0)))) / 8.0)),
@@ -5213,6 +6515,7 @@ fn corpus_9() {
         "case 192: differs from plain"
     );
     assert_eq!(attr[12], 0.25, "case 192: attribute form");
+    assert_eq!(disp[12], Disp(0.25), "case 192: dispatched form");
     // case 193
     assert_eq!(
         alg!(
@@ -5237,6 +6540,7 @@ fn corpus_9() {
         "case 193: differs from plain"
     );
     assert_eq!(attr[13], 0.59375, "case 193: attribute form");
+    assert_eq!(disp[13], Disp(0.59375), "case 193: dispatched form");
     // case 194
     assert_eq!(
         alg!(
@@ -5262,6 +6566,7 @@ fn corpus_9() {
         "case 194: differs from plain"
     );
     assert_eq!(attr[14], -11.11328125, "case 194: attribute form");
+    assert_eq!(disp[14], Disp(-11.11328125), "case 194: dispatched form");
     // case 195
     assert_eq!(
         alg!(
@@ -5284,6 +6589,7 @@ fn corpus_9() {
         "case 195: differs from plain"
     );
     assert_eq!(attr[15], -0.5625, "case 195: attribute form");
+    assert_eq!(disp[15], Disp(-0.5625), "case 195: dispatched form");
     // case 196
     assert_eq!(
         alg!(
@@ -5311,6 +6617,7 @@ fn corpus_9() {
         "case 196: differs from plain"
     );
     assert_eq!(attr[16], -25.375, "case 196: attribute form");
+    assert_eq!(disp[16], Disp(-25.375), "case 196: dispatched form");
     // case 197
     assert_eq!(
         alg!(
@@ -5347,6 +6654,7 @@ fn corpus_9() {
         "case 197: differs from plain"
     );
     assert_eq!(attr[17], -31.22314453125, "case 197: attribute form");
+    assert_eq!(disp[17], Disp(-31.22314453125), "case 197: dispatched form");
     // case 198
     assert_eq!(
         alg!(
@@ -5369,6 +6677,7 @@ fn corpus_9() {
         "case 198: differs from plain"
     );
     assert_eq!(attr[18], 26.03125, "case 198: attribute form");
+    assert_eq!(disp[18], Disp(26.03125), "case 198: dispatched form");
     // case 199
     assert_eq!(
         alg!(
@@ -5396,4 +6705,5 @@ fn corpus_9() {
         "case 199: differs from plain"
     );
     assert_eq!(attr[19], -0.0546875, "case 199: attribute form");
+    assert_eq!(disp[19], Disp(-0.0546875), "case 199: dispatched form");
 }

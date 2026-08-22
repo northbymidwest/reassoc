@@ -1,0 +1,15 @@
+# A consumer that renames the dependency. Not a workspace member: it exists to
+# be built by `tests/renamed.rs` (and CI), which is the only way to exercise
+# `resolve-crate-name` as a consumer sees it — inside this repository the
+# feature always takes the `FoundCrate::Itself` path, which is how 0.2.3's
+# unresolvable-path bug shipped unseen.
+[package]
+name = "renamed"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+myalg = { package = "reassoc", path = "../..", features = ["resolve-crate-name"] }
+
+[workspace]
