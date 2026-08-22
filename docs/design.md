@@ -164,7 +164,7 @@ call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
 **Everything lexically inside an annotated scope is entered.** Nested items
-were out by default until 0.3.8 on the reading that a nested `fn` "reads like
+were out by default until 0.4.0 on the reading that a nested `fn` "reads like
 a standalone item"; that left a helper silently strict inside a body that
 looked covered — the silent-miss shape the rest of the crate is built to
 avoid — treated `fn sq(x)` and `|x| ..` differently on syntax alone, and once
