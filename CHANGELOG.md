@@ -23,7 +23,10 @@ Notable changes per release. Dates are the publish date.
 ### Documentation
 
 - `limitations.md` notes that clippy's operator lints (`eq_op`, `identity_op`,
-  ..) do not fire inside an algebraic scope.
+  ..) do not fire inside an algebraic scope, and names what keeps `const fn`
+  out: the algebraic operators are `const fn`, the trait call that dispatches
+  to them is not (`const_trait_impl` is unstable); when that stabilises,
+  `const fn` bodies need no rewriter change.
 
 ## 0.5.0 — 2026-08-21
 

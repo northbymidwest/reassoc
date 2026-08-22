@@ -39,10 +39,17 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   arithmetic at all.
 - Const positions are left alone, so arithmetic there keeps ordinary operator
   semantics: `const`/`static` initialisers, inline `const { .. }` blocks, array
-  repeat and type-array lengths, const generic arguments, enum discriminants,
-  and associated consts. `ops::*` are not `const fn`, so rewriting there would
-  fail with `E0015` blamed on the macro. For the same reason `#[algebraic]` on
-  a `const fn` is rejected outright, with an error saying why.
+  repeat and type-array lengths, const generic arguments and parameter
+  defaults, enum discriminants, and associated consts. For the same reason
+  `#[algebraic]` on a `const fn` is rejected outright, and a `const fn` met
+  inside an algebraic scope is skipped if the rewrite would not touch it and
+  an error otherwise. The operators themselves are not the obstacle:
+  `f32::algebraic_add` and friends are `const fn` since 1.98. The dispatch is
+  — `ops::*` reach them through a trait method, and calling a trait method in
+  a `const fn` is still unstable (`const_trait_impl`). When that stabilises the
+  dispatch traits become `const trait`s, `ops::*` become `const fn`, and
+  `const fn` bodies work with no change to the rewriter; until then, a
+  `const fn` kernel calls `algebraic_mul` by hand.
 - Compound assignment on a **non-primitive** type evaluates its right-hand side
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
