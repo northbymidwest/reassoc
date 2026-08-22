@@ -121,7 +121,7 @@ negation is exact anyway.
 
 ```toml
 [dependencies]
-reassoc = "0.5"
+reassoc = "0.6"
 ```
 
 - `alg!(expr)` — rewrite one expression.

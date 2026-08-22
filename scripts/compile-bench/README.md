@@ -12,7 +12,22 @@ scripts/compile-bench.sh --fns 1800 --reps 2   # bigger, quicker
 cargo run --release --manifest-path scripts/compile-bench/expander/Cargo.toml -- some_file.rs
 ```
 
-## Reference run — 2026-08-21, rustc 1.98.0, Apple Silicon
+## Reference run — 2026-08-21, rustc 1.98.0, Apple Silicon (0.6.0)
+
+After the dispatch traits gained the opt-in tag parameter
+(`passthrough!(foreign ..)`), one more inference variable per call:
+
+| variant | cargo check | debug build | release build |
+|---|---|---|---|
+| plain | 0.89s | 1.10s | 1.28s |
+| expanded (dispatch only) | 1.89s | 2.59s | 2.44s |
+| alg (default profile) | 2.71s | 3.37s | 3.22s |
+| alg-opt (`build-override` opt-level 3) | 2.22s | 2.88s | 2.80s |
+
+Per rewritten operator: ~26µs dispatch (was ~21µs before the tag — its whole
+cost), ~21µs expansion (~9µs with optimized macros).
+
+### Previous reference — 2026-08-21, rustc 1.98.0, Apple Silicon (0.5.1)
 
 After the rewriter stopped re-parsing its output (`build.rs`):
 
