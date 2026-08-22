@@ -20,6 +20,17 @@ Notable changes per release. Dates are the publish date.
   Duration`, async closures, union fields, `alg!()` and all-statement blocks,
   and a UI snapshot for `#[algebraic]` on a generic function.
 
+### Tooling
+
+- `scripts/compile-bench.sh` measures compile-time cost on a generated
+  workload in four variants — native operators, the rewriter's output compiled
+  as source (dispatch cost alone), `#[algebraic]` under cargo's defaults, and
+  with proc macros optimized — with the crate's own rewriter driven offline by
+  `scripts/compile-bench/expander/` (also a "show me the expansion" tool).
+  Reference numbers in `scripts/compile-bench/README.md`: ~0.11ms per
+  rewritten operator by default, ~0.02ms of it dispatch, the rest proc-macro
+  expansion at opt-level 0.
+
 ### Documentation
 
 - `limitations.md` notes that clippy's operator lints (`eq_op`, `identity_op`,

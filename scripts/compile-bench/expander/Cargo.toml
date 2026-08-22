@@ -1,0 +1,18 @@
+# Offline expansion of `#[reassoc::algebraic]`, using the crate's own rewriter
+# (included by `#[path]`, so it cannot drift from what ships). The benchmark
+# compiles its output as ordinary source to measure dispatch cost without the
+# proc-macro cost; it is also a handy "show me the expansion" tool:
+#
+#     cargo run --release --manifest-path scripts/compile-bench/expander/Cargo.toml -- file.rs
+[package]
+name = "expander"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+syn = { version = "3", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
+quote = "1"
+proc-macro2 = "1"
+
+[workspace]

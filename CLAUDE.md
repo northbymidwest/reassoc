@@ -22,6 +22,7 @@ cargo test -p reassoc --test codegen -- --ignored   # assembly guard
 ./scripts/codegen-check.sh                          # the guard, run directly
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer
 cargo test -p reassoc --test edition2021 -- --ignored  # the suite as an edition-2021 crate
+scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 
 cargo test -p reassoc --no-default-features                    # core only
 cargo test -p reassoc --no-default-features --features alloc
