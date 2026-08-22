@@ -48,7 +48,8 @@ export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target/codegen-check}"
 
 cargo rustc -p reassoc --release --example dot_kernel -- --emit asm -C opt-level=3 >/dev/null
 
-ASM="$(find "$CARGO_TARGET_DIR/release/examples" -name 'dot_kernel-*.s' -print -quit)"
+# Newest first: an earlier build can leave a stale .s under a different hash.
+ASM="$(ls -t "$CARGO_TARGET_DIR"/release/examples/dot_kernel-*.s 2>/dev/null | head -n1)"
 if [ -z "$ASM" ]; then
   echo "codegen-check: FAIL could not locate generated assembly" >&2
   exit 1
@@ -134,4 +135,18 @@ else
   VECTOR_NOTE="no vector mnemonics found (informational only, not a gate)"
 fi
 
-echo "codegen-check: PASS (dot_sugar~=dot_direct scalar sugar=$SUGAR_SCALAR direct=$DIRECT_SCALAR; dot_plain scalar=$PLAIN_SCALAR; $VECTOR_NOTE)"
+# (4) The index-place compound-assignment path (`y[i] += a * x[i]`, which
+# expands through `ops::add_assign(&mut y[i], ..)`) must match its hand-written
+# form too: merged alias, or identical instruction counts.
+count_insns() {
+  printf '%s' "$1" | grep -cE '^\s+[a-z]' || true
+}
+AXPY_DIRECT_BODY="$(body_of axpy_direct)"
+AXPY_SUGAR_BODY="$(body_of axpy_sugar)"
+if ! merged axpy_sugar axpy_direct && [ "$(count_insns "$AXPY_SUGAR_BODY")" -ne "$(count_insns "$AXPY_DIRECT_BODY")" ]; then
+  echo "codegen-check: FAIL axpy_sugar has $(count_insns "$AXPY_SUGAR_BODY") instructions vs axpy_direct's $(count_insns "$AXPY_DIRECT_BODY") (not merged, not equal)" >&2
+  echo "  the index-place compound-assignment path stopped compiling to the hand-written form" >&2
+  exit 1
+fi
+
+echo "codegen-check: PASS (dot_sugar~=dot_direct scalar sugar=$SUGAR_SCALAR direct=$DIRECT_SCALAR; dot_plain scalar=$PLAIN_SCALAR; axpy_sugar~=axpy_direct; $VECTOR_NOTE)"

@@ -22,6 +22,12 @@ Notable changes per release. Dates are the publish date.
   integer overflow panics at the user's operator rather than inside the crate.
   Free in release: codegen is byte-identical.
 - `#[algebraic]` on a trait method without a body now says that is why.
+- `tests/compound.rs` pins compound assignment end to end — evaluation order
+  and count, drop timing, a RHS that reads or writes the place, every place
+  shape, every built-in type through an index, `String`, generic and
+  non-`Copy` derives — each against native where native compiles. The codegen
+  guard gains an index-place kernel (`y[i] += a * x[i]`) that must compile to
+  the hand-written form.
 
 ## 0.3.5 — 2026-08-21
 

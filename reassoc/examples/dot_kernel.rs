@@ -46,12 +46,35 @@ pub fn dot_plain(a: &[f32], b: &[f32]) -> f32 {
     sum
 }
 
+/// The index-place path: `y[i] += a * x[i]` expands to `ops::add_assign(&mut
+/// y[i], ..)` rather than assigning through a bare path. Must compile to the
+/// same code as the hand-written form; elementwise, so no reduction check.
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn axpy_direct(a: f32, x: &[f32], y: &mut [f32]) {
+    for i in 0..x.len().min(y.len()) {
+        y[i] = y[i].algebraic_add(a.algebraic_mul(x[i]));
+    }
+}
+
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn axpy_sugar(a: f32, x: &[f32], y: &mut [f32]) {
+    for i in 0..x.len().min(y.len()) {
+        y[i] += a * x[i];
+    }
+}
+
 fn main() {
     let v = [1.0f32, 2.0, 3.0, 4.0];
+    let mut y = [1.0f32; 4];
+    axpy_sugar(2.0, &v, &mut y);
     println!(
-        "{} {} {}",
+        "{} {} {} {:?}",
         dot_direct(&v, &v),
         dot_sugar(&v, &v),
-        dot_plain(&v, &v)
+        dot_plain(&v, &v),
+        y
     );
 }
