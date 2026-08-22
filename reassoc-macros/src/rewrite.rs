@@ -28,6 +28,10 @@ pub struct Rewriter {
     /// Errors to report alongside the rewritten item: a `const fn` whose
     /// arithmetic would have been rewritten.
     pub errors: Vec<syn::Error>,
+    /// The facade crate's name in the consumer, looked up once per
+    /// expansion: with `resolve-crate-name` the lookup reads the manifest,
+    /// and it used to run once per operator.
+    krate: String,
 }
 
 impl Rewriter {
@@ -40,6 +44,7 @@ impl Rewriter {
             macros: true,
             in_body: true,
             errors: Vec::new(),
+            krate: crate::krate::name(),
         }
     }
 
@@ -50,7 +55,21 @@ impl Rewriter {
             macros: scope.macros,
             in_body: false,
             errors: Vec::new(),
+            krate: crate::krate::name(),
         }
+    }
+
+    /// `::reassoc::ops::<func>` — every token at `span` except the function
+    /// name, which keeps the call site's.
+    fn ops_fn(&self, span: Span, func: &str) -> Expr {
+        build::path(
+            span,
+            [
+                syn::Ident::new(&self.krate, span),
+                syn::Ident::new("ops", span),
+                syn::Ident::new(func, Span::call_site()),
+            ],
+        )
     }
 
     /// Runs `f` with the visitor marked as inside a function body.
@@ -75,6 +94,7 @@ impl Rewriter {
             macros: self.macros,
             in_body: true,
             errors: Vec::new(),
+            krate: self.krate.clone(),
         };
         let mut clone = body.clone();
         probe.visit_block_mut(&mut clone);
@@ -222,7 +242,7 @@ impl VisitMut for Rewriter {
         visit_mut::visit_expr_mut(self, expr);
 
         let Expr::Binary(binary) = expr else { return };
-        let Some((name, assign)) = dispatch_fn(&binary.op) else {
+        let Some(func) = dispatch_fn(&binary.op) else {
             return;
         };
 
@@ -250,10 +270,13 @@ impl VisitMut for Rewriter {
         let left = unparen(*binary.left);
         let right = unparen(*binary.right);
 
-        if !assign {
-            *expr = build::call(span, ops_fn(span, name), [left, right], Vec::new());
-            return;
-        }
+        let assign = match func {
+            Dispatch::Binary(name) => {
+                *expr = build::call(span, self.ops_fn(span, name), [left, right], Vec::new());
+                return;
+            }
+            Dispatch::Compound(assign) => assign,
+        };
 
         if !is_place_expr(&left) {
             // Mirror rustc's E0067; letting `a + b += x` through would mutate
@@ -288,7 +311,7 @@ impl VisitMut for Rewriter {
         let rhs = syn::Ident::new("__reassoc_rhs_9f2c1a", span);
         let assign = build::call(
             span,
-            ops_fn(span, &format!("{name}_assign")),
+            self.ops_fn(span, assign),
             [build::ref_mut(span, left), build::ident(rhs.clone())],
             vec![build::allow(span, "static_mut_refs")],
         );
@@ -299,19 +322,6 @@ impl VisitMut for Rewriter {
             build::block1(span, assign),
         );
     }
-}
-
-/// `::reassoc::ops::<func>` — every token at `span` except the function
-/// name, which keeps the call site's.
-fn ops_fn(span: Span, func: &str) -> Expr {
-    build::path(
-        span,
-        [
-            crate::krate::ident(span),
-            syn::Ident::new("ops", span),
-            syn::Ident::new(func, Span::call_site()),
-        ],
-    )
 }
 
 impl Rewriter {
@@ -395,21 +405,28 @@ fn is_listed_macro(path: &syn::Path) -> bool {
         .is_some_and(|s| LISTED_MACROS.iter().any(|m| s.ident == m))
 }
 
-/// The dispatch function for an arithmetic operator, and whether the operator
-/// is the compound-assignment form. `None` for everything the rewriter leaves
+/// The dispatch function for an arithmetic operator: `ops::add` for `+`,
+/// `ops::add_assign` for `+=`. `None` for everything the rewriter leaves
 /// alone: comparison, logical, bitwise, shifts.
-fn dispatch_fn(op: &BinOp) -> Option<(&'static str, bool)> {
+#[derive(Clone, Copy)]
+enum Dispatch {
+    Binary(&'static str),
+    Compound(&'static str),
+}
+
+fn dispatch_fn(op: &BinOp) -> Option<Dispatch> {
+    use Dispatch::{Binary, Compound};
     Some(match op {
-        BinOp::Add(_) => ("add", false),
-        BinOp::Sub(_) => ("sub", false),
-        BinOp::Mul(_) => ("mul", false),
-        BinOp::Div(_) => ("div", false),
-        BinOp::Rem(_) => ("rem", false),
-        BinOp::AddAssign(_) => ("add", true),
-        BinOp::SubAssign(_) => ("sub", true),
-        BinOp::MulAssign(_) => ("mul", true),
-        BinOp::DivAssign(_) => ("div", true),
-        BinOp::RemAssign(_) => ("rem", true),
+        BinOp::Add(_) => Binary("add"),
+        BinOp::Sub(_) => Binary("sub"),
+        BinOp::Mul(_) => Binary("mul"),
+        BinOp::Div(_) => Binary("div"),
+        BinOp::Rem(_) => Binary("rem"),
+        BinOp::AddAssign(_) => Compound("add_assign"),
+        BinOp::SubAssign(_) => Compound("sub_assign"),
+        BinOp::MulAssign(_) => Compound("mul_assign"),
+        BinOp::DivAssign(_) => Compound("div_assign"),
+        BinOp::RemAssign(_) => Compound("rem_assign"),
         _ => return None,
     })
 }
@@ -471,7 +488,7 @@ fn is_non_float_constant(expr: &Expr) -> bool {
             matches!(unary.op, UnOp::Neg(_)) && is_non_float_constant(&unary.expr)
         }
         Expr::Binary(binary) => {
-            dispatch_fn(&binary.op).is_some_and(|(_, assign)| !assign)
+            matches!(dispatch_fn(&binary.op), Some(Dispatch::Binary(_)))
                 && is_non_float_constant(&binary.left)
                 && is_non_float_constant(&binary.right)
         }

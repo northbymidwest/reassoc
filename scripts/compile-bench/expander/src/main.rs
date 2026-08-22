@@ -5,9 +5,8 @@
 #![allow(dead_code)]
 
 mod krate {
-    use proc_macro2::Span;
-    pub fn ident(span: Span) -> syn::Ident {
-        syn::Ident::new("reassoc", span)
+    pub fn name() -> String {
+        "reassoc".to_owned()
     }
 }
 #[path = "../../../../reassoc-macros/src/build.rs"]

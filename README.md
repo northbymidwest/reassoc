@@ -222,6 +222,27 @@ neither is an oversight.
 **[docs/diagnostics.md](https://github.com/northbymidwest/reassoc/blob/main/docs/diagnostics.md)** has the worked example, the
 reasoning, and a case-by-case comparison against plain Rust.
 
+## Compile time
+
+The cost scales with the number of operators inside algebraic scopes, not
+with project size: each rewritten operator costs type-check some dispatch
+(the generic call resolving back to an operator) and the proc macro some
+expansion, in roughly equal parts. Cargo compiles proc macros at
+`opt-level = 0` in every profile unless told otherwise; this recovers most of
+the expansion half, at the price of a slower one-off dependency build:
+
+```toml
+[profile.dev.build-override]
+opt-level = 3
+[profile.release.build-override]
+opt-level = 3
+```
+
+`scripts/compile-bench.sh` measures all of this on your own machine; its
+README explains the variants and what remains, and why. Release codegen is
+unaffected either way: the dispatch is `#[inline(always)]` and compiles to the
+same instructions as hand-written algebraic calls.
+
 ## `no_std`
 
 Supported. `default-features = false` gives a core-only build with all

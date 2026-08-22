@@ -32,6 +32,12 @@ Notable changes per release. Dates are the publish date.
   type-check dispatch (~21µs) as most of what remains. Emitted tokens and
   spans are identical: every UI snapshot is unchanged.
 
+- The crate name is looked up once per expansion instead of once per
+  operator; with `resolve-crate-name` that lookup reads the manifest, and it
+  was a measurable per-operator cost.
+- README gains a Compile time section: what the cost scales with, the
+  `build-override` profile setting, and the benchmark to measure it locally.
+
 ### Tooling
 
 - `scripts/compile-bench.sh` measures compile-time cost on a generated

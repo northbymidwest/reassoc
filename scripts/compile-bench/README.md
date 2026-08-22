@@ -14,6 +14,35 @@ cargo run --release --manifest-path scripts/compile-bench/expander/Cargo.toml --
 
 ## Reference run — 2026-08-21, rustc 1.98.0, Apple Silicon
 
+After the rewriter stopped re-parsing its output (`build.rs`):
+
+| variant | cargo check | debug build | release build |
+|---|---|---|---|
+| plain | 0.92s | 1.11s | 1.33s |
+| expanded (dispatch only) | 1.74s | 2.35s | 2.29s |
+| alg (default profile) | 2.54s | 3.21s | 3.08s |
+| alg-opt (`build-override` opt-level 3) | 2.08s | 2.78s | 2.75s |
+
+Per rewritten operator: ~21µs dispatch, ~21µs expansion (~12µs with optimized
+macros). `resolve-crate-name` added ~5µs per operator before the crate name
+was memoized per expansion.
+
+### What remains, and why
+
+`expanded − plain` is type-check resolving each `::reassoc::ops::add(a, b)`:
+infer `A`, `B`, `O`, select `A: AddOut<B, O>` (the blanket that fixes `O` from
+the left type) and `B: AddRhs<A, O>` (candidates indexed by `B`'s type, so the
+number of opted-in types does not matter), confirm, record the instantiation.
+That is intrinsic to type-directed dispatch through traits. The one lever is
+the number of obligations per call, and the second one exists so a bad operand
+still yields the return-type `E0308` with rustc's `.into()` hint and so an
+unsuffixed literal still infers — the design notes record the alternatives
+that were built and rejected. So ~20µs per operator is the floor for this
+design; it is paid per fresh compile of the crate and not again by incremental
+or cached builds of unchanged crates.
+
+### Before that change, same machine
+
 600 functions, ~64 operators each (38k operator tokens), 30 user types; full
 non-incremental builds with dependencies prebuilt; best of 3.
 

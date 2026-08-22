@@ -32,15 +32,9 @@ pub fn name() -> String {
     "reassoc".to_owned()
 }
 
-/// The crate name as an identifier at `span`; the rewriter builds
-/// `::name::ops::add` around it.
-pub fn ident(span: Span) -> syn::Ident {
-    syn::Ident::new(&name(), span)
-}
-
 /// The absolute path to the facade crate as tokens, for `passthrough!`'s
 /// derive output.
 pub fn path() -> TokenStream {
-    let ident = ident(Span::call_site());
+    let ident = syn::Ident::new(&name(), Span::call_site());
     quote!(::#ident)
 }
