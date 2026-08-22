@@ -130,8 +130,14 @@ so the marker is the bound rustc reports. `String`'s in-place impls are for
 `&str` and `&String` concretely, not `&T: AsRef<str>`: a downstream crate may
 implement the marker for `String` with a local type on the right, and a
 generic `&T` would overlap. Native place-first evaluation for overloaded `+=`
-is still not reproduced: it would need method-call syntax for the two-phase
-borrow, which fails on an unsuffixed literal place. Binding names carry a
+is still not reproduced, by choice. It is reachable — a trait method on the
+place, `place.assign_add(rhs)`, keeps the two-phase borrow that lets `v[i] +=
+v[j]` compile, and a *trait* method resolves fine on an unsuffixed literal
+receiver (only inherent methods hit `E0689`) — but native has two orders, RHS
+first for primitives and place first for overloaded types, and a macro that
+cannot see types must pick one for all. RHS first matches the primitives,
+which is what this crate is for, and keeps the bare-path form that a
+`static mut` needs. Binding names carry a
 nonsense suffix because a stable proc macro has no def-site hygiene.
 
 **Const positions are never rewritten** — `ops::*` are not `const fn`, so a
