@@ -1,46 +1,26 @@
-use core::time::Duration;
-use reassoc::ops::{add, mul};
-use reassoc::{passthrough, strict};
+//! `passthrough!` and `#[derive(Passthrough)]`: one line opts a type in, and
+//! every operator it implements — any right-hand type, any output, the
+//! in-place forms, references wherever the type implements them — is
+//! dispatched from then on, exactly as `std::ops` defines it.
+use reassoc::{alg, passthrough, strict};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Vec3(f32, f32, f32);
 
-impl core::ops::Add for Vec3 {
-    type Output = Vec3;
-    fn add(self, o: Vec3) -> Vec3 {
-        Vec3(self.0 + o.0, self.1 + o.1, self.2 + o.2)
-    }
+macro_rules! vec3_ops {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl core::ops::$t for Vec3 {
+            type Output = Vec3;
+            fn $m(self, o: Vec3) -> Vec3 { Vec3(self.0 $op o.0, self.1 $op o.1, self.2 $op o.2) }
+        }
+    )*};
 }
-impl core::ops::Sub for Vec3 {
-    type Output = Vec3;
-    fn sub(self, o: Vec3) -> Vec3 {
-        Vec3(self.0 - o.0, self.1 - o.1, self.2 - o.2)
-    }
-}
-impl core::ops::Mul for Vec3 {
-    type Output = Vec3;
-    fn mul(self, o: Vec3) -> Vec3 {
-        Vec3(self.0 * o.0, self.1 * o.1, self.2 * o.2)
-    }
-}
-impl core::ops::Div for Vec3 {
-    type Output = Vec3;
-    fn div(self, o: Vec3) -> Vec3 {
-        Vec3(self.0 / o.0, self.1 / o.1, self.2 / o.2)
-    }
-}
-impl core::ops::Rem for Vec3 {
-    type Output = Vec3;
-    fn rem(self, o: Vec3) -> Vec3 {
-        Vec3(self.0 % o.0, self.1 % o.1, self.2 % o.2)
-    }
-}
+vec3_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 
-passthrough!(Vec3);
-
+/// `Scaled * u32` — one operator, a foreign right-hand type. Nothing names it:
+/// the opt-in covers whatever the type implements.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Scaled(u32);
-
 impl core::ops::Mul<u32> for Scaled {
     type Output = Scaled;
     fn mul(self, n: u32) -> Scaled {
@@ -48,50 +28,50 @@ impl core::ops::Mul<u32> for Scaled {
     }
 }
 
-passthrough!(mul: Scaled, u32 => Scaled);
+passthrough!(Vec3);
+passthrough!(Scaled);
 
 #[test]
-fn same_type_passthrough_covers_all_five_operators() {
-    let a = Vec3(1.0, 2.0, 3.0);
-    assert_eq!(add(a, a), Vec3(2.0, 4.0, 6.0));
-    assert_eq!(mul(a, a), Vec3(1.0, 4.0, 9.0));
-}
-
-#[test]
-fn heterogeneous_passthrough_covers_one_operator() {
-    assert_eq!(mul(Scaled(3), 4u32), Scaled(12));
+fn one_line_covers_every_operator_the_type_has() {
+    let (a, b) = (Vec3(1.0, 2.0, 3.0), Vec3(1.0, 2.0, 3.0));
+    assert_eq!(alg!(a + b), Vec3(2.0, 4.0, 6.0));
+    assert_eq!(alg!(a - b), Vec3(0.0, 0.0, 0.0));
+    assert_eq!(alg!(a * b), Vec3(1.0, 4.0, 9.0));
+    assert_eq!(alg!(a / b), Vec3(1.0, 1.0, 1.0));
+    assert_eq!(alg!(a % b), Vec3(0.0, 0.0, 0.0));
+    let k = 4u32;
+    assert_eq!(alg!(Scaled(3) * k), Scaled(12));
 }
 
 #[test]
 fn strict_is_an_identity_macro() {
-    let (t, sum, y) = (3.0f32, 2.0f32, 1.0f32);
-    assert_eq!(strict!((t - sum) - y), 0.0);
-    assert_eq!(strict!(Duration::from_secs(1)), Duration::from_secs(1));
+    assert_eq!(strict!(1.0f32 + 2.0), 3.0);
+    let x: f64 = strict!(0.1 + 0.2);
+    assert_eq!(x, 0.1 + 0.2);
 }
-
-// ---- std wrappers, covered without any opt-in ----
 
 #[test]
 fn wrapping_and_saturating_need_no_opt_in() {
     use core::num::{Saturating, Wrapping};
-    assert_eq!(add(Wrapping(250u8), Wrapping(10u8)), Wrapping(4u8)); // wraps
-    assert_eq!(add(Saturating(250u8), Saturating(10u8)), Saturating(255u8)); // saturates
-    assert_eq!(mul(Wrapping(3i64), Wrapping(4i64)), Wrapping(12i64));
-    assert_eq!(
-        reassoc::ops::rem(Wrapping(9u32), Wrapping(4u32)),
-        Wrapping(1u32)
-    );
-    assert_eq!(
-        reassoc::ops::div(Saturating(9i16), Saturating(2i16)),
-        Saturating(4i16)
-    );
+    let (a, b) = (Wrapping(250u8), Wrapping(10u8));
+    assert_eq!(alg!(a + b), Wrapping(4u8));
+    assert_eq!(alg!(a * b), Wrapping(196u8));
+    let (c, d) = (Saturating(250u8), Saturating(10u8));
+    assert_eq!(alg!(c + d), Saturating(255u8));
+    assert_eq!(alg!(c - d), Saturating(240u8));
+    // And the compound forms, through the wrappers' own `AddAssign`.
+    let mut w = a;
+    alg!(w += b);
+    assert_eq!(w, Wrapping(4u8));
+    let mut s = c;
+    alg!(s += d);
+    assert_eq!(s, Saturating(255u8));
 }
 
-// ---- #[derive(Passthrough)] ----
+// ---- the derive ----
 
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
 struct Derived(f32);
-
 macro_rules! derived_ops {
     ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
         impl core::ops::$t for Derived {
@@ -104,21 +84,19 @@ derived_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 
 #[test]
 fn derive_covers_all_five_operators() {
-    let (a, b) = (Derived(6.0), Derived(4.0));
-    assert_eq!(add(a, b), Derived(10.0));
-    assert_eq!(mul(a, b), Derived(24.0));
-    assert_eq!(reassoc::ops::sub(a, b), Derived(2.0));
-    assert_eq!(reassoc::ops::div(a, b), Derived(1.5));
-    assert_eq!(reassoc::ops::rem(a, b), Derived(2.0));
+    let (a, b) = (Derived(6.0), Derived(3.0));
+    assert_eq!(alg!(a + b), Derived(9.0));
+    assert_eq!(alg!(a - b), Derived(3.0));
+    assert_eq!(alg!(a * b), Derived(18.0));
+    assert_eq!(alg!(a / b), Derived(2.0));
+    assert_eq!(alg!(a % b), Derived(0.0));
 }
 
-/// A type that implements only three operators must name them; deriving all
-/// five would fail to compile, since an unsatisfiable `where` bound on a
-/// concrete type is a hard error rather than a lazily-checked one.
+/// A type that implements three operators gets three. Nothing is named, and
+/// nothing is emitted for the two it lacks — `Partial / Partial` is rejected
+/// exactly as native Rust rejects it (`tests/ui/unsupported_type.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, sub, mul)]
 struct Partial(f32);
-
 impl core::ops::Add for Partial {
     type Output = Partial;
     fn add(self, o: Partial) -> Partial {
@@ -139,19 +117,15 @@ impl core::ops::Mul for Partial {
 }
 
 #[test]
-fn derive_can_select_a_subset() {
-    let (a, b) = (Partial(6.0), Partial(4.0));
-    assert_eq!(add(a, b), Partial(10.0));
-    assert_eq!(mul(a, b), Partial(24.0));
-    // `Partial` implements no Div/Rem, and none were derived.
+fn derive_covers_exactly_the_operators_the_type_has() {
+    let (a, b) = (Partial(6.0), Partial(3.0));
+    assert_eq!(alg!(a + b - a * b), Partial(-9.0));
 }
 
-/// Generic types work because the generated `where` bound defers to the
-/// type's own `core::ops` impl.
+/// A generic type is opted in for every instantiation, with the operators
+/// each instantiation has.
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add)]
 struct Pair<T>(T, T);
-
 impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
     type Output = Pair<T>;
     fn add(self, o: Pair<T>) -> Pair<T> {
@@ -161,62 +135,146 @@ impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
 
 #[test]
 fn derive_works_on_generic_types() {
-    assert_eq!(add(Pair(1.0f32, 2.0), Pair(3.0, 4.0)), Pair(4.0f32, 6.0));
-    assert_eq!(add(Pair(1u8, 2u8), Pair(3u8, 4u8)), Pair(4u8, 6u8));
+    assert_eq!(alg!(Pair(1, 2) + Pair(3, 4)), Pair(4, 6));
+    assert_eq!(alg!(Pair(1.5f32, 2.0) + Pair(3.0, 4.0)), Pair(4.5, 6.0));
 }
 
-// ---- reference operands, the iterator shape ----
+/// A `where` clause with a trailing comma is what rustfmt writes for any
+/// multi-line bound list; the derive must reproduce it without `, ,`.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+struct Bounded<T>
+where
+    T: Copy,
+    T: core::ops::Add<Output = T>,
+{
+    v: T,
+}
+impl<T> core::ops::Add for Bounded<T>
+where
+    T: Copy,
+    T: core::ops::Add<Output = T>,
+{
+    type Output = Bounded<T>;
+    fn add(self, o: Bounded<T>) -> Bounded<T> {
+        Bounded { v: self.v + o.v }
+    }
+}
 
-// The borrows are the point: these exercise the `&T` impls, so clippy's
-// suggestion to drop them would delete what is being tested.
-#[allow(clippy::needless_borrows_for_generic_args)]
 #[test]
-fn opted_in_types_accept_reference_operands() {
-    // `passthrough!` type
-    let xs = [Vec3(2.0, 2.0, 2.0), Vec3(3.0, 3.0, 3.0)];
-    let ys = [Vec3(4.0, 4.0, 4.0), Vec3(5.0, 5.0, 5.0)];
-    let got: Vec<Vec3> = xs.iter().zip(&ys).map(|(a, b)| mul(a, b)).collect();
-    assert_eq!(got, vec![Vec3(8.0, 8.0, 8.0), Vec3(15.0, 15.0, 15.0)]);
-    assert_eq!(mul(&xs[0], ys[0]), Vec3(8.0, 8.0, 8.0));
-    assert_eq!(mul(xs[0], &ys[0]), Vec3(8.0, 8.0, 8.0));
-
-    // derived type
-    let ds = [Derived(2.0), Derived(3.0)];
-    let got: Vec<Derived> = ds.iter().zip(&ds).map(|(a, b)| add(a, b)).collect();
-    assert_eq!(got, vec![Derived(4.0), Derived(6.0)]);
+fn derive_accepts_a_where_clause_with_a_trailing_comma() {
+    assert_eq!(alg!(Bounded { v: 1 } + Bounded { v: 2 }), Bounded { v: 3 });
 }
 
-// The borrows are the point: these exercise the `&T` impls, so clippy's
-// suggestion to drop them would delete what is being tested.
-#[allow(clippy::needless_borrows_for_generic_args)]
+/// Derive on an enum and on a type with a lifetime parameter.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+enum Sign {
+    Pos,
+    Neg,
+}
+impl core::ops::Mul for Sign {
+    type Output = Sign;
+    fn mul(self, o: Sign) -> Sign {
+        if self == o { Sign::Pos } else { Sign::Neg }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+struct Tagged<'a>(f32, &'a str);
+impl core::ops::Add for Tagged<'_> {
+    type Output = Self;
+    fn add(self, o: Self) -> Self {
+        Tagged(self.0 + o.0, self.1)
+    }
+}
+impl core::ops::Mul for Tagged<'_> {
+    type Output = Self;
+    fn mul(self, o: Self) -> Self {
+        Tagged(self.0 * o.0, self.1)
+    }
+}
+
+#[test]
+fn derive_on_an_enum_and_a_type_with_a_lifetime() {
+    assert_eq!(alg!(Sign::Neg * Sign::Neg), Sign::Pos);
+    let t = Tagged(2.0, "m");
+    assert_eq!(alg!(t + t * t), Tagged(6.0, "m"));
+}
+
+// ---- references follow the type ----
+
+/// Reference operands work exactly when the type implements them, as native
+/// does: `Vec3` above has no `Add<&Vec3>`, so `&v + v` is rejected there
+/// (`tests/ui/reference_operand_needs_impl.rs`); this type has the impls
+/// and gets every combination.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+struct RefOps(f64);
+impl core::ops::Add for RefOps {
+    type Output = RefOps;
+    fn add(self, o: RefOps) -> RefOps {
+        RefOps(self.0 + o.0)
+    }
+}
+impl core::ops::Add<&RefOps> for RefOps {
+    type Output = RefOps;
+    fn add(self, o: &RefOps) -> RefOps {
+        RefOps(self.0 + o.0)
+    }
+}
+impl core::ops::Add<RefOps> for &RefOps {
+    type Output = RefOps;
+    fn add(self, o: RefOps) -> RefOps {
+        RefOps(self.0 + o.0)
+    }
+}
+impl core::ops::Add<&RefOps> for &RefOps {
+    type Output = RefOps;
+    fn add(self, o: &RefOps) -> RefOps {
+        RefOps(self.0 + o.0)
+    }
+}
+impl core::ops::AddAssign<&RefOps> for RefOps {
+    fn add_assign(&mut self, o: &RefOps) {
+        self.0 += o.0;
+    }
+}
+
+#[test]
+fn reference_operands_follow_the_types_own_impls() {
+    let (a, b) = (RefOps(1.0), RefOps(2.0));
+    assert_eq!(alg!(a + b), RefOps(3.0));
+    assert_eq!(alg!(&a + b), RefOps(3.0));
+    assert_eq!(alg!(a + &b), RefOps(3.0));
+    assert_eq!(alg!(&a + &b), RefOps(3.0));
+    let mut c = a;
+    alg!(c += &b);
+    assert_eq!(c, RefOps(3.0));
+    // Iterator code, where the operands are references.
+    let xs = [a, b];
+    assert_eq!(
+        alg!(xs.iter().fold(RefOps(0.0), |acc, x| acc + x)),
+        RefOps(3.0)
+    );
+}
+
 #[test]
 fn std_wrappers_accept_reference_operands() {
     use core::num::{Saturating, Wrapping};
-    use core::time::Duration;
-    let a = Wrapping(3u32);
-    let b = Saturating(250u8);
-    let d = Duration::from_secs(2);
-    assert_eq!(add(&a, &a), Wrapping(6u32));
-    assert_eq!(add(&b, Saturating(10u8)), Saturating(255u8));
-    assert_eq!(add(&d, &d), Duration::from_secs(4));
-
-    // The heterogeneous pairs take references on either side too, matching
-    // the forward_ref impls `core` provides for them.
-    assert_eq!(mul(&d, 3u32), Duration::from_secs(6));
-    assert_eq!(mul(d, &3u32), Duration::from_secs(6));
-    assert_eq!(mul(&d, &3u32), Duration::from_secs(6));
-    assert_eq!(mul(&3u32, d), Duration::from_secs(6));
+    let (a, b) = (Wrapping(250u8), Wrapping(10u8));
+    assert_eq!(alg!(&a + b), Wrapping(4u8));
+    assert_eq!(alg!(a + &b), Wrapping(4u8));
+    assert_eq!(alg!(&a * &b), Wrapping(196u8));
+    let (c, d) = (Saturating(250u8), Saturating(10u8));
+    assert_eq!(alg!(&c + d), Saturating(255u8));
+    assert_eq!(alg!(c - &d), Saturating(240u8));
+    assert_eq!(alg!(&c - &d), Saturating(240u8));
 }
 
-/// An operator whose output is not its left operand.
-///
-/// `passthrough!` compares the two types as written and declares the output
-/// only when they differ — the blanket assumption covers the ordinary case, and
-/// declaring it there too would collide with it. Nothing extra is written here,
-/// which is the point.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Ray([f64; 2]);
+// ---- outputs that are not the left type ----
 
+/// A dot product: the output is not the left operand. Nothing is declared;
+/// the type's own `Output` is used.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+struct Ray([f64; 2]);
 impl core::ops::Mul for Ray {
     type Output = f64;
     fn mul(self, o: Ray) -> f64 {
@@ -224,27 +282,19 @@ impl core::ops::Mul for Ray {
     }
 }
 
-passthrough!(mul: Ray, Ray => f64);
-
-#[allow(clippy::needless_borrows_for_generic_args)] // borrows are deliberate
 #[test]
 fn an_output_that_is_not_the_left_operand() {
     let (u, v) = (Ray([1.0, 2.0]), Ray([3.0, 4.0]));
-    assert_eq!(mul(u, v), 11.0);
-    assert_eq!(mul(&u, v), 11.0);
-    assert_eq!(mul(u, &v), 11.0);
-    assert_eq!(mul(&u, &v), 11.0);
+    assert_eq!(alg!(u * v), 11.0);
+    let s: f64 = alg!(u * v + 1.0);
+    assert_eq!(s, 12.0);
 }
 
-/// Two heterogeneous opt-ins on one left type, both yielding a type that is
-/// not the left operand. The output trait names the right operand, so these
-/// are distinct impls; keyed on the left type alone they were the same impl
-/// twice, `E0119`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Two operators on one left type, two right types, one foreign output.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
 struct Q(f64);
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct R(f64);
-
 impl core::ops::Mul<Q> for Q {
     type Output = f64;
     fn mul(self, o: Q) -> f64 {
@@ -258,24 +308,19 @@ impl core::ops::Mul<R> for Q {
     }
 }
 
-passthrough!(mul: Q, Q => f64);
-passthrough!(mul: Q, R => f64);
-
-#[allow(clippy::needless_borrows_for_generic_args)] // borrows are deliberate
 #[test]
-fn two_opt_ins_with_the_same_foreign_output() {
+fn two_right_hand_types_with_the_same_foreign_output() {
     let (q, r) = (Q(2.0), R(3.0));
-    assert_eq!(mul(q, q), 4.0);
-    assert_eq!(mul(q, r), 6.0);
-    assert_eq!(mul(&q, &r), 6.0);
-    assert_eq!(mul(q, &r), 6.0);
+    assert_eq!(alg!(q * q), 4.0);
+    assert_eq!(alg!(q * r), 6.0);
 }
 
-/// A non-`Copy` type opts out of the reference impls.
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, add_assign, no_refs)]
-struct Owned(String);
+// ---- non-Copy types and the in-place forms ----
 
+/// A non-`Copy` type: `+` through its `Add`, `+=` through its `AddAssign`,
+/// through a `&mut`, an index, or a bare local alike.
+#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+struct Owned(String);
 impl core::ops::Add for Owned {
     type Output = Owned;
     fn add(self, o: Owned) -> Owned {
@@ -288,24 +333,23 @@ impl core::ops::AddAssign for Owned {
     }
 }
 
-/// A non-`Copy` type's `+=` through a `&mut` or an index goes through its own
-/// `AddAssign`, declared with `add_assign` on the derive or
-/// `passthrough!(add_assign: ..)`. A `Copy` type needs neither: its `+=` is
-/// formed from `+`.
 #[test]
 fn non_copy_compound_assignment_in_place() {
     use reassoc::algebraic;
     #[algebraic]
-    fn bump(v: &mut [Owned], suffix: Owned) {
-        v[0] += suffix;
+    fn bump(v: &mut [Owned], mut local: Owned, suffix: Owned) -> Owned {
+        v[0] += suffix.clone();
+        local += suffix;
+        local
     }
     let mut v = [Owned("a".into())];
-    bump(&mut v, Owned("b".into()));
-    assert_eq!(v[0], Owned("ab".into()));
+    let l = bump(&mut v, Owned("x".into()), Owned("b".into()));
+    assert_eq!((v[0].clone(), l), (Owned("ab".into()), Owned("xb".into())));
 }
 
-/// The macro form, with a right-hand type that is itself a reference: the `&`
-/// arm routes to the value form, so no `&&str` impl and no lifetime to name.
+/// A right-hand type that is itself a reference: `Label + &str`, `Label +=
+/// &str`, through the type's own impls.
+#[derive(reassoc::Passthrough)]
 struct Label(String);
 impl core::ops::Add<&str> for Label {
     type Output = Label;
@@ -318,11 +362,9 @@ impl core::ops::AddAssign<&str> for Label {
         self.0 += o;
     }
 }
-passthrough!(add: Label, &str => Label);
-passthrough!(add_assign: Label, &str);
 
 #[test]
-fn reference_right_operand_takes_the_value_form() {
+fn reference_right_operand() {
     use reassoc::algebraic;
     #[algebraic]
     fn bump(v: &mut [Label], s: &str) -> Label {
@@ -334,69 +376,10 @@ fn reference_right_operand_takes_the_value_form() {
     assert_eq!((v[0].0.as_str(), r.0.as_str()), ("a!", "x!"));
 }
 
-/// A `Copy` type opted in through the per-operator form alone still gets `*=`
-/// through an index, formed from `*`.
-#[test]
-fn copy_per_operator_opt_in_synthesises_compound_assignment() {
-    use reassoc::algebraic;
-    #[algebraic]
-    fn scale(v: &mut [Scaled], k: u32) {
-        v[0] *= k;
-    }
-    let mut v = [Scaled(3)];
-    scale(&mut v, 4);
-    assert_eq!(v[0], Scaled(12));
-}
-
-#[test]
-fn non_copy_types_can_opt_out_of_references() {
-    assert_eq!(
-        add(Owned("a".into()), Owned("b".into())),
-        Owned("ab".into())
-    );
-}
-
-// ---- derive robustness ----
-
-/// A `where` clause with a trailing comma is what rustfmt writes for any
-/// multi-line bound list; the derive must append its own bounds to it without
-/// producing `, ,`.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add)]
-struct Bounded<T>
-where
-    T: Copy,
-{
-    a: T,
-    b: T,
-}
-
-impl<T> core::ops::Add for Bounded<T>
-where
-    T: Copy + core::ops::Add<Output = T>,
-{
-    type Output = Bounded<T>;
-    fn add(self, o: Bounded<T>) -> Bounded<T> {
-        Bounded {
-            a: self.a + o.a,
-            b: self.b + o.b,
-        }
-    }
-}
-
-#[test]
-fn derive_accepts_a_where_clause_with_a_trailing_comma() {
-    let p = Bounded { a: 1.0f32, b: 2.0 };
-    assert_eq!(add(p, p), Bounded { a: 2.0, b: 4.0 });
-}
-
-/// Naming only in-place forms must not also opt the type into all five binary
-/// operators: this type has `AddAssign` and nothing else, and native `+=` on
-/// it is fine.
+/// A type with `AddAssign` and nothing else: native `+=` on it is fine, and
+/// so is the dispatched one; `+` is rejected, as natively.
 #[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
-#[passthrough(add_assign, no_refs)]
 struct InPlaceOnly(String);
-
 impl core::ops::AddAssign for InPlaceOnly {
     fn add_assign(&mut self, o: InPlaceOnly) {
         self.0 += &o.0;
@@ -404,7 +387,7 @@ impl core::ops::AddAssign for InPlaceOnly {
 }
 
 #[test]
-fn derive_with_only_in_place_forms_emits_only_those() {
+fn in_place_only_type() {
     use reassoc::algebraic;
     #[algebraic]
     fn go(v: &mut [InPlaceOnly], t: InPlaceOnly) {
@@ -415,9 +398,32 @@ fn derive_with_only_in_place_forms_emits_only_those() {
     assert_eq!(v[0], InPlaceOnly("ab".into()));
 }
 
-// ---- scaling a user vector by a float literal, the commonest kernel shape ----
+/// Five operators by value on a non-`Copy` type.
+#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+struct Big(i64);
+macro_rules! big_ops {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl core::ops::$t for Big {
+            type Output = Big;
+            fn $m(self, o: Big) -> Big { Big(self.0 $op o.0) }
+        }
+    )*};
+}
+big_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[test]
+fn non_copy_type_by_value() {
+    let (a, b) = (Big(7), Big(2));
+    assert_eq!(alg!(a.clone() + b.clone()), Big(9));
+    assert_eq!(alg!(a.clone() - b.clone()), Big(5));
+    assert_eq!(alg!(a.clone() * b.clone()), Big(14));
+    assert_eq!(alg!(a.clone() / b.clone()), Big(3));
+    assert_eq!(alg!(a % b), Big(1));
+}
+
+// ---- scalars ----
+
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
 struct V2(f32, f32);
 impl core::ops::Add for V2 {
     type Output = V2;
@@ -434,7 +440,7 @@ impl core::ops::Mul<f32> for V2 {
 impl core::ops::Mul<V2> for f32 {
     type Output = V2;
     fn mul(self, v: V2) -> V2 {
-        V2(self * v.0, self * v.1)
+        v * self
     }
 }
 impl core::ops::Div<f32> for V2 {
@@ -443,14 +449,23 @@ impl core::ops::Div<f32> for V2 {
         V2(self.0 / k, self.1 / k)
     }
 }
-passthrough!(add: V2, V2 => V2);
-passthrough!(mul: V2, f32 => V2);
-passthrough!(mul: f32, V2 => V2);
-passthrough!(div: V2, f32 => V2);
+impl core::ops::MulAssign<f32> for V2 {
+    fn mul_assign(&mut self, k: f32) {
+        self.0 *= k;
+        self.1 *= k;
+    }
+}
+impl core::ops::DivAssign<f32> for V2 {
+    fn div_assign(&mut self, k: f32) {
+        self.0 /= k;
+        self.1 /= k;
+    }
+}
 
-/// An unsuffixed float literal on either side of a user vector must infer to
-/// the scalar type the opt-in names, through the same-type opt-in sitting
-/// beside it, on both binary and compound forms.
+/// An unsuffixed float literal on either side of a user vector — `v * 2.0`,
+/// `2.0 * v` — infers to the scalar type the type's own impl names, on both
+/// binary and compound forms; a float on the left goes through the type's
+/// `Mul<V2> for f32` without being named.
 #[test]
 fn float_literal_scalars_infer_against_a_user_vector() {
     use reassoc::algebraic;
@@ -468,80 +483,12 @@ fn float_literal_scalars_infer_against_a_user_vector() {
     );
 }
 
-// ---- the remaining `passthrough!` arms and derive shapes ----
+// ---- operators on references only: the non-Copy numeric shape ----
 
-/// The whole-type `no_refs` arm: five operators by value on a non-`Copy` type.
-#[derive(Debug, Clone, PartialEq)]
-struct Big(i64);
-macro_rules! big_ops {
-    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
-        impl core::ops::$t for Big {
-            type Output = Big;
-            fn $m(self, o: Big) -> Big { Big(self.0 $op o.0) }
-        }
-    )*};
-}
-big_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
-passthrough!(no_refs Big);
-
-#[test]
-fn whole_type_no_refs_covers_all_five_operators() {
-    use reassoc::alg;
-    let (a, b) = (Big(7), Big(2));
-    assert_eq!(alg!(a.clone() + b.clone()), Big(9));
-    assert_eq!(alg!(a.clone() - b.clone()), Big(5));
-    assert_eq!(alg!(a.clone() * b.clone()), Big(14));
-    assert_eq!(alg!(a.clone() / b.clone()), Big(3));
-    assert_eq!(alg!(a % b), Big(1));
-}
-
-/// Derive on an enum, on a type with a lifetime parameter, and with two
-/// `#[passthrough]` attributes that accumulate.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(mul)]
-enum Sign {
-    Pos,
-    Neg,
-}
-impl core::ops::Mul for Sign {
-    type Output = Sign;
-    fn mul(self, o: Sign) -> Sign {
-        if self == o { Sign::Pos } else { Sign::Neg }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add)]
-#[passthrough(mul)]
-struct Tagged<'a>(f32, &'a str);
-impl core::ops::Add for Tagged<'_> {
-    type Output = Self;
-    fn add(self, o: Self) -> Self {
-        Tagged(self.0 + o.0, self.1)
-    }
-}
-impl core::ops::Mul for Tagged<'_> {
-    type Output = Self;
-    fn mul(self, o: Self) -> Self {
-        Tagged(self.0 * o.0, self.1)
-    }
-}
-
-#[test]
-fn derive_on_an_enum_a_lifetime_and_accumulated_attributes() {
-    use reassoc::alg;
-    assert_eq!(alg!(Sign::Neg * Sign::Neg), Sign::Pos);
-    let t = Tagged(2.0, "m");
-    assert_eq!(alg!(t + t * t), Tagged(6.0, "m"));
-    assert_eq!(alg!(&t * &t), Tagged(4.0, "m"));
-}
-
-/// The macro form with a reference on the *left*: the standard shape for a
-/// non-`Copy` numeric type (`&Matrix + &Matrix`, `&Heavy * f64`). Both `&`
-/// positions route to the value form — no `&&Heavy` impl and no lifetime to
-/// name — and the output is read as "the left type" through the reference,
-/// since the `&A` blanket already says `&Heavy` yields `Heavy`.
-#[derive(Debug, Clone, PartialEq)]
+/// `&Heavy + &Heavy`, `&Heavy * f64`, `Heavy * &Heavy`, and a dot product
+/// `&Heavy * &Heavy => f64`: the standard shape for a non-`Copy` numeric
+/// type, one line.
+#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
 struct Heavy(Vec<f64>);
 impl core::ops::Add<&Heavy> for &Heavy {
     type Output = Heavy;
@@ -573,14 +520,9 @@ impl core::ops::Mul<&Heavy> for &Heavy {
         self.0.iter().zip(&o.0).map(|(a, b)| a * b).sum()
     }
 }
-passthrough!(add: &Heavy, &Heavy => Heavy);
-passthrough!(sub: &Heavy, &Heavy => Heavy);
-passthrough!(mul: &Heavy, f64 => Heavy);
-passthrough!(mul: Heavy, &Heavy => Heavy);
-passthrough!(mul: &Heavy, &Heavy => f64);
 
 #[test]
-fn reference_left_operand_takes_the_value_form() {
+fn operators_on_references_only() {
     use reassoc::algebraic;
     #[algebraic]
     fn go(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, Heavy, f64) {
@@ -593,4 +535,20 @@ fn reference_left_operand_takes_the_value_form() {
     assert_eq!(s, Heavy(vec![24.0, 48.0]));
     assert_eq!(d, Heavy(vec![-2.0, -2.0]));
     assert_eq!(dot, 11.0);
+}
+
+// ---- generic functions ----
+
+/// A generic function over an opted-in bound: dispatch is no longer per
+/// concrete type only. (`tests/ui/generic_fn_rejected.rs` pins the error
+/// without the bound.)
+#[test]
+fn generic_functions_work_with_a_passthrough_bound() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn twice<T: reassoc::traits::Passthrough + core::ops::Add<Output = T> + Copy>(x: T) -> T {
+        x + x
+    }
+    assert_eq!(twice(Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
+    assert_eq!(twice(RefOps(4.0)), RefOps(8.0));
 }

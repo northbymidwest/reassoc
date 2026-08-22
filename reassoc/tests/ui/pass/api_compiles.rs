@@ -7,7 +7,6 @@
 use reassoc::{alg, algebraic, strict, Passthrough};
 
 #[derive(Clone, Copy, PartialEq, Debug, Passthrough)]
-#[passthrough(add, mul)]
 struct Vec2(f32, f32);
 
 impl core::ops::Add for Vec2 {
@@ -37,12 +36,11 @@ fn main() {
     assert_eq!(alg!(2.0f32 * 3.0 + 1.0), 7.0);
 
     let vs = [Vec2(1.0, 2.0), Vec2(3.0, 4.0)];
-    let summed = vs.iter().fold(Vec2(0.0, 0.0), |acc, v| reassoc::ops::add(acc, v));
+    let summed = vs.iter().fold(Vec2(0.0, 0.0), |acc, v| reassoc::ops::add(acc, *v));
     assert_eq!(summed, Vec2(4.0, 6.0));
 }
 
-// An operator whose output is not its left operand. `passthrough!` works that
-// out from the types as written; nothing extra is needed here.
+// An operator whose output is not its left operand: nothing extra is needed.
 #[derive(Clone, Copy)]
 struct Dot([f32; 2]);
 impl core::ops::Mul for Dot {
@@ -51,4 +49,4 @@ impl core::ops::Mul for Dot {
         self.0[0] * o.0[0] + self.0[1] * o.0[1]
     }
 }
-reassoc::passthrough!(mul: Dot, Dot => f32);
+reassoc::passthrough!(Dot);

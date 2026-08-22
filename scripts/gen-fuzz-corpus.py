@@ -262,7 +262,7 @@ use reassoc::{{alg, algebraic, strict}};
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Disp({ty});
 macro_rules! impl_dispatched {{
-    ($($t:ident, $synth:ident, $m:ident, $op:tt);* $(;)?) => {{$(
+    ($($t:ident, $synth:ident, $sm:ident, $m:ident, $op:tt);* $(;)?) => {{$(
         impl reassoc::traits::$t<Disp, Disp> for Disp {{
             #[inline(always)]
             fn $m(self, lhs: Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
@@ -279,14 +279,22 @@ macro_rules! impl_dispatched {{
             #[inline(always)]
             fn $m(self, lhs: &Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
         }}
-        impl reassoc::traits::$synth<Disp> for Disp {{}}
-        impl reassoc::traits::$synth<&Disp> for Disp {{}}
+        impl reassoc::traits::$synth<Disp> for Disp {{
+            #[inline(always)]
+            fn $sm(self, lhs: &mut Disp) {{ lhs.0 = lhs.0 $op self.0 }}
+        }}
+        impl reassoc::traits::$synth<Disp> for &Disp {{
+            #[inline(always)]
+            fn $sm(self, lhs: &mut Disp) {{ lhs.0 = lhs.0 $op self.0 }}
+        }}
     )*}};
 }}
 impl_dispatched!(
-    AddRhs, SynthAddAssign, add_rhs, +; SubRhs, SynthSubAssign, sub_rhs, -;
-    MulRhs, SynthMulAssign, mul_rhs, *; DivRhs, SynthDivAssign, div_rhs, /;
-    RemRhs, SynthRemAssign, rem_rhs, %
+    AddRhs, AddAssignRhs, add_assign_rhs, add_rhs, +;
+    SubRhs, SubAssignRhs, sub_assign_rhs, sub_rhs, -;
+    MulRhs, MulAssignRhs, mul_assign_rhs, mul_rhs, *;
+    DivRhs, DivAssignRhs, div_assign_rhs, div_rhs, /;
+    RemRhs, RemAssignRhs, rem_assign_rhs, rem_rhs, %
 );
 impl core::ops::Neg for Disp {{
     type Output = Disp;

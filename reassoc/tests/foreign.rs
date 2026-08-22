@@ -3,18 +3,15 @@
 //! user: the plain `passthrough!` forms are an orphan-rule error on it
 //! (`tests/ui/foreign_needs_keyword.rs`), and `passthrough!(foreign ..)` —
 //! which carries a type local to this crate in the impl — is the way in.
-//! Every form takes the prefix. The one new hazard, two crates opting in the
-//! same pair, is pinned in `tests/ui/foreign_diamond.rs`.
+//! One line per type; a float on the *left* of a foreign type is the one pair
+//! that has to be named. The one new hazard, two crates opting in the same
+//! type, is pinned in `tests/ui/foreign_diamond.rs`.
 use foreign_types::{Matrix, Vec3, Vector};
 use reassoc::{algebraic, passthrough};
 
-passthrough!(foreign add: Vec3, Vec3 => Vec3);
-passthrough!(foreign sub: Vec3, Vec3 => Vec3);
-passthrough!(foreign mul: Vec3, f32 => Vec3);
-passthrough!(foreign mul: f32, Vec3 => Vec3);
-
-passthrough!(foreign add: &Matrix, &Matrix => Matrix);
-passthrough!(foreign mul: &Matrix, &Vector => Vector); // output is not the left type
+passthrough!(foreign Vec3);
+passthrough!(foreign mul: f32, Vec3 => Vec3); // a float on the left: the one pair named
+passthrough!(foreign Matrix);
 
 #[algebraic]
 fn kinematics(p: Vec3, v: Vec3, a: Vec3, dt: f32) -> Vec3 {
@@ -27,8 +24,8 @@ fn kinematics(p: Vec3, v: Vec3, a: Vec3, dt: f32) -> Vec3 {
 fn accumulate(vs: &[Vec3], k: f32) -> Vec3 {
     let mut acc = Vec3(0.0, 0.0, 0.0);
     for v in vs {
-        acc += *v * k; // synthesised `+=`: Vec3 is Copy
-        acc = acc + 2.0 * *v - *v; // reference operands, float literal on the left
+        acc += *v * k; // through the type's own `AddAssign`
+        acc = acc + 2.0 * *v - *v; // a float literal on the left: the named pair
     }
     acc
 }
@@ -39,7 +36,6 @@ fn linear(m: &Matrix, v: &Vector, b: &Matrix) -> (Vector, Matrix) {
 }
 
 #[test]
-#[allow(clippy::needless_borrows_for_generic_args)] // the reference form is the point
 fn foreign_copy_type_dispatches() {
     let p = kinematics(
         Vec3(0.0, 0.0, 0.0),
@@ -54,9 +50,8 @@ fn foreign_copy_type_dispatches() {
     );
     // Through `ops::*` directly, so this fails to compile if the opt-in is
     // not an impl of the dispatch traits.
-    let unit_y = Vec3(0.0, 1.0, 0.0);
     assert_eq!(
-        reassoc::ops::add(Vec3(1.0, 0.0, 0.0), &unit_y),
+        reassoc::ops::add(Vec3(1.0, 0.0, 0.0), Vec3(0.0, 1.0, 0.0)),
         Vec3(1.0, 1.0, 0.0)
     );
 }
@@ -80,7 +75,7 @@ impl core::ops::Mul<Vec3> for Local {
         v * self.0
     }
 }
-passthrough!(mul: Local, Vec3 => Vec3);
+passthrough!(Local);
 
 #[test]
 fn local_and_foreign_opt_ins_coexist() {

@@ -1,30 +1,35 @@
+//! The standard types beyond the primitives. Each is opted in as a whole and
+//! gets exactly the operators std gives it — `Duration * u32` but not
+//! `Duration * u64`, `Instant - Instant => Duration`, `Wrapping<T>` with
+//! references, and so on — with no list kept here.
+//!
+//! `String` is the one concrete set: `String + &str` natively also accepts
+//! `&String`, `&Box<str>`, `&Cow<str>`, .. because rustc deref-coerces the
+//! operand once the impl is unique, a step a generic dispatch function never
+//! takes, so those are spelled out.
+
 use crate::passthrough;
-use crate::traits::{
-    AddRhs, DivRhs, MulRhs, RefOperand, RemRhs, SubRhs, SynthAddAssign, SynthDivAssign,
-    SynthMulAssign, SynthRemAssign, SynthSubAssign,
-};
-use core::num::{Saturating, Wrapping};
-use core::ops::{Add, Div, Mul, Rem, Sub};
+use crate::traits::Passthrough;
+use core::num::{NonZero, Saturating, Wrapping};
 use core::time::Duration;
 
-passthrough!(add: Duration, Duration => Duration);
-passthrough!(sub: Duration, Duration => Duration);
-passthrough!(mul: Duration, u32 => Duration);
-passthrough!(mul: u32, Duration => Duration);
-passthrough!(div: Duration, u32 => Duration);
+impl Passthrough for Duration {}
+impl<T> Passthrough for Wrapping<T> {}
+impl<T> Passthrough for Saturating<T> {}
 
-/// `uN / NonZero<uN>` and `%`, with `/=` and `%=`: the idiom for a division
-/// that cannot trap. By value only, exactly the set core implements — no
-/// reference forms, no `NonZero * NonZero`.
+// Integers are spelled out per type (`int.rs`), not marked, so the std pairs
+// with an integer on the *left* are spelled out here: `u32 * Duration`, and
+// `uN / NonZero<uN>` with `%`, `/=`, `%=`.
+passthrough!(mul: u32, Duration => Duration);
+
 macro_rules! nonzero_divisor {
     ($($t:ty)*) => {$(
-        passthrough!(no_refs div: $t, core::num::NonZero<$t> => $t);
-        passthrough!(no_refs rem: $t, core::num::NonZero<$t> => $t);
-        passthrough!(no_refs div_assign: $t, core::num::NonZero<$t>);
-        passthrough!(no_refs rem_assign: $t, core::num::NonZero<$t>);
+        passthrough!(div: $t, NonZero<$t> => $t);
+        passthrough!(rem: $t, NonZero<$t> => $t);
+        passthrough!(div_assign: $t, NonZero<$t>);
+        passthrough!(rem_assign: $t, NonZero<$t>);
     )*};
 }
-
 nonzero_divisor!(u8 u16 u32 u64 u128 usize);
 
 #[cfg(feature = "alloc")]
@@ -33,10 +38,6 @@ mod alloc_impls {
 
     use crate::traits::{AddAssignRhs, AddRhs};
 
-    // `String + &str` natively, but also `String + &String`, which works only
-    // because rustc deref-coerces the operand once the impl is unique — a step
-    // a generic dispatch function never takes. One impl over `AsRef<str>`
-    // accepts every reference the native operator would have coerced.
     impl<T: ?Sized + AsRef<str>> AddRhs<String, String> for &T {
         #[inline(always)]
         fn add_rhs(self, lhs: String) -> String {
@@ -50,10 +51,8 @@ mod alloc_impls {
         }
     }
 
-    // In place. Concrete right operands, not `&T: AsRef<str>`: a generic `&T`
-    // here would overlap the blanket synth impl for a downstream type. The
-    // list is every reference native `+=` deref-coerces to `&str` once its
-    // impl is unique.
+    // In place. Concrete right operands: every reference native `+=`
+    // deref-coerces to `&str` once its impl is unique.
     macro_rules! string_in_place {
         ($($rhs:ty),* $(,)?) => {$(
             impl AddAssignRhs<String> for $rhs {
@@ -80,58 +79,9 @@ mod alloc_impls {
 
 #[cfg(feature = "std")]
 mod std_impls {
-    use crate::passthrough;
-
-    use core::time::Duration;
+    use crate::traits::Passthrough;
     use std::time::{Instant, SystemTime};
 
-    passthrough!(add: Instant, Duration => Instant);
-    passthrough!(sub: Instant, Duration => Instant);
-    passthrough!(sub: Instant, Instant => Duration);
-    passthrough!(add: SystemTime, Duration => SystemTime);
-    passthrough!(sub: SystemTime, Duration => SystemTime);
+    impl Passthrough for Instant {}
+    impl Passthrough for SystemTime {}
 }
-
-/// `Wrapping<T>` and `Saturating<T>` for every inner type at once: one impl per
-/// operator, generic over `T`, deferring to the wrapper's own `core::ops`
-/// impl. `passthrough!` cannot express this — it takes a concrete type.
-macro_rules! plain_wrapper {
-    ($w:ident: $($rhs:ident, $synth:ident, $method:ident, $bound:ident, $op:tt);* $(;)?) => {$(
-        impl<T: Copy> $synth<$w<T>> for $w<T> {}
-        impl<T: Copy> $synth<&$w<T>> for $w<T> {}
-
-        impl<T> $rhs<$w<T>, $w<T>> for $w<T>
-        where
-            $w<T>: $bound<Output = $w<T>>,
-        {
-            #[inline(always)]
-            fn $method(self, lhs: $w<T>) -> $w<T> { lhs $op self }
-        }
-        impl<T> $rhs<$w<T>, $w<T>> for &$w<T>
-        where
-            $w<T>: RefOperand + $bound<Output = $w<T>>,
-        {
-            #[inline(always)]
-            fn $method(self, lhs: $w<T>) -> $w<T> { lhs $op RefOperand::reassoc_dup(self) }
-        }
-        impl<T> $rhs<&$w<T>, $w<T>> for $w<T>
-        where
-            $w<T>: RefOperand + $bound<Output = $w<T>>,
-        {
-            #[inline(always)]
-            fn $method(self, lhs: &$w<T>) -> $w<T> { RefOperand::reassoc_dup(lhs) $op self }
-        }
-        impl<T> $rhs<&$w<T>, $w<T>> for &$w<T>
-        where
-            $w<T>: RefOperand + $bound<Output = $w<T>>,
-        {
-            #[inline(always)]
-            fn $method(self, lhs: &$w<T>) -> $w<T> {
-                RefOperand::reassoc_dup(lhs) $op RefOperand::reassoc_dup(self)
-            }
-        }
-    )*};
-}
-
-plain_wrapper!(Wrapping: AddRhs, SynthAddAssign, add_rhs, Add, +; SubRhs, SynthSubAssign, sub_rhs, Sub, -; MulRhs, SynthMulAssign, mul_rhs, Mul, *; DivRhs, SynthDivAssign, div_rhs, Div, /; RemRhs, SynthRemAssign, rem_rhs, Rem, %);
-plain_wrapper!(Saturating: AddRhs, SynthAddAssign, add_rhs, Add, +; SubRhs, SynthSubAssign, sub_rhs, Sub, -; MulRhs, SynthMulAssign, mul_rhs, Mul, *; DivRhs, SynthDivAssign, div_rhs, Div, /; RemRhs, SynthRemAssign, rem_rhs, Rem, %);

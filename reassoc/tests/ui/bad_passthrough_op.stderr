@@ -1,5 +1,5 @@
-error: expected `no_refs`, one or more of `add`, `sub`, `mul`, `div`, `rem`, or the in-place forms `add_assign` .. `rem_assign`
- --> tests/ui/bad_passthrough_op.rs:2:20
+error: `#[passthrough(..)]` takes no parameters any more: every operator the type implements is dispatched, references included wherever the type implements them. Remove the attribute
+ --> tests/ui/bad_passthrough_op.rs:2:1
   |
 2 | #[passthrough(add, nonsense)]
-  |                    ^^^^^^^^
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

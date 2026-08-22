@@ -1,62 +1,98 @@
-error[E0277]: binary assignment operation `+=` cannot be applied to type `Owned`
+error[E0277]: no `reassoc` dispatch for `Owned` with this operand
   --> tests/ui/compound_assign_not_opted_in.rs:20:10
    |
 18 | #[algebraic]
    | ------------ required by a bound introduced by this call
 19 | fn f(o: &mut [Owned], p: &mut [Plain], s: &str, x: f64) {
 20 |     o[0] += s;
-   |          ^ binary assignment operation `+=` cannot be applied to type `Owned`
+   |          ^ no dispatch for `Owned`
    |
-help: the trait `SynthAddAssign<&str>` is not implemented for `Owned`
+help: the trait `Passthrough<_>` is not implemented for `Owned`
   --> tests/ui/compound_assign_not_opted_in.rs:7:1
    |
  7 | struct Owned(String);
    | ^^^^^^^^^^^^
-   = note: `Owned` has no `+=` with `&str` on the right: a `Copy` type gets one from `reassoc::passthrough!(Owned);`, and a type with its own `AddAssign<&str>` impl declares it with `reassoc::passthrough!(add_assign: Owned, &str);`
-   = note: if the place is a reference, dereference it: `*place` rather than `place`
-   = help: the following other types implement trait `SynthAddAssign<B, Tag>`:
-             `Duration` implements `SynthAddAssign<&Duration>`
-             `Duration` implements `SynthAddAssign<Duration>`
-             `Instant` implements `SynthAddAssign<&Duration>`
-             `Instant` implements `SynthAddAssign<Duration>`
-             `Saturating<T>` implements `SynthAddAssign<&Saturating<T>>`
-             `Saturating<T>` implements `SynthAddAssign<Saturating<T>>`
-             `SystemTime` implements `SynthAddAssign<&Duration>`
-             `SystemTime` implements `SynthAddAssign<Duration>`
-           and $N others
-   = note: required for `&str` to implement `AddAssignRhs<Owned>`
+   = note: a type of yours is opted in with `reassoc::passthrough!(Owned);` where it is defined, or `reassoc::passthrough!(foreign Owned);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `Owned` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
+   = note: required for `&str` to implement `AddAssignRhs<Owned, _>`
 note: required by a bound in `reassoc::ops::add_assign`
   --> src/ops.rs
    |
    | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
 
-error[E0277]: binary assignment operation `+=` cannot be applied to type `Plain`
+error[E0277]: cannot add-assign `&str` to `Owned`
+  --> tests/ui/compound_assign_not_opted_in.rs:20:10
+   |
+18 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+19 | fn f(o: &mut [Owned], p: &mut [Plain], s: &str, x: f64) {
+20 |     o[0] += s;
+   |          ^ no implementation for `Owned += &str`
+   |
+help: the trait `AddAssign<&str>` is not implemented for `Owned`
+  --> tests/ui/compound_assign_not_opted_in.rs:7:1
+   |
+ 7 | struct Owned(String);
+   | ^^^^^^^^^^^^
+help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`
+  --> src/impls/ext.rs
+   |
+   |               impl AddAssignRhs<String> for $rhs {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `&&str`
+   |               `&mut str`
+   |               `&str`
+...
+   | /     string_in_place!(
+   | |         &str,
+   | |         &String,
+   | |         &&str,
+...  |
+   | |         &mut String,
+   | |     );
+   | |_____- in this macro invocation
+   = note: required for `&str` to implement `AddAssignRhs<Owned, _>`
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+   = note: this error originates in the macro `string_in_place` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: no `reassoc` dispatch for `Plain` with this operand
   --> tests/ui/compound_assign_not_opted_in.rs:21:10
    |
 18 | #[algebraic]
    | ------------ required by a bound introduced by this call
 ...
 21 |     p[0] += x;
-   |          ^ binary assignment operation `+=` cannot be applied to type `Plain`
+   |          ^ no dispatch for `Plain`
    |
-help: the trait `SynthAddAssign<f64, _>` is not implemented for `Plain`
+help: the trait `Passthrough<_>` is not implemented for `Plain`
   --> tests/ui/compound_assign_not_opted_in.rs:16:1
    |
 16 | struct Plain(f64); // never opted in at all
    | ^^^^^^^^^^^^
-   = note: `Plain` has no `+=` with `f64` on the right: a `Copy` type gets one from `reassoc::passthrough!(Plain);`, and a type with its own `AddAssign<f64>` impl declares it with `reassoc::passthrough!(add_assign: Plain, f64);`
-   = note: if the place is a reference, dereference it: `*place` rather than `place`
-   = help: the following other types implement trait `SynthAddAssign<B, Tag>`:
-             `Duration` implements `SynthAddAssign<&Duration>`
-             `Duration` implements `SynthAddAssign<Duration>`
-             `Instant` implements `SynthAddAssign<&Duration>`
-             `Instant` implements `SynthAddAssign<Duration>`
-             `Saturating<T>` implements `SynthAddAssign<&Saturating<T>>`
-             `Saturating<T>` implements `SynthAddAssign<Saturating<T>>`
-             `SystemTime` implements `SynthAddAssign<&Duration>`
-             `SystemTime` implements `SynthAddAssign<Duration>`
-           and $N others
+   = note: a type of yours is opted in with `reassoc::passthrough!(Plain);` where it is defined, or `reassoc::passthrough!(foreign Plain);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `Plain` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
    = note: required for `f64` to implement `AddAssignRhs<Plain, _>`
 note: required by a bound in `reassoc::ops::add_assign`
   --> src/ops.rs
@@ -64,39 +100,33 @@ note: required by a bound in `reassoc::ops::add_assign`
    | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
 
-error[E0277]: binary assignment operation `+=` cannot be applied to type `Plain`
+error[E0277]: cannot add-assign `f64` to `Plain`
   --> tests/ui/compound_assign_not_opted_in.rs:21:10
    |
 18 | #[algebraic]
    | ------------ required by a bound introduced by this call
 ...
 21 |     p[0] += x;
-   |          ^ binary assignment operation `+=` cannot be applied to type `Plain`
+   |          ^ no implementation for `Plain += f64`
    |
-   = help: the trait `AddRhs<Plain, Plain, _>` is not implemented for `f64`
-   = note: `Plain` has no `+=` with `f64` on the right: a `Copy` type gets one from `reassoc::passthrough!(Plain);`, and a type with its own `AddAssign<f64>` impl declares it with `reassoc::passthrough!(add_assign: Plain, f64);`
-   = note: if the place is a reference, dereference it: `*place` rather than `place`
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/impls/float.rs
+help: the trait `AddAssign<f64>` is not implemented for `Plain`
+  --> tests/ui/compound_assign_not_opted_in.rs:16:1
    |
-   |         impl $rhs_trait<$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<&f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<&f64, f64>`
-...
-   | alg_float!(f32 f64);
-   | ------------------- in this macro invocation
+16 | struct Plain(f64); // never opted in at all
+   | ^^^^^^^^^^^^
+   = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
+             `&&String` implements `AddAssignRhs<String>`
+             `&&str` implements `AddAssignRhs<String>`
+             `&Arc<str>` implements `AddAssignRhs<String>`
+             `&Box<str>` implements `AddAssignRhs<String>`
+             `&Cow<'_, str>` implements `AddAssignRhs<String>`
+             `&F` implements `AddAssignRhs<F, FloatTag>`
+             `&I` implements `AddAssignRhs<I, IntTag>`
+             `&Rc<str>` implements `AddAssignRhs<String>`
+           and $N others
    = note: required for `f64` to implement `AddAssignRhs<Plain, _>`
 note: required by a bound in `reassoc::ops::add_assign`
   --> src/ops.rs
    |
    | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
-   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)

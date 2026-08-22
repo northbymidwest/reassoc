@@ -10,7 +10,6 @@ use core::time::Duration;
 use reassoc::alg;
 
 #[derive(Clone, Copy, reassoc::Passthrough)]
-#[passthrough(add)]
 struct Metres(f64);
 impl core::ops::Add for Metres {
     type Output = Metres;

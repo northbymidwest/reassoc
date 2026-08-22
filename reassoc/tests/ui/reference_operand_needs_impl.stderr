@@ -1,0 +1,27 @@
+error[E0277]: cannot add `Vec3` to `&Vec3`
+  --> tests/ui/reference_operand_needs_impl.rs:18:9
+   |
+16 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+17 | fn f(a: &Vec3, b: Vec3) -> Vec3 {
+18 |     a + b
+   |         ^ cannot add `Vec3` to `&Vec3`
+   |
+help: the trait `AddRhs<&Vec3, _, _>` is not implemented for `Vec3`
+  --> tests/ui/reference_operand_needs_impl.rs:8:1
+   |
+ 8 | struct Vec3(f32);
+   | ^^^^^^^^^^^
+   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one; if these are numeric types, cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
+             `&F` implements `AddRhs<&F, F, FloatTag>`
+             `&F` implements `AddRhs<F, F, FloatTag>`
+             `&I` implements `AddRhs<&I, I, IntTag>`
+             `&I` implements `AddRhs<I, I, IntTag>`
+             `&T` implements `AddRhs<String, String>`
+             `&mut T` implements `AddRhs<String, String>`
+note: required by a bound in `reassoc::ops::add`
+  --> src/ops.rs
+   |
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`

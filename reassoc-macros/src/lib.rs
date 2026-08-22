@@ -9,17 +9,6 @@ use quote::ToTokens;
 use syn::parse::Parser;
 use syn::visit_mut::VisitMut;
 
-/// Declare what an operator yields for a left-hand type, when it is not that
-/// type itself. Not part of the public API: `passthrough!` calls it.
-#[doc(hidden)]
-#[proc_macro]
-pub fn declare_output(input: TokenStream) -> TokenStream {
-    match passthrough::expand_declare_output(input.into()) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
 /// Rewrite arithmetic operators in a single expression to algebraic dispatch.
 #[proc_macro]
 pub fn alg(input: TokenStream) -> TokenStream {
@@ -174,11 +163,11 @@ fn with_errors(
 
 /// Opt a type into `reassoc`'s dispatch layer at its definition.
 ///
-/// Equivalent to `passthrough!(Ty)`, but written where the type is declared.
-/// Defaults to all five operators; a type implementing only some of them names
-/// the ones it has with `#[passthrough(add, sub, mul)]`.
+/// Equivalent to `passthrough!(Ty)`, but written where the type is declared:
+/// every operator the type implements is dispatched. A generic type is opted
+/// in for every instantiation, with the operators each instantiation has.
 ///
-/// See `reassoc::Passthrough` for a worked example — this crate cannot depend
+/// See `reassoc::passthrough!` for a worked example — this crate cannot depend
 /// on `reassoc`, so the example lives there where it can actually be compiled.
 #[proc_macro_derive(Passthrough, attributes(passthrough))]
 pub fn derive_passthrough(input: TokenStream) -> TokenStream {

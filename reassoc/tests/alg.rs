@@ -149,10 +149,26 @@ impl_dispatched!(MulRhs, mul_rhs, *);
 impl_dispatched!(DivRhs, div_rhs, /);
 impl_dispatched!(RemRhs, rem_rhs, %);
 // `Copy`, so `+=` is formed from `+` — the marker says so, per pair.
-impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
-impl reassoc::traits::SynthSubAssign<Dispatched> for Dispatched {}
-impl reassoc::traits::SynthMulAssign<Dispatched> for Dispatched {}
-impl reassoc::traits::SynthDivAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+    fn add_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 += self.0
+    }
+}
+impl reassoc::traits::SubAssignRhs<Dispatched> for Dispatched {
+    fn sub_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 -= self.0
+    }
+}
+impl reassoc::traits::MulAssignRhs<Dispatched> for Dispatched {
+    fn mul_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 *= self.0
+    }
+}
+impl reassoc::traits::DivAssignRhs<Dispatched> for Dispatched {
+    fn div_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 /= self.0
+    }
+}
 
 #[test]
 fn binary_operators_actually_dispatch() {

@@ -1,372 +1,367 @@
 error[E0277]: cannot add `f64` to `f32`
-  --> tests/ui/mismatched_operands.rs:23:14
+  --> tests/ui/mismatched_operands.rs:22:14
    |
-23 |     alg!(a + b)
+22 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        cannot add `f64` to `f32`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<f32, f32, _>` is not implemented for `f64`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `f32` is not opted in yet, add `reassoc::passthrough!(f32);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `f32` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/impls/float.rs
-   |
-   |         impl $rhs_trait<$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<&f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<&f64, f64>`
-...
-   | alg_float!(f32 f64);
-   | ------------------- in this macro invocation
+   = help: the trait `AddRhs<f32, _, _>` is not implemented for `f64`
+   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one; if these are numeric types, cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
+             `&F` implements `AddRhs<&F, F, FloatTag>`
+             `&F` implements `AddRhs<F, F, FloatTag>`
+             `&I` implements `AddRhs<&I, I, IntTag>`
+             `&I` implements `AddRhs<I, I, IntTag>`
+             `&T` implements `AddRhs<String, String>`
+             `&mut T` implements `AddRhs<String, String>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0308]: mismatched types
-  --> tests/ui/mismatched_operands.rs:23:5
-   |
-22 | fn float_widths(a: f32, b: f64) -> f64 {
-   |                                    --- expected `f64` because of return type
-23 |     alg!(a + b)
-   |     ^^^^^^^^^^^ expected `f64`, found `f32`
-   |
-   = note: this error originates in the macro `alg` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: you can convert an `f32` to an `f64`
-   |
-23 |     alg!(a + b).into()
-   |                +++++++
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot multiply `&f64` by `&f32`
-  --> tests/ui/mismatched_operands.rs:27:14
+  --> tests/ui/mismatched_operands.rs:26:14
    |
-27 |     alg!(a * b)
+26 |     alg!(a * b)
    |     ---------^-
    |     |        |
-   |     |        cannot multiply `&f64` by `&f32`
+   |     |        no implementation for `&f64 * &f32`
    |     required by a bound introduced by this call
    |
-   = help: the trait `MulRhs<&f64, _, _>` is not implemented for `&f32`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `&f64` is not opted in yet, add `reassoc::passthrough!(&f64);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `&f64` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `MulRhs<Lhs, O, Tag>`
-  --> src/impls/float.rs
+   = help: the trait `Mul<&f32>` is not implemented for `&f64`
+help: the following other types implement trait `Mul<Rhs>`
+  --> $RUST/core/src/ops/arith.rs
    |
-   |         impl $rhs_trait<$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f32` implements `MulRhs<f32, f32>`
+   |         const impl Mul for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^ `f64` implements `Mul`
 ...
-   |         impl $rhs_trait<$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f32` implements `MulRhs<f32, f32>`
+   | mul_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f16 f32 f64 f128 }
+   | ---------------------------------------------------------------------------------- in this macro invocation
+   |
+  ::: $RUST/core/src/internal_macros.rs
+   |
+   |         const impl $imp<$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `Mul<f64>`
 ...
-   |         impl $rhs_trait<&$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f32` implements `MulRhs<&f32, f32>`
+   |         const impl $imp<&$u> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `Mul<&f64>`
 ...
-   |         impl $rhs_trait<&$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f32` implements `MulRhs<&f32, f32>`
-...
-   | alg_float!(f32 f64);
-   | ------------------- in this macro invocation
+   |         const impl $imp<&$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `Mul`
+   = note: required for `&f32` to implement `MulRhs<&f64, _, _>`
 note: required by a bound in `reassoc::ops::mul`
   --> src/ops.rs
    |
-   | pub fn mul<A: MulOut<B, O, T>, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `mul`
-   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
+   = note: this error originates in the macro `mul_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: no `reassoc` dispatch for `f64` with this operand
+  --> tests/ui/mismatched_operands.rs:26:14
+   |
+26 |     alg!(a * b)
+   |     ---------^-
+   |     |        |
+   |     |        no dispatch for `f64`
+   |     required by a bound introduced by this call
+   |
+   = help: the trait `Passthrough<_>` is not implemented for `f64`
+   = note: a type of yours is opted in with `reassoc::passthrough!(f64);` where it is defined, or `reassoc::passthrough!(foreign f64);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `f64` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Metres` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
+   = note: required for `&f64` to implement `Passthrough<_>`
+   = note: required for `&f32` to implement `MulRhs<&f64, _, _>`
+note: required by a bound in `reassoc::ops::mul`
+  --> src/ops.rs
+   |
+   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
+
+error[E0277]: no `reassoc` dispatch for `u8` with this operand
+  --> tests/ui/mismatched_operands.rs:30:14
+   |
+30 |     alg!(a + b)
+   |     ---------^-
+   |     |        |
+   |     |        no dispatch for `u8`
+   |     required by a bound introduced by this call
+   |
+   = help: the trait `Passthrough<_>` is not implemented for `u8`
+   = note: a type of yours is opted in with `reassoc::passthrough!(u8);` where it is defined, or `reassoc::passthrough!(foreign u8);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `u8` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Metres` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
+   = note: required for `u32` to implement `AddRhs<u8, _, _>`
+note: required by a bound in `reassoc::ops::add`
+  --> src/ops.rs
+   |
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `u32` to `u8`
-  --> tests/ui/mismatched_operands.rs:31:14
+  --> tests/ui/mismatched_operands.rs:30:14
    |
-31 |     alg!(a + b)
+30 |     alg!(a + b)
    |     ---------^-
    |     |        |
-   |     |        cannot add `u32` to `u8`
+   |     |        no implementation for `u8 + u32`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<u8, u8, _>` is not implemented for `u32`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `u8` is not opted in yet, add `reassoc::passthrough!(u8);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `u8` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/macros.rs
+   = help: the trait `Add<u32>` is not implemented for `u8`
+help: the following other types implement trait `Add<Rhs>`
+  --> $RUST/core/src/ops/arith.rs
    |
-   |           impl $crate::traits::$rhs<$a, $o, $tag> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
+   |         const impl Add for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^ `u8` implements `Add`
 ...
-   | /         impl $crate::traits::$rhs<$a, $o, $tag> for &$b
-   | |         where $b: $crate::traits::RefOperand {
-   | |____________________________________________^ `&u32` implements `AddRhs<u32, u32>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for $b
-   | |         where $a: $crate::traits::RefOperand {
-   | |____________________________________________^ `u32` implements `AddRhs<&u32, u32>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for &$b
-   | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-   | |____________________________________________________________________________^ `&u32` implements `AddRhs<&u32, u32>`
+   | add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f16 f32 f64 f128 }
+   | ---------------------------------------------------------------------------------- in this macro invocation
    |
-  ::: src/impls/int.rs
+  ::: $RUST/core/src/internal_macros.rs
    |
-   |   plain_int!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
-   |   --------------------------------------------------------------- in this macro invocation
+   |         const impl $imp<$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&u8` implements `Add<u8>`
+...
+   |         const impl $imp<&$u> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u8` implements `Add<&u8>`
+...
+   |         const impl $imp<&$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&u8` implements `Add`
+   = note: required for `u32` to implement `AddRhs<u8, _, _>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `plain_int` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
+   = note: this error originates in the macro `add_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0308]: mismatched types
-  --> tests/ui/mismatched_operands.rs:31:5
+error[E0277]: no `reassoc` dispatch for `i32` with this operand
+  --> tests/ui/mismatched_operands.rs:34:14
    |
-30 | fn integer_widths(a: u8, b: u32) -> u32 {
-   |                                     --- expected `u32` because of return type
-31 |     alg!(a + b)
-   |     ^^^^^^^^^^^ expected `u32`, found `u8`
+34 |     alg!(a + b)
+   |     ---------^-
+   |     |        |
+   |     |        no dispatch for `i32`
+   |     required by a bound introduced by this call
    |
-   = note: this error originates in the macro `alg` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: you can convert a `u8` to a `u32`
+   = help: the trait `Passthrough<_>` is not implemented for `i32`
+   = note: a type of yours is opted in with `reassoc::passthrough!(i32);` where it is defined, or `reassoc::passthrough!(foreign i32);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `i32` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Metres` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
+   = note: required for `u32` to implement `AddRhs<i32, _, _>`
+note: required by a bound in `reassoc::ops::add`
+  --> src/ops.rs
    |
-31 |     alg!(a + b).into()
-   |                +++++++
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `u32` to `i32`
-  --> tests/ui/mismatched_operands.rs:35:14
+  --> tests/ui/mismatched_operands.rs:34:14
    |
-35 |     alg!(a + b)
+34 |     alg!(a + b)
    |     ---------^-
    |     |        |
-   |     |        cannot add `u32` to `i32`
+   |     |        no implementation for `i32 + u32`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<i32, i32, _>` is not implemented for `u32`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `i32` is not opted in yet, add `reassoc::passthrough!(i32);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `i32` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/macros.rs
+   = help: the trait `Add<u32>` is not implemented for `i32`
+help: the following other types implement trait `Add<Rhs>`
+  --> $RUST/core/src/ops/arith.rs
    |
-   |           impl $crate::traits::$rhs<$a, $o, $tag> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `AddRhs<u32, u32>`
+   |         const impl Add for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^ `i32` implements `Add`
 ...
-   | /         impl $crate::traits::$rhs<$a, $o, $tag> for &$b
-   | |         where $b: $crate::traits::RefOperand {
-   | |____________________________________________^ `&u32` implements `AddRhs<u32, u32>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for $b
-   | |         where $a: $crate::traits::RefOperand {
-   | |____________________________________________^ `u32` implements `AddRhs<&u32, u32>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for &$b
-   | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-   | |____________________________________________________________________________^ `&u32` implements `AddRhs<&u32, u32>`
+   | add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f16 f32 f64 f128 }
+   | ---------------------------------------------------------------------------------- in this macro invocation
    |
-  ::: src/impls/int.rs
+  ::: $RUST/core/src/internal_macros.rs
    |
-   |   plain_int!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
-   |   --------------------------------------------------------------- in this macro invocation
+   |         const impl $imp<$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&i32` implements `Add<i32>`
+...
+   |         const impl $imp<&$u> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `i32` implements `Add<&i32>`
+...
+   |         const impl $imp<&$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&i32` implements `Add`
+   = note: required for `u32` to implement `AddRhs<i32, _, _>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `plain_int` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
+   = note: this error originates in the macro `add_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: no `reassoc` dispatch for `u32` with this operand
+  --> tests/ui/mismatched_operands.rs:38:14
+   |
+38 |     alg!(a + b)
+   |     ---------^-
+   |     |        |
+   |     |        no dispatch for `u32`
+   |     required by a bound introduced by this call
+   |
+   = help: the trait `Passthrough<_>` is not implemented for `u32`
+   = note: a type of yours is opted in with `reassoc::passthrough!(u32);` where it is defined, or `reassoc::passthrough!(foreign u32);` if it comes from another crate; a generic type parameter is bounded `T: reassoc::Passthrough`
+   = note: a primitive number needs no opt-in: if `u32` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = help: the following other types implement trait `Passthrough<Tag>`:
+             `&T` implements `Passthrough<Tag>`
+             `&mut T` implements `Passthrough<Tag>`
+             `Duration` implements `Passthrough`
+             `Instant` implements `Passthrough`
+             `Metres` implements `Passthrough`
+             `Saturating<T>` implements `Passthrough`
+             `SystemTime` implements `Passthrough`
+             `Wrapping<T>` implements `Passthrough`
+   = note: required for `f64` to implement `AddRhs<u32, _, _>`
+note: required by a bound in `reassoc::ops::add`
+  --> src/ops.rs
+   |
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `f64` to `u32`
-  --> tests/ui/mismatched_operands.rs:39:14
+  --> tests/ui/mismatched_operands.rs:38:14
    |
-39 |     alg!(a + b)
+38 |     alg!(a + b)
    |     ---------^-
    |     |        |
-   |     |        cannot add `f64` to `u32`
+   |     |        no implementation for `u32 + f64`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<u32, u32, _>` is not implemented for `f64`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `u32` is not opted in yet, add `reassoc::passthrough!(u32);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `u32` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/impls/float.rs
+   = help: the trait `Add<f64>` is not implemented for `u32`
+help: the following other types implement trait `Add<Rhs>`
+  --> $RUST/core/src/ops/arith.rs
    |
-   |         impl $rhs_trait<$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<f64, f64>`
+   |         const impl Add for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^ `u32` implements `Add`
 ...
-   |         impl $rhs_trait<$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<f64, f64>`
+   | add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f16 f32 f64 f128 }
+   | ---------------------------------------------------------------------------------- in this macro invocation
+   |
+  ::: $RUST/core/src/internal_macros.rs
+   |
+   |         const impl $imp<$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&u32` implements `Add<u32>`
 ...
-   |         impl $rhs_trait<&$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<&f64, f64>`
+   |         const impl $imp<&$u> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u32` implements `Add<&u32>`
 ...
-   |         impl $rhs_trait<&$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<&f64, f64>`
-...
-   | alg_float!(f32 f64);
-   | ------------------- in this macro invocation
+   |         const impl $imp<&$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&u32` implements `Add`
+   = note: required for `f64` to implement `AddRhs<u32, _, _>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0308]: mismatched types
-  --> tests/ui/mismatched_operands.rs:39:5
-   |
-38 | fn integer_against_float(a: u32, b: f64) -> f64 {
-   |                                             --- expected `f64` because of return type
-39 |     alg!(a + b)
-   |     ^^^^^^^^^^^ expected `f64`, found `u32`
-   |
-   = note: this error originates in the macro `alg` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: you can convert a `u32` to an `f64`, producing the floating point representation of the integer
-   |
-39 |     alg!(a + b).into()
-   |                +++++++
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
+   = note: this error originates in the macro `add_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot add `Wrapping<u32>` to `Wrapping<u8>`
-  --> tests/ui/mismatched_operands.rs:43:14
+  --> tests/ui/mismatched_operands.rs:42:14
    |
-43 |     alg!(a + b)
+42 |     alg!(a + b)
    |     ---------^-
    |     |        |
-   |     |        cannot add `Wrapping<u32>` to `Wrapping<u8>`
+   |     |        no implementation for `Wrapping<u8> + Wrapping<u32>`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<Wrapping<u8>, Wrapping<u8>, _>` is not implemented for `Wrapping<u32>`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `Wrapping<u8>` is not opted in yet, add `reassoc::passthrough!(Wrapping<u8>);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `Wrapping<u8>` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/impls/ext.rs
+   = help: the trait `Add<Wrapping<u32>>` is not implemented for `Wrapping<u8>`
+help: the following other types implement trait `Add<Rhs>`
+  --> $RUST/core/src/num/wrapping.rs
    |
-   | /         impl<T> $rhs<$w<T>, $w<T>> for $w<T>
-   | |         where
-   | |             $w<T>: $bound<Output = $w<T>>,
-   | |__________________________________________^ `Wrapping<T>` implements `AddRhs<Wrapping<T>, Wrapping<T>>`
+   |         const impl Add for Wrapping<$t> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Wrapping<u8>` implements `Add`
 ...
-   | /         impl<T> $rhs<$w<T>, $w<T>> for &$w<T>
-   | |         where
-   | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
-   | |_______________________________________________________^ `&Wrapping<T>` implements `AddRhs<Wrapping<T>, Wrapping<T>>`
+   | wrapping_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
+   | ---------------------------------------------------------------------- in this macro invocation
+   |
+  ::: $RUST/core/src/internal_macros.rs
+   |
+   |         const impl $imp<$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&Wrapping<u8>` implements `Add<Wrapping<u8>>`
 ...
-   | /         impl<T> $rhs<&$w<T>, $w<T>> for $w<T>
-   | |         where
-   | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
-   | |_______________________________________________________^ `Wrapping<T>` implements `AddRhs<&Wrapping<T>, Wrapping<T>>`
+   |         const impl $imp<&$u> for $t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Wrapping<u8>` implements `Add<&Wrapping<u8>>`
 ...
-   | /         impl<T> $rhs<&$w<T>, $w<T>> for &$w<T>
-   | |         where
-   | |             $w<T>: RefOperand + $bound<Output = $w<T>>,
-   | |_______________________________________________________^ `&Wrapping<T>` implements `AddRhs<&Wrapping<T>, Wrapping<T>>`
-...
-   |   plain_wrapper!(Wrapping: AddRhs, SynthAddAssign, add_rhs, Add, +; SubRhs, SynthSubAssign, sub_rhs, Sub, -; MulRhs, SynthMulAssign, mul_rhs, Mul, *; DivRhs, SynthDivAssign, div_rhs, Div, /; RemRhs, SynthRemAssign, rem_rhs, Rem, %);
-   |   ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- in this macro invocation
+   |         const impl $imp<&$u> for &$t {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&Wrapping<u8>` implements `Add`
+   = note: required for `Wrapping<u32>` to implement `AddRhs<Wrapping<u8>, _>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `plain_wrapper` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0308]: mismatched types
-  --> tests/ui/mismatched_operands.rs:43:5
-   |
-42 | fn wrapped_integers(a: Wrapping<u8>, b: Wrapping<u32>) -> Wrapping<u32> {
-   |                                                           ------------- expected `Wrapping<u32>` because of return type
-43 |     alg!(a + b)
-   |     ^^^^^^^^^^^ expected `Wrapping<u32>`, found `Wrapping<u8>`
-   |
-   = note: expected struct `Wrapping<u32>`
-              found struct `Wrapping<u8>`
-   = note: this error originates in the macro `alg` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
+   = note: this error originates in the macro `wrapping_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot multiply `Duration` by `u64`
-  --> tests/ui/mismatched_operands.rs:49:14
+  --> tests/ui/mismatched_operands.rs:48:14
    |
-49 |     alg!(a * b)
+48 |     alg!(a * b)
    |     ---------^-
    |     |        |
-   |     |        cannot multiply `Duration` by `u64`
+   |     |        no implementation for `Duration * u64`
    |     required by a bound introduced by this call
    |
-   = help: the trait `MulRhs<Duration, Duration, _>` is not implemented for `u64`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `Duration` is not opted in yet, add `reassoc::passthrough!(Duration);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `Duration` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `MulRhs<Lhs, O, Tag>`
-  --> src/macros.rs
+help: the trait `Mul<u64>` is not implemented for `Duration`
+      but trait `Mul<u32>` is implemented for it
+  --> $RUST/core/src/time.rs
    |
-   |           impl $crate::traits::$rhs<$a, $o, $tag> for $b {
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `u64` implements `MulRhs<u64, u64>`
-...
-   | /         impl $crate::traits::$rhs<$a, $o, $tag> for &$b
-   | |         where $b: $crate::traits::RefOperand {
-   | |____________________________________________^ `&u64` implements `MulRhs<u64, u64>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for $b
-   | |         where $a: $crate::traits::RefOperand {
-   | |____________________________________________^ `u64` implements `MulRhs<&u64, u64>`
-...
-   | /         impl $crate::traits::$rhs<&$a, $o, $tag> for &$b
-   | |         where $a: $crate::traits::RefOperand, $b: $crate::traits::RefOperand {
-   | |____________________________________________________________________________^ `&u64` implements `MulRhs<&u64, u64>`
-   |
-  ::: src/impls/int.rs
-   |
-   |   plain_int!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
-   |   --------------------------------------------------------------- in this macro invocation
+   | const impl Mul<u32> for Duration {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for that trait implementation, expected `u32`, found `u64`
+   = note: required for `u64` to implement `MulRhs<Duration, _>`
 note: required by a bound in `reassoc::ops::mul`
   --> src/ops.rs
    |
-   | pub fn mul<A: MulOut<B, O, T>, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `mul`
-   = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `plain_int` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
 
 error[E0277]: cannot add `f64` to `Metres`
-  --> tests/ui/mismatched_operands.rs:53:14
+  --> tests/ui/mismatched_operands.rs:52:14
    |
-53 |     alg!(a + b)
+52 |     alg!(a + b)
    |     ---------^-
    |     |        |
-   |     |        cannot add `f64` to `Metres`
+   |     |        no implementation for `Metres + f64`
    |     required by a bound introduced by this call
    |
-   = help: the trait `AddRhs<Metres, Metres, _>` is not implemented for `f64`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `Metres` is not opted in yet, add `reassoc::passthrough!(Metres);`, or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `Metres` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
-help: the following other types implement trait `AddRhs<Lhs, O, Tag>`
-  --> src/impls/float.rs
+help: the trait `Add<f64>` is not implemented for `Metres`
+      but trait `Add<Metres>` is implemented for it
+  --> tests/ui/mismatched_operands.rs:14:1
    |
-   |         impl $rhs_trait<$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for $t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64` implements `AddRhs<&f64, f64>`
-...
-   |         impl $rhs_trait<&$t, $t> for &$t {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&f64` implements `AddRhs<&f64, f64>`
-...
-   | alg_float!(f32 f64);
-   | ------------------- in this macro invocation
+14 | impl core::ops::Add for Metres {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for that trait implementation, expected `Metres`, found `f64`
+   = note: required for `f64` to implement `AddRhs<Metres, _>`
 note: required by a bound in `reassoc::ops::add`
   --> src/ops.rs
    |
-   | pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-   |                                   ^^^^^^^^^^^^^^^ required by this bound in `add`
-   = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `alg_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `add`

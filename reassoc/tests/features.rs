@@ -184,15 +184,3 @@ fn string_in_place_accepts_every_reference_native_would_coerce() {
     );
     assert_eq!(s, "abcdefghghg");
 }
-
-/// The std pairs with a reference on one side are slightly more permissive
-/// than native (`docs/limitations.md`): `&Duration + Duration` compiles here,
-/// where std has no reference impls for `Duration`. Pinned so a change is
-/// deliberate.
-#[test]
-#[allow(clippy::needless_borrows_for_generic_args)]
-fn duration_reference_operands_are_accepted() {
-    let d = Duration::from_secs(1);
-    assert_eq!(add(&d, d), Duration::from_secs(2));
-    assert_eq!(mul(&d, 2u32), Duration::from_secs(2));
-}

@@ -4,6 +4,6 @@
 //! meets before learning that.
 use foreign_types::Vec3;
 
-reassoc::passthrough!(add: Vec3, Vec3 => Vec3);
+reassoc::passthrough!(Vec3);
 
 fn main() {}

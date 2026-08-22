@@ -29,6 +29,16 @@ impl Mul<Vec3> for f32 {
         v * self
     }
 }
+impl core::ops::AddAssign for Vec3 {
+    fn add_assign(&mut self, o: Vec3) {
+        *self = *self + o;
+    }
+}
+impl core::ops::MulAssign<f32> for Vec3 {
+    fn mul_assign(&mut self, k: f32) {
+        *self = *self * k;
+    }
+}
 
 /// A non-`Copy` matrix whose operators live on references and whose product
 /// with a vector is a vector: the heterogeneous-output shape.

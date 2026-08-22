@@ -316,7 +316,7 @@ fn wrapping_saturating_and_duration_through_an_index() {
         d[0] += d[1];
         d[1] *= n;
         let second = d[1];
-        d[0] -= &second;
+        d[0] -= second; // `Duration: SubAssign<Duration>` only — no `&` form natively either
     }
     let mut w = [Wrapping(250u8), Wrapping(5)];
     let mut s = [Saturating(250u8), Saturating(10)];
@@ -442,7 +442,11 @@ impl reassoc::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
         Dispatched(lhs.0 + self.0)
     }
 }
-impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+    fn add_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 += self.0
+    }
+}
 
 #[test]
 fn index_place_compound_assignment_is_dispatched_not_native() {
@@ -456,7 +460,6 @@ fn index_place_compound_assignment_is_dispatched_not_native() {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, mul)]
 struct Pair<T>(T, T);
 impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
     type Output = Pair<T>;
@@ -468,6 +471,24 @@ impl<T: core::ops::Mul<Output = T>> core::ops::Mul for Pair<T> {
     type Output = Pair<T>;
     fn mul(self, o: Pair<T>) -> Pair<T> {
         Pair(self.0 * o.0, self.1 * o.1)
+    }
+}
+impl<T: core::ops::AddAssign> core::ops::AddAssign for Pair<T> {
+    fn add_assign(&mut self, o: Pair<T>) {
+        self.0 += o.0;
+        self.1 += o.1;
+    }
+}
+impl<T: core::ops::AddAssign + Copy> core::ops::AddAssign<&Pair<T>> for Pair<T> {
+    fn add_assign(&mut self, o: &Pair<T>) {
+        self.0 += o.0;
+        self.1 += o.1;
+    }
+}
+impl<T: core::ops::MulAssign> core::ops::MulAssign for Pair<T> {
+    fn mul_assign(&mut self, o: Pair<T>) {
+        self.0 *= o.0;
+        self.1 *= o.1;
     }
 }
 
@@ -486,7 +507,6 @@ fn generic_copy_derive_through_an_index() {
 }
 
 #[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, add_assign, no_refs)]
 struct Tag(String);
 impl core::ops::Add for Tag {
     type Output = Tag;
@@ -613,7 +633,6 @@ fn struct_literal_rhs_on_both_paths() {
     // The RHS is bound through a `match`; a bare struct literal is not allowed
     // as a scrutinee, so the expansion must not put it there unwrapped.
     #[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
-    #[passthrough(add)]
     struct P {
         x: f64,
     }
@@ -621,6 +640,11 @@ fn struct_literal_rhs_on_both_paths() {
         type Output = P;
         fn add(self, o: P) -> P {
             P { x: self.x + o.x }
+        }
+    }
+    impl core::ops::AddAssign for P {
+        fn add_assign(&mut self, o: P) {
+            self.x += o.x;
         }
     }
     impl core::ops::Neg for P {

@@ -1,0 +1,61 @@
+error[E0277]: binary assignment operation `+=` cannot be applied to type `C`
+  --> tests/ui/compound_without_assign_impl.rs:17:10
+   |
+15 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+16 | fn f(v: &mut [C], mut c: C, d: C) {
+17 |     v[0] += d;
+   |          ^ binary assignment operation `+=` cannot be applied to type `C`
+   |
+help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
+  --> tests/ui/compound_without_assign_impl.rs:7:1
+   |
+ 7 | struct C(f32);
+   | ^^^^^^^^
+   = note: if the place is a reference, dereference it: `*place` rather than `place`
+   = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
+             `&&String` implements `AddAssignRhs<String>`
+             `&&str` implements `AddAssignRhs<String>`
+             `&Arc<str>` implements `AddAssignRhs<String>`
+             `&Box<str>` implements `AddAssignRhs<String>`
+             `&Cow<'_, str>` implements `AddAssignRhs<String>`
+             `&F` implements `AddAssignRhs<F, FloatTag>`
+             `&I` implements `AddAssignRhs<I, IntTag>`
+             `&Rc<str>` implements `AddAssignRhs<String>`
+           and $N others
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
+
+error[E0277]: binary assignment operation `+=` cannot be applied to type `C`
+  --> tests/ui/compound_without_assign_impl.rs:18:7
+   |
+15 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+...
+18 |     c += d;
+   |       ^ binary assignment operation `+=` cannot be applied to type `C`
+   |
+help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
+  --> tests/ui/compound_without_assign_impl.rs:7:1
+   |
+ 7 | struct C(f32);
+   | ^^^^^^^^
+   = note: if the place is a reference, dereference it: `*place` rather than `place`
+   = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
+             `&&String` implements `AddAssignRhs<String>`
+             `&&str` implements `AddAssignRhs<String>`
+             `&Arc<str>` implements `AddAssignRhs<String>`
+             `&Box<str>` implements `AddAssignRhs<String>`
+             `&Cow<'_, str>` implements `AddAssignRhs<String>`
+             `&F` implements `AddAssignRhs<F, FloatTag>`
+             `&I` implements `AddAssignRhs<I, IntTag>`
+             `&Rc<str>` implements `AddAssignRhs<String>`
+           and $N others
+note: required by a bound in `reassoc::ops::add_assign`
+  --> src/ops.rs
+   |
+   | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
+   |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`

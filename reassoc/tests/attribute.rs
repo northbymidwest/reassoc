@@ -521,8 +521,16 @@ fn compound_assignment_matches_native_order() {
 // ---- compile error; each of these was found working by probing, and is  ----
 // ---- pinned here so it stays that way                                   ----
 
-impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
-impl reassoc::traits::SynthMulAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+    fn add_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 += self.0
+    }
+}
+impl reassoc::traits::MulAssignRhs<Dispatched> for Dispatched {
+    fn mul_assign_rhs(self, lhs: &mut Dispatched) {
+        lhs.0 *= self.0
+    }
+}
 impl PartialOrd for Dispatched {
     fn partial_cmp(&self, o: &Dispatched) -> Option<core::cmp::Ordering> {
         self.0.partial_cmp(&o.0)

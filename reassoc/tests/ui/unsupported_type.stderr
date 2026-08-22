@@ -6,26 +6,20 @@ error[E0277]: cannot multiply `Odd` by `Odd`
   |                  |
   |                  required by a bound introduced by this call
   |
-help: the trait `MulRhs<Odd, Odd, _>` is not implemented for `Odd`
+help: the trait `MulRhs<Odd, _, _>` is not implemented for `Odd`
  --> tests/ui/unsupported_type.rs:1:1
   |
 1 | struct Odd;
   | ^^^^^^^^^^
-  = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-  = note: if these are numeric types, cast one of them; if `Odd` is not opted in yet, add `reassoc::passthrough!(Odd);`, or wrap the expression in `strict!(..)` to use ordinary operators
-  = note: if `Odd` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
+  = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one; if these are numeric types, cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
   = help: the following other types implement trait `MulRhs<Lhs, O, Tag>`:
-            `&Duration` implements `MulRhs<&u32, Duration>`
-            `&Duration` implements `MulRhs<u32, Duration>`
-            `&Saturating<T>` implements `MulRhs<&Saturating<T>, Saturating<T>>`
-            `&Saturating<T>` implements `MulRhs<Saturating<T>, Saturating<T>>`
-            `&Wrapping<T>` implements `MulRhs<&Wrapping<T>, Wrapping<T>>`
-            `&Wrapping<T>` implements `MulRhs<Wrapping<T>, Wrapping<T>>`
-            `&f32` implements `MulRhs<&f32, f32>`
-            `&f32` implements `MulRhs<f32, f32>`
-          and $N others
+            `&F` implements `MulRhs<&F, F, FloatTag>`
+            `&F` implements `MulRhs<F, F, FloatTag>`
+            `&I` implements `MulRhs<&I, I, IntTag>`
+            `&I` implements `MulRhs<I, I, IntTag>`
+            `Duration` implements `MulRhs<u32, Duration>`
 note: required by a bound in `reassoc::ops::mul`
  --> src/ops.rs
   |
-  | pub fn mul<A: MulOut<B, O, T>, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
-  |                                   ^^^^^^^^^^^^^^^ required by this bound in `mul`
+  | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+  |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`

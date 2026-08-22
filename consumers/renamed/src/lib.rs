@@ -15,7 +15,7 @@ impl myalg::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
         Dispatched(lhs.0 * self.0)
     }
 }
-impl myalg::traits::SynthMulAssign<Dispatched> for Dispatched {}
+impl myalg::traits::MulAssignRhs<Dispatched> for Dispatched { fn mul_assign_rhs(self, lhs: &mut Dispatched) { lhs.0 *= self.0 } }
 
 #[algebraic]
 fn attribute(a: Dispatched, mut acc: Dispatched, v: &mut [Dispatched]) -> Dispatched {
@@ -37,7 +37,6 @@ fn attribute_and_block_forms_resolve_through_the_renamed_crate() {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Passthrough)]
-#[passthrough(add)]
 struct Derived(f32);
 impl core::ops::Add for Derived {
     type Output = Derived;
@@ -54,12 +53,12 @@ impl core::ops::Mul for Declared {
         self.0 * o.0
     }
 }
-passthrough!(mul: Declared, Declared => f32);
+passthrough!(Declared);
 
 #[test]
 fn derive_and_passthrough_resolve_through_the_renamed_crate() {
     let (d, q) = (Derived(1.0), Declared(3.0));
     assert_eq!(alg!(d + d), Derived(2.0));
     assert_eq!(alg!(q * q), 9.0);
-    assert_eq!(alg!(&q * &q), 9.0);
+    assert_eq!(alg!(q * q), 9.0);
 }

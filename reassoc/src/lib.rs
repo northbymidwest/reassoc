@@ -147,10 +147,9 @@
 //! Or opt in at the definition instead:
 //!
 //! ```
-//! # use core::ops::{Add, Sub, Mul, Div, Rem};
+//! # use core::ops::{Add, Mul};
 //! #[derive(Clone, Copy, PartialEq, Debug, reassoc::Passthrough)]
-//! #[passthrough(add, mul)]   // this type implements only these two
-//! struct Metres(f32);
+//! struct Metres(f32);   // implements `Add` and `Mul`: those two are dispatched
 //!
 //! # impl Add for Metres { type Output = Metres; fn add(self, o: Metres) -> Metres { Metres(self.0 + o.0) } }
 //! # impl Mul for Metres { type Output = Metres; fn mul(self, o: Metres) -> Metres { Metres(self.0 * o.0) } }
@@ -159,9 +158,10 @@
 //! # }
 //! ```
 //!
-//! Naming a subset matters: an impl whose bound is known unsatisfiable for a
-//! concrete type is a hard error at the definition, so deriving all five for a
-//! type that implements two would not compile.
+//! Either way, every operator the type implements — any right-hand type, any
+//! output, the `op=` forms, references wherever the type implements them — is
+//! dispatched, exactly as `std::ops` defines it; nothing is listed. A type from
+//! another crate takes `passthrough!(foreign ..)`.
 //!
 //! `Wrapping<T>` and `Saturating<T>` are covered already and need no opt-in.
 //!
@@ -193,6 +193,4 @@ pub mod traits;
 mod impls;
 mod macros;
 
-#[doc(hidden)]
-pub use reassoc_macros::declare_output;
 pub use reassoc_macros::{Passthrough, alg, algebraic};

@@ -7,8 +7,8 @@
 //! never in a leaf library.
 use foreign_types::Vec3;
 
-reassoc::passthrough!(foreign add: Vec3, Vec3 => Vec3);
-reassoc::passthrough!(foreign add: Vec3, Vec3 => Vec3);
+reassoc::passthrough!(foreign Vec3);
+reassoc::passthrough!(foreign Vec3);
 
 #[reassoc::algebraic]
 fn f(a: Vec3, b: Vec3) -> Vec3 {

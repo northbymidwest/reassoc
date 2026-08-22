@@ -25,13 +25,19 @@ impl_dispatched!(
     AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *;
     DivRhs, div_rhs, /; RemRhs, rem_rhs, %;
 );
-macro_rules! synth { ($($t:ident),*) => {$( impl reassoc::traits::$t<Dispatched> for Dispatched {} )*}; }
-synth!(
-    SynthAddAssign,
-    SynthSubAssign,
-    SynthMulAssign,
-    SynthDivAssign,
-    SynthRemAssign
+macro_rules! assign {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl reassoc::traits::$t<Dispatched> for Dispatched {
+            fn $m(self, lhs: &mut Dispatched) { lhs.0 $op self.0 }
+        }
+    )*};
+}
+assign!(
+    AddAssignRhs, add_assign_rhs, +=;
+    SubAssignRhs, sub_assign_rhs, -=;
+    MulAssignRhs, mul_assign_rhs, *=;
+    DivAssignRhs, div_assign_rhs, /=;
+    RemAssignRhs, rem_assign_rhs, %=
 );
 
 // ---------------------------------------------------------------------------
@@ -138,7 +144,7 @@ impl core::ops::AddAssign<u32> for Tally {
         self.0 += n;
     }
 }
-reassoc::passthrough!(no_refs add_assign: Tally, u32);
+reassoc::passthrough!(add_assign: Tally, u32);
 
 // The assignment inside the RHS block is the point of the test: it proves the
 // RHS runs before the place is read, exactly as native `+=` orders them.
@@ -355,7 +361,6 @@ fn logical_and_bitwise_not_are_untouched() {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
-#[passthrough(add, mul)]
 struct Metres(f64);
 
 impl core::ops::Add for Metres {
@@ -413,9 +418,6 @@ impl reassoc::traits::MulRhs<f32, Dispatched> for Dispatched {
         Dispatched(lhs * self.0)
     }
 }
-// Implemented by hand (a test-only shortcut; the traits are not a user
-// surface), so the output — not the left type — is declared by hand too.
-impl reassoc::traits::MulOut<Dispatched, Dispatched> for f32 {}
 
 /// A cast *to an integer type* proves the operation is not float arithmetic,
 /// like an integer literal, and leaves it native (the must-fail direction,

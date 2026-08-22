@@ -4,51 +4,47 @@
 //! generated code must name them, not a surface to call by hand.
 
 use crate::traits::{
-    AddAssignRhs, AddOut, AddRhs, DivAssignRhs, DivOut, DivRhs, MulAssignRhs, MulOut, MulRhs,
-    RemAssignRhs, RemOut, RemRhs, SubAssignRhs, SubOut, SubRhs,
+    AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, MulAssignRhs, MulRhs, RemAssignRhs, RemRhs,
+    SubAssignRhs, SubRhs,
 };
 
-// The operand bound hangs off `B`, deliberately. A bound on `A` makes rustc
-// anchor a mismatched-operand error on the *left* argument, where plain Rust
-// points at the right one; naming `B: AddRhs<A, O>` puts the caret on the
-// operand that is actually wrong. `A: AddOut<B, O>` resolves the output type
-// from the left operand alone — its blanket impl leaves `B` free — so the
-// return-type `E0308` still fires when the operand bound does not hold.
-
+// The operand bound hangs off `B`, deliberately: naming `B: AddRhs<A, O>` puts
+// rustc's caret on the right operand, where plain Rust points too.
+//
 // `#[track_caller]` costs nothing once inlined and makes an integer overflow
 // panic in a debug build point at the user's operator rather than in here.
-
+//
 // `T` is the opt-in tag (`traits.rs`): unconstrained here, resolved by
 // selection from the one impl that matches the operand types, `()` for
 // everything but a `passthrough!(foreign ..)` pair.
 
 #[inline(always)]
 #[track_caller]
-pub fn add<A: AddOut<B, O, T>, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.add_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn sub<A: SubOut<B, O, T>, B: SubRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+pub fn sub<A, B: SubRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.sub_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn mul<A: MulOut<B, O, T>, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.mul_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn div<A: DivOut<B, O, T>, B: DivRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+pub fn div<A, B: DivRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.div_rhs(a)
 }
 
 #[inline(always)]
 #[track_caller]
-pub fn rem<A: RemOut<B, O, T>, B: RemRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+pub fn rem<A, B: RemRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.rem_rhs(a)
 }
 
