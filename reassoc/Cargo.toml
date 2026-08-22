@@ -24,7 +24,7 @@ std = ["alloc"]
 alloc = []
 
 [dependencies]
-reassoc-macros = { version = "=0.3.5", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.3.6", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"
