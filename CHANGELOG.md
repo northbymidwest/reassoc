@@ -6,11 +6,14 @@ Notable changes per release. Dates are the publish date.
 
 ### Added
 
-- `tests/edition2021/`, the whole integration suite compiled as an
-  edition-2021 crate (every test file included by `#[path]`), run by
-  `tests/edition2021.rs` and CI: what the macros emit meets different
-  temporary-lifetime rules, lint levels and syntax there, and most consumers
-  are on 2021. 2024-only syntax lives in `tests/edition2024.rs`.
+- `consumers/edition2021/`, the whole integration suite compiled as an
+  edition-2021 crate (every test file included by `#[path]`, a workspace
+  member so `cargo test --workspace` runs it; `tests/suite_layout.rs` keeps the
+  list complete): what the macros emit meets different temporary-lifetime
+  rules, lint levels and syntax there, and most consumers are on 2021.
+  2024-only syntax lives in `tests/edition2024.rs`. The renamed-dependency
+  consumer moves beside it as `consumers/renamed/`, still outside the
+  workspace so `resolve-crate-name` does not unify into every build.
 - Pins for the remaining untested corners: binary operand evaluation order,
   raw-pointer and nested-index and tuple-field places, `format_args!` and
   trailing commas and an opaque macro inside an entered one, the whole-type

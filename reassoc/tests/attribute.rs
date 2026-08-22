@@ -576,7 +576,7 @@ where
 fn control_flow(a: Dispatched, b: Dispatched, n: usize, o: Option<Dispatched>) -> Dispatched {
     let Some(t) = o else { return a * b }; // let-else
     // (The let-chain form of this `if` lives in `tests/edition2024.rs`: this
-    // file is also compiled under edition 2021 by `tests/edition2021/`.)
+    // file is also compiled under edition 2021 by `consumers/edition2021/`.)
     let mut acc = if let Some(u) = o {
         if u * b > a { u + t } else { a }
     } else {

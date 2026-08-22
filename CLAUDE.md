@@ -20,8 +20,7 @@ cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
 cargo test -p reassoc --test codegen -- --ignored   # assembly guard
 ./scripts/codegen-check.sh                          # the guard, run directly
-cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer
-cargo test -p reassoc --test edition2021 -- --ignored  # the suite as an edition-2021 crate
+cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 
 cargo test -p reassoc --no-default-features                    # core only
@@ -32,11 +31,15 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-`ui`, `codegen`, `renamed` and `edition2021` are `#[ignore]`d because they
-shell out or depend on toolchain and host; CI runs them explicitly, `ui` on a
-pinned 1.98.0. Run all four with `--ignored` before calling a change green.
-`tests/edition2021/` includes every test file by `#[path]`, so 2024-only
-syntax goes in `tests/edition2024.rs`, nowhere else. Regenerating `.stderr` files needs
+`ui`, `codegen` and `renamed` are `#[ignore]`d because they shell out or
+depend on toolchain and host; CI runs them explicitly, `ui` on a pinned 1.98.0.
+Run all three with `--ignored` before calling a change green.
+`consumers/edition2021/` is a workspace member that includes every test file
+by `#[path]` and compiles it as edition 2021 (`tests/suite_layout.rs` keeps
+its list complete), so 2024-only syntax goes in `tests/edition2024.rs`,
+nowhere else. `consumers/renamed/` is deliberately not a member: it turns on
+`resolve-crate-name`, which feature unification would spread to every
+workspace build. Regenerating `.stderr` files needs
 the `rust-src` component (five of them quote a line of `core`); regenerate with
 `TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored` and read each
 diff back before committing.

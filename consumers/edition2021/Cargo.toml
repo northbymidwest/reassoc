@@ -1,0 +1,22 @@
+# The integration-test suite again, compiled as an edition-2021 crate. The
+# workspace is edition 2024, but most consumers are not, and what the macros
+# emit meets different rules in 2021 — temporary lifetimes, lint levels,
+# syntax. Every test file in reassoc/tests except the 2024-only and shell-out
+# ones is included by `#[path]`, so this is the same suite, not a copy that
+# can drift (`reassoc/tests/suite_layout.rs` checks the list). A workspace
+# member, so `cargo test --workspace` runs it.
+[package]
+name = "edition2021"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+reassoc = { path = "../../reassoc", default-features = false }
+
+[features]
+# Mirror reassoc's, so the suite's `cfg(feature = "alloc")` / `"std"` gates
+# mean the same thing here.
+default = ["std"]
+std = ["alloc", "reassoc/std"]
+alloc = ["reassoc/alloc"]

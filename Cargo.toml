@@ -1,5 +1,11 @@
 [workspace]
-members = ["reassoc", "reassoc-macros"]
+# `consumers/edition2021` is the integration suite compiled as an edition-2021
+# crate; a member so the workspace test/clippy/fmt runs cover it. `consumers/
+# renamed` is not: it turns on `resolve-crate-name`, and feature unification
+# would then turn it on for every workspace build, so the default path would
+# stop being what the main suite tests. It is built by `reassoc/tests/renamed.rs`.
+members = ["reassoc", "reassoc-macros", "consumers/edition2021"]
+exclude = ["consumers/renamed"]
 resolver = "3"
 
 [workspace.package]

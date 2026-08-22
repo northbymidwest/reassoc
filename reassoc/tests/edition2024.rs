@@ -1,5 +1,5 @@
 //! Constructs that exist only from edition 2024 on. Everything else in the
-//! suite is also compiled under edition 2021 by `tests/edition2021/`, so the
+//! suite is also compiled under edition 2021 by `consumers/edition2021/`, so the
 //! 2024-only syntax is kept here, out of its way.
 use reassoc::algebraic;
 
