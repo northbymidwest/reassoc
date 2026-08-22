@@ -2,7 +2,7 @@
 """Generate a corpus of random expression trees as a Rust test file.
 
 The oracle is exactness. Every value in a generated tree is a dyadic rational
-whose numerator fits well inside f64's 53-bit significand, so the expression
+whose numerator fits well inside the float's significand, so the expression
 evaluates identically under strict IEEE and under the algebraic operators —
 reassociation and contraction cannot change a result that never rounds. That
 makes `assert_eq!` legitimate, with no epsilon to hide a bug behind.
@@ -11,19 +11,24 @@ Values are tracked as exact `Fraction`s while the tree is built, and a node is
 rejected if it would leave the safe zone, so the guarantee holds by
 construction rather than by hoping.
 
+Two kinds of case: expression trees, and compound-assignment chains
+(`{ let mut acc = a; acc += tree; acc *= tree; acc }`), which exercise the
+`+=` emitter. Leaves are variables, `&`-references to variables, or unsuffixed
+literals; a subtree is sometimes wrapped in `strict!(..)`, which must not change
+an exact value either.
+
 Usage:
-    gen-fuzz-corpus.py --seed 1 --count 200 --nodes 40 > reassoc/tests/fuzz_corpus.rs
+    gen-fuzz-corpus.py --seed 1 --count 200 --chains 80 --nodes 40 --width 64 \\
+        > reassoc/tests/fuzz_corpus.rs
+    gen-fuzz-corpus.py --seed 2 --count 100 --chains 40 --nodes 24 --width 32 \\
+        > reassoc/tests/fuzz_corpus_f32.rs
+Then run `rustfmt` on the output.
 """
 
 import argparse
 import random
 import re
 from fractions import Fraction
-
-# Keep numerators far below 2^53 so every intermediate is exact in f64, and
-# bound the denominator's exponent so division cannot creep past it either.
-MAX_NUM = 2**40
-MAX_DENOM_EXP = 16
 
 VARS = ["a", "b", "c", "d", "e", "f", "g", "h"]
 VAR_VALUES = [
@@ -37,9 +42,14 @@ VAR_VALUES = [
     Fraction(-1, 8),
 ]
 
+# Set by main() from --width: keep numerators far below the significand and
+# bound the denominator's exponent so division cannot creep past it either.
+MAX_NUM = 2**40
+MAX_DENOM_EXP = 16
+
 
 def is_safe(v: Fraction) -> bool:
-    """True when `v` is exactly representable in f64 and inside our bounds."""
+    """True when `v` is exactly representable in the float and inside bounds."""
     if v.denominator & (v.denominator - 1) != 0:
         return False  # not a dyadic rational — would round
     if v.denominator.bit_length() - 1 > MAX_DENOM_EXP:
@@ -86,6 +96,8 @@ def gen(rng: random.Random, budget: int, env: dict[str, Fraction]):
             src, value = f"(-{src})", -value
             if not is_safe(value):
                 continue
+        if rng.random() < 0.10:  # strict! is opaque and must not change an exact value
+            src = f"strict!({src})"
         return src, value
 
     return leaf(rng, env)
@@ -94,11 +106,34 @@ def gen(rng: random.Random, budget: int, env: dict[str, Fraction]):
 def leaf(rng: random.Random, env: dict[str, Fraction]):
     if rng.random() < 0.7:
         name = rng.choice(list(env))
+        if rng.random() < 0.15:  # a reference operand, as iterator code produces
+            return f"(&{name})", env[name]
         return name, env[name]
     # Unsuffixed on purpose: constant subtrees are exempt from rewriting, so
     # they must keep inferring exactly as they would in plain Rust.
     v = Fraction(rng.choice([1, 2, 3, 4, -1, -2]))
     return f"{float(v)}", v
+
+
+def gen_chain(rng: random.Random, nodes: int, env: dict[str, Fraction]):
+    """`{ let mut acc = x; acc op= tree; ..; acc }`, exact at every step."""
+    start = rng.choice(list(env))
+    value = env[start]
+    stmts = [f"let mut acc = {start};"]
+    for _ in range(rng.randint(2, 4)):
+        for _ in range(24):
+            op = rng.choice(["+=", "-=", "*=", "/="])
+            if op == "/=":
+                rs, rv = rng.choice([("2.0", Fraction(2)), ("4.0", Fraction(4))])
+                new = value / rv
+            else:
+                rs, rv = gen(rng, rng.randint(2, max(2, nodes // 3)), env)
+                new = {"+=": value + rv, "-=": value - rv, "*=": value * rv}[op]
+            if is_safe(new):
+                stmts.append(f"acc {op} {rs};")
+                value = new
+                break
+    return "{ " + " ".join(stmts) + " acc }", value
 
 
 def rust_lit(v: Fraction) -> str:
@@ -110,20 +145,28 @@ LITERAL = re.compile(r"(?<![\w.])(-?\d+\.\d+)")
 
 
 def dispatched(src: str) -> str:
-    """The same tree over `Disp`, a type with the dispatch traits and no
-    `std::ops`: every literal leaf becomes `Disp(lit)`, so the expression
-    compiles only if every operator in it was rewritten. The f64 form cannot
-    tell — its native operators give the same bits as the dispatched ones."""
-    return LITERAL.sub(r"Disp(\1)", src)
+    """The same source over `Disp`, a type with the dispatch traits and no
+    `std::ops`: every literal leaf becomes `Disp(lit)` and `strict!` wrappers
+    are removed (their contents would be native operators on `Disp`), so the
+    code compiles only if every operator in it was rewritten. The float forms
+    cannot tell — native and dispatched give the same bits on exact values."""
+    return LITERAL.sub(r"Disp(\1)", src).replace("strict!(", "(")
 
 
 def main() -> None:
+    global MAX_NUM, MAX_DENOM_EXP
     p = argparse.ArgumentParser()
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--count", type=int, default=200)
+    p.add_argument("--chains", type=int, default=80)
     p.add_argument("--nodes", type=int, default=40)
+    p.add_argument("--width", type=int, default=64, choices=[32, 64])
     p.add_argument("--per-fn", type=int, default=20)
     args = p.parse_args()
+
+    ty = f"f{args.width}"
+    if args.width == 32:
+        MAX_NUM, MAX_DENOM_EXP = 2**20, 8
 
     rng = random.Random(args.seed)
     env = dict(zip(VARS, VAR_VALUES))
@@ -131,11 +174,15 @@ def main() -> None:
     cases = []
     while len(cases) < args.count:
         src, value = gen(rng, rng.randint(args.nodes // 2, args.nodes), env)
-        if src in {c[0] for c in cases}:
-            continue
-        if not is_safe(value):
+        if src in {c[0] for c in cases} or not is_safe(value):
             continue
         cases.append((src, value))
+    chains = []
+    while len(chains) < args.chains:
+        src, value = gen_chain(rng, args.nodes, env)
+        if src in {c[0] for c in chains} or not is_safe(value):
+            continue
+        chains.append((src, value))
 
     out = []
     out.append(f'''//! Randomly generated expression trees — do not edit by hand.
@@ -143,90 +190,122 @@ def main() -> None:
 //! Regenerate with:
 //!
 //! ```text
-//! scripts/gen-fuzz-corpus.py --seed {args.seed} --count {args.count} --nodes {args.nodes} \\
-//!     > reassoc/tests/fuzz_corpus.rs
+//! scripts/gen-fuzz-corpus.py --seed {args.seed} --count {args.count} --chains {args.chains} \\
+//!     --nodes {args.nodes} --width {args.width} > reassoc/tests/{"fuzz_corpus" if args.width == 64 else "fuzz_corpus_f32"}.rs
+//! rustfmt --edition 2024 reassoc/tests/{"fuzz_corpus" if args.width == 64 else "fuzz_corpus_f32"}.rs
 //! ```
 //!
-//! Each case asserts three things about the same tree:
+//! Each case asserts four things about the same source:
 //!
-//! 1. `alg!(tree)` equals the value computed exactly, offline, in rational
+//! 1. `alg!(src)` equals the value computed exactly, offline, in rational
 //!    arithmetic — so both the rewriter and the plain form would have to be
 //!    wrong in the same way to pass.
-//! 2. `alg!(tree)` equals the plain form bit for bit. The generator only emits
-//!    dyadic rationals inside f64's exact range, so reassociation and
+//! 2. `alg!(src)` equals the plain form bit for bit. The generator only emits
+//!    dyadic rationals inside `{ty}`'s exact range, so reassociation and
 //!    contraction cannot legitimately change the result; any difference is a
 //!    bug in the rewrite.
-//! 3. The same tree inside `#[algebraic]` agrees too, so the attribute and the
-//!    expression macro cannot drift apart.
-//! 4. The same tree over `Disp` — a type with the dispatch traits and no
-//!    `std::ops`, every literal leaf wrapped as `Disp(lit)` — compiles and agrees.
-//!    The f64 forms pass even if an operator is left unrewritten, since native
-//!    and dispatched f64 give the same bits; this one fails to compile instead.
+//! 3. The same source inside `#[algebraic]` agrees too, so the attribute and
+//!    the expression macro cannot drift apart.
+//! 4. The same source over `Disp` — a type with the dispatch traits and no
+//!    `std::ops`, every literal leaf wrapped as `Disp(lit)` and `strict!`
+//!    wrappers removed — compiles and agrees. The float forms pass even if an
+//!    operator is left unrewritten, since native and dispatched give the same
+//!    bits; this one fails to compile instead.
 //!
-//! Seed {args.seed}, {args.count} trees of ~{args.nodes} nodes.
-#![allow(clippy::float_cmp, clippy::eq_op, clippy::neg_multiply)]
-#![allow(unused_parens)]
+//! Leaves are variables, `&`-references to variables, or unsuffixed literals;
+//! some subtrees are wrapped in `strict!`. The chain cases are
+//! `{{ let mut acc = x; acc op= tree; ..; acc }}`, which exercise the
+//! compound-assignment emitter on bare paths.
+//!
+//! Seed {args.seed}, {args.count} trees of ~{args.nodes} nodes and {args.chains} chains, over `{ty}`.
+#![allow(clippy::float_cmp, clippy::eq_op, clippy::neg_multiply, clippy::needless_borrow)]
+#![allow(clippy::op_ref, clippy::assign_op_pattern, clippy::double_parens)]
+#![allow(clippy::excessive_precision)] // exact dyadic literals clippy cannot round-trip in f32
+#![allow(unused_parens, unused_braces)]
 
-use reassoc::{{alg, algebraic}};
+use reassoc::{{alg, algebraic, strict}};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Disp(f64);
+struct Disp({ty});
 macro_rules! impl_dispatched {{
-    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {{$(
+    ($($t:ident, $synth:ident, $m:ident, $op:tt);* $(;)?) => {{$(
         impl reassoc::traits::$t<Disp, Disp> for Disp {{
             #[inline(always)]
             fn $m(self, lhs: Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
         }}
+        impl reassoc::traits::$t<Disp, Disp> for &Disp {{
+            #[inline(always)]
+            fn $m(self, lhs: Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
+        }}
+        impl reassoc::traits::$t<&Disp, Disp> for Disp {{
+            #[inline(always)]
+            fn $m(self, lhs: &Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
+        }}
+        impl reassoc::traits::$t<&Disp, Disp> for &Disp {{
+            #[inline(always)]
+            fn $m(self, lhs: &Disp) -> Disp {{ Disp(lhs.0 $op self.0) }}
+        }}
+        impl reassoc::traits::$synth<Disp> for Disp {{}}
+        impl reassoc::traits::$synth<&Disp> for Disp {{}}
     )*}};
 }}
-impl_dispatched!(AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *; DivRhs, div_rhs, /; RemRhs, rem_rhs, %);
+impl_dispatched!(
+    AddRhs, SynthAddAssign, add_rhs, +; SubRhs, SynthSubAssign, sub_rhs, -;
+    MulRhs, SynthMulAssign, mul_rhs, *; DivRhs, SynthDivAssign, div_rhs, /;
+    RemRhs, SynthRemAssign, rem_rhs, %
+);
 impl core::ops::Neg for Disp {{
     type Output = Disp;
     fn neg(self) -> Disp {{ Disp(-self.0) }}
 }}
-
-const A: f64 = {rust_lit(env["a"])};
-const B: f64 = {rust_lit(env["b"])};
-const C: f64 = {rust_lit(env["c"])};
-const D: f64 = {rust_lit(env["d"])};
-const E: f64 = {rust_lit(env["e"])};
-const F: f64 = {rust_lit(env["f"])};
-const G: f64 = {rust_lit(env["g"])};
-const H: f64 = {rust_lit(env["h"])};
+impl core::ops::Neg for &Disp {{
+    type Output = Disp;
+    fn neg(self) -> Disp {{ Disp(-self.0) }}
+}}
 ''')
+    for name in VARS:
+        out.append(f"const {name.upper()}: {ty} = {rust_lit(env[name])};")
+    out.append("")
 
-    # Group cases into functions so no single function becomes enormous.
-    for start in range(0, len(cases), args.per_fn):
-        chunk = cases[start : start + args.per_fn]
-        idx = start // args.per_fn
-        # The attribute form: one fn holding this chunk's trees.
-        out.append(f"#[algebraic]\nfn attr_{idx}() -> [f64; {len(chunk)}] {{")
-        out.append("    let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);")
-        out.append("    [")
-        for src, _ in chunk:
-            out.append(f"        {src},")
-        out.append("    ]\n}\n")
+    def emit(kind: str, items: list, per_fn: int) -> None:
+        # Group cases into functions so no single function becomes enormous.
+        for start in range(0, len(items), per_fn):
+            chunk = items[start : start + per_fn]
+            idx = start // per_fn
+            # The attribute form: one fn holding this chunk's sources.
+            out.append(f"#[algebraic]\nfn {kind}_attr_{idx}() -> [{ty}; {len(chunk)}] {{")
+            out.append("    let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);")
+            out.append("    [")
+            for src, _ in chunk:
+                out.append(f"        {src},")
+            out.append("    ]\n}\n")
 
-        # The dispatch-proof twin: compiles only if every operator is rewritten.
-        out.append(f"#[algebraic]\nfn disp_{idx}() -> [Disp; {len(chunk)}] {{")
-        out.append("    let (a, b, c, d, e, f, g, h) = (Disp(A), Disp(B), Disp(C), Disp(D), Disp(E), Disp(F), Disp(G), Disp(H));")
-        out.append("    [")
-        for src, _ in chunk:
-            out.append(f"        {dispatched(src)},")
-        out.append("    ]\n}\n")
+            # The dispatch-proof twin: compiles only if every operator is rewritten.
+            out.append(f"#[algebraic]\nfn {kind}_disp_{idx}() -> [Disp; {len(chunk)}] {{")
+            out.append(
+                "    let (a, b, c, d, e, f, g, h) = "
+                "(Disp(A), Disp(B), Disp(C), Disp(D), Disp(E), Disp(F), Disp(G), Disp(H));"
+            )
+            out.append("    [")
+            for src, _ in chunk:
+                out.append(f"        {dispatched(src)},")
+            out.append("    ]\n}\n")
 
-        out.append(f"#[test]\nfn corpus_{idx}() {{")
-        out.append("    let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);")
-        out.append(f"    let attr = attr_{idx}();")
-        out.append(f"    let disp = disp_{idx}();")
-        for i, (src, value) in enumerate(chunk):
-            out.append(f"    // case {start + i}")
-            out.append(f"    assert_eq!(alg!({src}), {rust_lit(value)}, \"case {start + i}: exact value\");")
-            out.append(f"    assert_eq!(alg!({src}), {src}, \"case {start + i}: differs from plain\");")
-            out.append(f"    assert_eq!(attr[{i}], {rust_lit(value)}, \"case {start + i}: attribute form\");")
-            out.append(f"    assert_eq!(disp[{i}], Disp({rust_lit(value)}), \"case {start + i}: dispatched form\");")
-        out.append("}\n")
+            out.append(f"#[test]\nfn {kind}_{idx}() {{")
+            out.append("    let (a, b, c, d, e, f, g, h) = (A, B, C, D, E, F, G, H);")
+            out.append(f"    let attr = {kind}_attr_{idx}();")
+            out.append(f"    let disp = {kind}_disp_{idx}();")
+            for i, (src, value) in enumerate(chunk):
+                n = start + i
+                out.append(f"    // {kind} {n}")
+                out.append(f"    assert_eq!(alg!({src}), {rust_lit(value)}, \"{kind} {n}: exact value\");")
+                out.append(f"    assert_eq!(alg!({src}), {src}, \"{kind} {n}: differs from plain\");")
+                out.append(f"    assert_eq!(attr[{i}], {rust_lit(value)}, \"{kind} {n}: attribute form\");")
+                out.append(f"    assert_eq!(disp[{i}], Disp({rust_lit(value)}), \"{kind} {n}: dispatched form\");")
+            out.append("}\n")
 
+    emit("tree", cases, args.per_fn)
+    emit("chain", chains, args.per_fn)
     print("\n".join(out))
 
 

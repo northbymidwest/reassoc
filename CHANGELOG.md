@@ -13,6 +13,12 @@ Notable changes per release. Dates are the publish date.
   parse as comma-separated expressions (`vec!`'s `elem; len` too). Every
   other macro is opaque as before — `strict!` is never entered, even as an
   argument of `assert!`. `#[algebraic(macros = false)]` turns the entry off.
+- The fuzz corpus grows compound-assignment chains (`{ let mut acc = x; acc
+  += tree; acc *= tree; acc }`), `&x` leaves, random `strict!` wrappers, and an
+  f32 twin with tighter exactness bounds — every form still checked against
+  the exact rational value, the plain form, the attribute form and the
+  `Disp` compile-proof twin. Neutering `*` fails 693 + 231 cases; neutering
+  `+=` fails 57.
 
 ### Fixed
 
