@@ -12,6 +12,13 @@ scripts/compile-bench.sh --fns 1800 --reps 2   # bigger, quicker
 cargo run --release --manifest-path scripts/compile-bench/expander/Cargo.toml -- some_file.rs
 ```
 
+## Reference run — 2026-08-22, rustc 1.98.0, Apple Silicon (marker dispatch, unreleased)
+
+One marker impl per type and blanket dispatch; floats and ints generic over
+sealed traits. Same 1800-fn workload as the two runs below, for comparison
+(`cargo check`): plain 2.41s, expanded 4.85s, alg 7.47s, alg-opt 5.97s —
+i.e. between 0.5.1 and 0.6.0; the default-workload table was not re-run.
+
 ## Reference run — 2026-08-21, rustc 1.98.0, Apple Silicon (0.6.0)
 
 After the dispatch traits gained the opt-in tag parameter

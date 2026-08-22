@@ -12,6 +12,7 @@ help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
    |
  7 | struct C(f32);
    | ^^^^^^^^
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(C);` where it is defined (`passthrough!(foreign C);` for a type from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
    = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
              `&&String` implements `AddAssignRhs<String>`
@@ -43,6 +44,7 @@ help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
    |
  7 | struct C(f32);
    | ^^^^^^^^
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(C);` where it is defined (`passthrough!(foreign C);` for a type from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
    = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
              `&&String` implements `AddAssignRhs<String>`

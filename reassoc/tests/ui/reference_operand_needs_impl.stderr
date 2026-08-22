@@ -12,7 +12,9 @@ help: the trait `AddRhs<&Vec3, _, _>` is not implemented for `Vec3`
    |
  8 | struct Vec3(f32);
    | ^^^^^^^^^^^
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one; if these are numeric types, cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
+   = note: if these are numeric types, cast one of them; if `&Vec3` is a type of yours that is not opted in yet, add `reassoc::passthrough!(&Vec3);` where it is defined (`passthrough!(foreign &Vec3);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if `&Vec3` is a generic type parameter, bound it: `T: reassoc::Passthrough`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
              `&F` implements `AddRhs<F, F, FloatTag>`

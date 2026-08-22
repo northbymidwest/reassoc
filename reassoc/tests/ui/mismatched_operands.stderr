@@ -8,7 +8,9 @@ error[E0277]: cannot add `f64` to `f32`
    |     required by a bound introduced by this call
    |
    = help: the trait `AddRhs<f32, _, _>` is not implemented for `f64`
-   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one; if these are numeric types, cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
+   = note: if these are numeric types, cast one of them; if `f32` is a type of yours that is not opted in yet, add `reassoc::passthrough!(f32);` where it is defined (`passthrough!(foreign f32);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if `f32` is a generic type parameter, bound it: `T: reassoc::Passthrough`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
              `&F` implements `AddRhs<F, F, FloatTag>`

@@ -69,8 +69,12 @@ macro_rules! declare_op_trait {
             message = $msg,
             label = $msg,
             note = "operands are never converted implicitly, inside an \
-                    `#[algebraic]` scope or outside one; if these are numeric types, cast one \
-                    of them, or wrap the expression in `strict!(..)` to use ordinary operators"
+                    `#[algebraic]` scope or outside one",
+            note = "if these are numeric types, cast one of them; if `{Lhs}` is a type of yours \
+                    that is not opted in yet, add `reassoc::passthrough!({Lhs});` where it is \
+                    defined (`passthrough!(foreign {Lhs});` for a type from another crate), or wrap \
+                    the expression in `strict!(..)` to use ordinary operators",
+            note = "if `{Lhs}` is a generic type parameter, bound it: `T: reassoc::Passthrough`"
         )]
         pub trait $rhs_trait<Lhs, O, Tag = ()> {
             fn $rhs_method(self, lhs: Lhs) -> O;
@@ -92,6 +96,9 @@ macro_rules! declare_op_trait {
         #[diagnostic::on_unimplemented(
             message = $assign_msg,
             label = $assign_msg,
+            note = "the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for \
+                    `+=`), and a type of yours needs `reassoc::passthrough!({Lhs});` where it is \
+                    defined (`passthrough!(foreign {Lhs});` for a type from another crate)",
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
         pub trait $assign_trait<Lhs, Tag = ()> {

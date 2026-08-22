@@ -2,6 +2,57 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Changed
+
+- **One line opts a type in, and every operator it implements flows.**
+  `passthrough!(Ty)` and `#[derive(Passthrough)]` now emit a single marker
+  impl; blanket impls route whatever `std::ops` the type has — any right-hand
+  type, any output (a dot product yields its own `Output`), the `op=` forms
+  through the type's own `AddAssign` etc., and references wherever the type
+  implements them. Nothing is listed. Generic functions work with a bound
+  (`T: reassoc::Passthrough + Mul<Output = T>`).
+- **Native parity for what an opted-in type can do.** `+=` on a `Copy` type
+  is no longer formed from `+` (it needs the type's `AddAssign`, as natively),
+  and reference operands are no longer dereferenced for `Copy` types (`&v + w`
+  needs `Add<W> for &V`, as natively). Both used to compile here and not in
+  plain Rust. `&Duration + Duration` accordingly no longer compiles.
+- **Diagnostics** ([docs/diagnostics.md](docs/diagnostics.md) has the measured
+  matrix): errors on opted-in and std types now read as rustc's own
+  (`cannot add `f64` to `Metres``, `no implementation for `Wrapping<u8> +
+  Wrapping<u32>``); primitive mismatches lose the return-type `E0308` with the
+  `.into()` hint and gain a second, hedged "no `reassoc` dispatch for `u8`"
+  error; a type never opted in gets the operator's error with the note naming
+  `passthrough!`, as before.
+- Floats and integers dispatch through impls generic over sealed `Float` /
+  `Int` traits under private tags, so `{float} * {float}` meets one candidate
+  and infers as before (`-(3.0 * 2.0)`, the fuzz corpus, `(1.0 * 2.0).sqrt()`
+  → native `E0689`).
+- Compile time on the reference workload is between 0.5.1's and 0.6.0's
+  (dispatch ~2.4s over plain on the 1800-fn `cargo check`).
+
+### Removed (migration)
+
+- `passthrough!(no_refs ..)`, `passthrough!(.. out ..)`: unnecessary and gone.
+  Replace any group of per-operator lines for one type with `passthrough!(Ty)`.
+- `#[passthrough(add, mul, no_refs, add_assign, ..)]` on the derive: an
+  authored error now; remove the attribute.
+- `passthrough!(OP: A, B => O)` on a left type that is opted in: `E0119`
+  against the blanket. It remains for exactly one case, a float on the left of
+  a *foreign* type: `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`.
+- `traits::{*Out, Synth*Assign, RefOperand}` and the hidden `declare_output!`.
+- `uN / NonZero<uN>` and `u32 * Duration` are unchanged; `Duration`, `Instant`,
+  `SystemTime`, `Wrapping`, `Saturating` are marked rather than enumerated,
+  so they have exactly the operators std gives them.
+
+### Added
+
+- `scripts/diag-compare.py`: compiles a set of cases as plain Rust, through
+  this checkout's macros, and optionally through a published release
+  (`--against 0.6.0`), and prints the errors side by side; the source of the
+  table in `docs/diagnostics.md`.
+
 ## 0.6.0 — 2026-08-21
 
 ### Removed

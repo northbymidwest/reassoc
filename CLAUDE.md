@@ -22,6 +22,7 @@ cargo test -p reassoc --test codegen -- --ignored   # assembly guard
 ./scripts/codegen-check.sh                          # the guard, run directly
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
+python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 
 cargo test -p reassoc --no-default-features                    # core only
@@ -53,13 +54,16 @@ nothing but proc macros. `reassoc-macros` holds the rewriter
 parses the attribute's parameters); `reassoc` holds the traits, impls, and
 `passthrough!`, and re-exports the macros. Users depend only on `reassoc`.
 
-The dispatch layer is four traits per operator — `MulRhs<Lhs, O>` where opting
-in happens, `MulOut<B, O>` stating the output, `MulAssignRhs<Lhs>` for the
-compound form through a `&mut`, and the `SynthMulAssign<B>` marker that forms
-it from `*` for `Copy` pairs — and free functions in `ops.rs`. Impls are enumerated: floats route to
-`algebraic_*` (`impls/float.rs`), everything else to plain operators.
-`impls/int.rs` is generated with the crate's own public `passthrough!` on
-purpose, so a gap in the user-facing macro shows up in the crate's own tests.
+The dispatch layer is one marker, `Passthrough<Tag = ()>`, two traits per
+operator — `MulRhs<Lhs, O, Tag>` (binary) and `MulAssignRhs<Lhs, Tag>` (the
+compound form through a `&mut`) — blanket impls of those for every
+`Passthrough` left type through its own `std::ops` (output = the type's
+`Output`, `op=` = its `MulAssign`), and free functions in `ops.rs`. Floats
+and integers are not marked: their impls are generic over sealed `Float` /
+`Int` under `traits::FloatTag` / `IntTag`, so `{float}`/`{integer}` meet one
+candidate; the blankets are bounded on `OptInTag`, which those tags never
+implement — that is what makes coherence accept both. `String` and the
+int-left std pairs (`u32 * Duration`, `uN / NonZero<uN>`) are concrete.
 
 ## Invariants — one line each; the evidence is in `docs/design.md`
 
@@ -67,17 +71,25 @@ Read `docs/design.md` before changing any of these. Each was measured and
 reverts to a worse result if undone.
 
 - Trait outputs are type parameters, never associated types (`E0271` on
-  unannotated literals otherwise).
+  unannotated literals otherwise); the blanket's projected output in the impl
+  header is fine because the primitives never go through it.
+- Floats and ints stay generic over sealed traits under private tags, and the
+  marker blankets stay bounded on `OptInTag`: drop either and `{float} *
+  {float}` loses its single candidate (`E0282` under `-`, fuzz corpus) or
+  coherence rejects the float impls (`E0119`). Primitives are never
+  `Passthrough` (the blanket would route `f32 + f32` to IEEE `Add`).
 - Every dispatch trait has a trailing `Tag = ()` parameter that `ops::*` leave
-  free; `passthrough!(foreign ..)` passes a per-expansion local type so the
-  orphan rule admits impls for types from other crates, plain forms pass `()`.
-  `traits` must not be `#[doc(hidden)]` (rustc stops trimming its paths in
-  diagnostics). `consumers/foreign-types/` is the foreign crate the tests use.
-- The operand trait is keyed on the left type; the operand bound hangs off `B`;
-  `MulOut<B, O>` leaves `B` free in its blanket. Each of the three is load-
-  bearing for a specific diagnostic.
-- `passthrough!` emits an output impl only when the output differs from the
-  left type as written, via `declare_output!`. Never emit it unconditionally.
+  free; `passthrough!(foreign ..)` passes a per-expansion local type (also an
+  `OptInTag`) so the orphan rule admits impls for types from other crates,
+  plain forms pass `()`. `traits` must not be `#[doc(hidden)]` (rustc stops
+  trimming its paths in diagnostics). `consumers/foreign-types/` is the
+  foreign crate the tests use.
+- The operand bound hangs off `B` (caret on the right operand). Nothing is
+  synthesised for `Copy` types and references follow the type's own impls:
+  native parity over convenience.
+- `passthrough!(OP: A, B => O)` is only for a left type that is not
+  `Passthrough` — a float on the left of a foreign type; on an opted-in left
+  it overlaps the blanket (`E0119`).
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
 - Macros are opaque — `strict!` depends on it — except the std expression
   macros (`LISTED_MACROS` in `rewrite.rs`), entered by last path segment and
@@ -91,9 +103,8 @@ reverts to a worse result if undone.
   literal is not a legal scrutinee); every place, bare paths included, goes
   through `ops::*_assign(&mut place, rhs)` with `static_mut_refs` allowed on
   that statement. The binding is call-site with a suffix — mixed-site hygiene
-  moves the error caret to the attribute. The synth marker is per pair, has a
-  `RefOperand` supertrait, and carries the message; `String`'s in-place impls
-  are concrete, not `&T: AsRef<str>`.
+  moves the error caret to the attribute. `String`'s in-place impls are
+  concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Everything lexically inside an annotated scope is entered: closures, nested

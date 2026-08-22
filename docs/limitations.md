@@ -18,38 +18,39 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   input) would see the rewritten tokens; `#[algebraic(macros = false)]` turns
   the entry off.
 - User-defined types need a one-line opt-in: `passthrough!(Ty)` or
-  `#[derive(Passthrough)]`. A type that implements only some of the five
-  operators names them — `#[passthrough(add, mul)]`, or one
-  `passthrough!(add: Ty, Ty => Ty)` per operator — since an impl whose bound
-  cannot hold is an error at the definition, not at the call. A type that
-  implements its operators on references, as non-`Copy` numeric types usually
-  do, names them as written: `passthrough!(add: &Big, &Big => Big)`,
-  `passthrough!(mul: &Big, f64 => Big)`.
+  `#[derive(Passthrough)]`. After it, every operator the type implements is
+  dispatched — any right-hand type, any output, the `op=` forms, references
+  wherever the type implements them — and nothing the type does not implement
+  is: `v += w` needs the type's `AddAssign`, `&v + w` needs `Add<W> for &V`,
+  exactly as plain Rust needs them. Nothing is synthesised from `+` and
+  nothing is dereferenced for you. (Both used to be: a `Copy` type got
+  `+=` formed from `+` and reference operands by dereference, which made
+  code compile inside an algebraic scope that plain Rust refuses.)
+
+  The opt-in is needed at all because a blanket impl over every type with
+  `std::ops` would overlap the float impls, and stable Rust has no
+  specialization to break the tie. A single blanket dispatching on `TypeId`
+  internally avoids the overlap and is zero-cost, but the `'static` bound it
+  needs rejects `&f32` operands, which rules it out.
 
   **A type from another crate takes the `foreign` prefix**:
-  `passthrough!(foreign glam::Vec3)`, `passthrough!(foreign mul: &Matrix,
-  &Vector => Vector)`. The plain forms on such a type are Rust's orphan rule,
-  `E0117`: `passthrough!` implements this crate's traits for the named type,
-  and a third crate may do that only if the impl names a type of its own. The
-  `foreign` form emits one — a private marker, never named by you — and
-  carries it in a trailing tag parameter the dispatch traits have for exactly
-  this. Everything else about the opt-in is identical. The one thing it
-  cannot do is stop two crates from opting in the same pair: coherence can
-  no longer forbid the second impl, so a crate that depends on both sees two
-  and every use is `E0283 type annotations needed` at the operator
-  (`tests/ui/foreign_diamond.rs`). So opt a foreign pair in **once**, in the
-  binary or in one shared crate — never in a leaf library, which would export
-  its opt-in to every dependant — and never for a type this crate already
-  covers. If a foreign type is used through a newtype of yours anyway, the
-  plain forms on the newtype need none of this.
+  `passthrough!(foreign glam::Vec3)`. The plain form on such a type is Rust's
+  orphan rule, `E0117`: `passthrough!` implements this crate's traits for the
+  named type, and a third crate may do that only if the impl names a type of
+  its own. The `foreign` form emits one — a private marker, never named by
+  you — and carries it in a trailing tag parameter the dispatch traits have
+  for exactly this. The one thing it cannot do is stop two crates from opting
+  in the same type: coherence can no longer forbid the second impl, so a
+  crate that depends on both sees two and every use is `E0283 type
+  annotations needed` at the operator (`tests/ui/foreign_diamond.rs`). So opt
+  a foreign type in **once**, in the binary or in one shared crate — never in
+  a leaf library, which would export its opt-in to every dependant — and
+  never for a type this crate already covers. A float on the *left* of a
+  foreign type (`2.0 * v`) is the one pair that is named,
+  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`: for a type of
+  your own it is automatic, but the impl that makes it so is only provably
+  distinct from the general one under the default tag.
 
-  Covering user types automatically would need a blanket impl that overlaps the
-  float impls, and stable Rust has no specialization to break the tie. A single
-  blanket impl dispatching on `TypeId` internally does avoid the overlap and is
-  genuinely zero-cost, but the `'static` bound it needs rejects `&f32` operands
-  — which rules it out, since references are ubiquitous in iterator-based
-  numeric code. If `min_specialization` ever stabilizes, the opt-in can go with
-  no such tradeoff.
 - Integer arithmetic whose operands are *both* compile-time-known non-literals
   — `let x: u8 = 255; let y: u8 = 1; x + y` — is not seen by rustc's
   `arithmetic_overflow` lint once rewritten, so it wraps or panics at runtime
@@ -89,16 +90,6 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   `&Box<str>`, `&&str`, `&Rc<str>`, `&Arc<str>`, `&mut str`, `&mut String` —
   and `+` takes any `&T where T: AsRef<str>`. A user type with
   `AddAssign<&str>` accepts exactly `&str`.
-- The std pairs that take a reference on one side are slightly *more*
-  permissive than native: `&Duration + Duration` and `Instant + &Duration`
-  compile here and not in plain Rust, which has no reference impls for those
-  types. Every opted-in pair gets its reference forms uniformly; carving out
-  the std exceptions would buy nothing but an error.
-- Compound assignment on a non-`Copy` user type (`s += t`, `self.tags += t`,
-  `v[i] += t`) needs the type's `AddAssign` declared, exactly as native `+=`
-  needs `AddAssign`: `passthrough!(add_assign: Ty, Rhs)` or `add_assign` on the
-  derive. A `Copy` type opted in through a reference-emitting form gets `+=`
-  from `+` without it; `String` is covered.
 - `+=` on a `static mut` compiles because the generated statement allows
   `static_mut_refs` and borrows the static for the duration of the assignment,
   which native `+=` on a primitive does not do. The usual rules for references
@@ -117,15 +108,16 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   errors point there), and the statement's own `;` then follows a block-like
   expression. Default clippy is clean; allow that one lint in pedantic
   builds.
-- Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
-  b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
-  concrete type. The diagnostic says so, and says that the usual advice —
-  `passthrough!` — does not apply to a type parameter.
+- A generic function needs a bound the plain operators do not: `fn g<T:
+  Mul<Output = T>>(a: T, b: T) -> T { a * b }` fails with `E0277` inside
+  `#[algebraic]`, and `fn g<T: reassoc::Passthrough + Mul<Output = T>>`
+  works. Dispatch is a trait, and a type parameter has only the bounds it is
+  given.
 - Operands of different types are rejected, exactly as they are in plain Rust:
   the language has no implicit numeric coercion, and dispatch does not add one.
   This covers float widths, integer widths, signedness, and int-against-float
-  alike. See [diagnostics.md](diagnostics.md) for how closely the errors match plain
-  Rust.
+  alike. See [diagnostics.md](diagnostics.md) for how the errors compare with
+  plain Rust's.
 - The one binding the rewrite generates resolves at the call site. Mixed-site
   hygiene is available on stable and was tried; it moves the caret of an
   unsatisfied `+=` from the operator to the attribute, so the binding carries a

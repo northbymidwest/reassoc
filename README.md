@@ -144,27 +144,29 @@ reassoc = "0.6"
   block, every item of an inline `mod`, every default body of a `trait`.
 - `strict!(expr)` / `strict! { stmts.. }` — opt a subexpression, or a whole
   statement block such as a Kahan step, back out to strict IEEE.
-- `passthrough!(Ty)` — opt your own type into the dispatch layer.
-- `#[derive(Passthrough)]` — the same, at the type's definition. Add
-  `#[passthrough(add, mul)]` to name a subset for a type that implements only
-  some operators.
+- `passthrough!(Ty)` — opt your own type in. One line: every operator the
+  type implements — `+ - * / %` with any right-hand type and any output, the
+  `op=` forms, references wherever the type implements them — is dispatched
+  from then on, exactly as `std::ops` defines it. Nothing is listed.
+- `#[derive(Passthrough)]` — the same, at the type's definition.
+- `passthrough!(foreign glam::Vec3)` — a type from another crate. Rust's
+  orphan rule forbids the plain form there; the prefix carries a private
+  marker type of yours in the impl, which is what the rule asks for. Opt a
+  foreign type in once, in the binary or one shared crate (two crates opting
+  in the same type give a third an ambiguity error). A float on the *left* of
+  a foreign type is the one pair that is named: `passthrough!(foreign mul:
+  f32, glam::Vec3 => glam::Vec3)`.
 
 Primitives, references to them, `Duration`, `String`, the std time types,
 `uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
 and need no opt-in.
 
-Opted-in types get reference operands too, so they work in iterator code the
-same way primitives do. That dereferences, so it needs `Copy`; a type that is
-not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`, or —
-for a type that implements its operators on references, as heavy numeric types
-do — names them as written: `passthrough!(add: &Big, &Big => Big)`.
-
-A type from another crate — `glam`, `nalgebra`, `num-complex` — takes the
-`foreign` prefix: `passthrough!(foreign glam::Vec3)`. Rust's orphan rule
-forbids the plain form there; the prefix carries a private marker type of
-yours in the impl, which is what the rule asks for. Opt a foreign type in
-once, in the binary or one shared crate (two crates opting in the same type
-give a third an ambiguity error); see [Limitations](#limitations).
+What an opted-in type can do is exactly what it can do in plain Rust: `&v +
+w` works if the type implements `Add<W> for &V`, `v += w` if it implements
+`AddAssign<W>`, a dot product yields whatever its `Mul::Output` is. Nothing is
+synthesised and nothing is dereferenced for you — which is also why the
+errors read like Rust's own ([Diagnostics](#diagnostics)). A generic function
+works with a bound: `fn f<T: reassoc::Passthrough + Mul<Output = T>>(..)`.
 
 ### Scope
 
@@ -213,9 +215,8 @@ strict! {
 The short version: arithmetic inside a macro other than the std expression
 macros is left alone (which is also why `strict!` works); user types need a
 one-line opt-in, and types from other crates the `foreign` form of it, once
-per dependency tree; const positions
-and generic functions are out; `+=` on a non-`Copy` user type needs its
-`AddAssign` declared, and `+=` on a `#[repr(packed)]` field is rejected; debug
+per dependency tree; const positions are out, and a generic function needs a
+`Passthrough` bound; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 
 **[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with

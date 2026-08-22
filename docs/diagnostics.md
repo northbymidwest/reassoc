@@ -1,116 +1,106 @@
 # Diagnostics
 
 A type error inside `alg!` or `#[algebraic]` should read like a type error
-outside it. This is where that claim is checked: what matches, what does not,
-and why.
+outside it. This page is where that claim is checked, against the compiler:
+every cell below is real `rustc` output from `scripts/diag-compare.py`, which
+compiles the same cases as plain Rust and through the macros (and, with
+`--against <version>`, through a published release) and prints them side by
+side. Re-run it before editing this page.
 
-## What matches
+## How the layer is shaped, and why that sets the errors
 
-The message text, the operand the caret sits on, and rustc's own `.into()`
-suggestion all carry over. Given `a: u8` and `b: u32`:
-
-```text
-error[E0277]: cannot add `u32` to `u8`
- --> src/lib.rs:2:48
-  |
-2 | pub fn widths(a: u8, b: u32) -> u32 { alg!(a + b) }
-  |                                       ---------^-
-  |                                       |        |
-  |                                       |        cannot add `u32` to `u8`
-  |                                       required by a bound introduced by this call
-  |
-  = help: the trait `AddRhs<u8, u8>` is not implemented for `u32`
-  = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-  = note: if these are numeric types, cast one of them; if `u8` is not opted in yet, add
-          `reassoc::passthrough!(u8);`, or wrap the expression in `strict!(..)` to use
-          ordinary operators
-
-error[E0308]: mismatched types
- --> src/lib.rs:2:39
-  |
-2 | pub fn widths(a: u8, b: u32) -> u32 { alg!(a + b) }
-  |                                 ---   ^^^^^^^^^^^ expected `u32`, found `u8`
-  |                                 |
-  |                                 expected `u32` because of return type
-  |
-help: you can convert a `u8` to a `u32`
-  |
-2 | pub fn widths(a: u8, b: u32) -> u32 { alg!(a + b).into() }
-  |                                                  +++++++
-```
-
-## Where it differs
-
-**The operand error is `E0277`, where plain Rust reports `E0308`.** Same span,
-same sentence, different code. `E0308` is a *unification* failure: rustc must
-already know the type an argument requires, which needs one impl per type with
-the right-hand type spelled out concretely. That is exactly what accepting `&T`
-on the right-hand side forbids, and reference operands are worth more than the
-error code. Dispatch reports the equivalent trait-bound failure instead.
-
-**Diagnostics come in a different order.** rustc emits unification failures
-during type-checking and trait-selection failures afterwards. Plain Rust leads
-with `E0308` on the operand and ends on `E0277`; this leads with the `E0277`.
-That follows from the gap above rather than being separately fixable — the error
-that would come first is the one that cannot be produced at all.
-
-**Counts differ case by case**, though they come out close overall. Against
-plain Rust, on the same eight mismatches:
-
-| expression | plain Rust | through `reassoc` |
-| --- | --- | --- |
-| `f32 + f64` | `E0308`, `E0308`, `E0277` | `E0277`, `E0308` |
-| `u8 + u32` | `E0308`, `E0308`, `E0277` | `E0277`, `E0308` |
-| `i32 + u32` | `E0308`, `E0277` | `E0277` |
-| `u32 + f64` | `E0277` | `E0277`, `E0308` |
-| `Wrapping<u8> + Wrapping<u32>` | `E0277` | `E0277`, `E0308` |
-| `Duration * u64` | `E0308` | `E0277` |
-| a `passthrough!` type `+ f64` | `E0308` | `E0277` |
-| a type never opted in | `E0369` | `E0277` |
-
-Three of those are *more* than plain Rust gives: `u32 + f64` and the `Wrapping`
-pair gain the `.into()` suggestion, and a type never opted in gains a note
-naming `passthrough!`.
-
-**Heterogeneous operators name the type they take, not the type on the left.**
-`Duration * u64` reports ``cannot multiply `Duration` by `u64` `` — the operator
-takes a `u32`, and the note says to cast.
-
-**One assumption is worth knowing about**, though it is not usually yours to
-manage. An operator is taken to yield its left operand's type — true of every
-same-type operator and of pairs like `Duration * u32`. A pair that breaks it,
-such as a dot product, needs to say so; `passthrough!` says it for you, by
-comparing the two types as written:
+Every opted-in type is dispatched through one blanket impl per operator:
 
 ```rust
-passthrough!(mul: Ray, Ray => f64);   // output differs — declared for you
-passthrough!(mul: Ray, f64 => Ray);   // output is the left operand — nothing to declare
+impl<A: Passthrough<Tag> + Mul<B>, B, Tag> MulRhs<A, <A as Mul<B>>::Output, Tag> for B { .. }
 ```
 
-The comparison is syntactic, which is exact for every spelling that reaches the
-macro except one: naming the output through an alias of the left operand
-(`=> V3` where `type V3 = Vec3`) reads as a difference and produces an
-`E0119` on the `passthrough!` line. Spelling both the same way resolves it.
+so for an opted-in type the bound that fails is the type's own `std::ops`
+bound, and rustc prints its own sentence for it — `cannot add `f64` to
+`Metres``, `no implementation for `Wrapping<u8> + Wrapping<u32>``, `binary
+assignment operation `+=` cannot be applied to type `C`` — the same sentence
+plain Rust prints. Floats and integers are not opted in (their impls route
+to the algebraic methods, under a private tag), so a mismatch *between
+primitives* fails a different way, and that is where the two sets of errors
+part.
 
-The dispatch traits themselves are implementation detail: `passthrough!`
-and the derive are the only supported way to opt in, and they make the
-declaration for you.
+## The matrix
 
-**Two other cases are unaffected by any of this** and behave as they always
-have: an operation with a non-float literal or a cast to an integer type on
-either side is left unrewritten (it cannot be float arithmetic), so rustc's own
-`arithmetic_overflow` lint still fires on it, and `strict!(..)` opts an
-expression out of dispatch entirely, restoring native errors along with native
-semantics.
+Measured 2026-08-22 on rustc 1.98.0. "Native" is the expression written with
+plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]`.
+
+| case | native Rust | reassoc |
+| --- | --- | --- |
+| `f32 + f64` (fn returns `f64`) | `E0308` ×2 "expected `f32`, found `f64`" with a **`.into()` hint**, then `E0277` cannot add `f64` to `f32` | `E0277` cannot add `f64` to `f32` — *operands never converted; cast one, or `strict!`*. **No `.into()` hint.** |
+| `&f64 * &f32` | `E0308`, then `E0277` no implementation for `&f64 * &f32` | `E0277` no implementation for `&f64 * &f32` (rustc's own), **plus** `E0277` "no `reassoc` dispatch for `f64` with this operand" whose note says a primitive needs no opt-in: cast one |
+| `u8 + u32` | `E0308` ×2 with `.into()`, then `E0277` cannot add `u32` to `u8` | `E0277` "no dispatch for `u8`" (same note) **plus** `E0277` cannot add `u32` to `u8` (rustc's own) |
+| `u32 + f64` | `E0277` cannot add `f64` to `u32` | `E0277` "no dispatch for `u32`" plus `E0277` cannot add `f64` to `u32` |
+| `Wrapping<u8> + Wrapping<u32>` | `E0277` no implementation for … | **identical** |
+| `Duration * u64` | `E0308` expected `u32`, found `u64` | `E0277` cannot multiply `Duration` by `u64` |
+| opted-in `Metres + f64` | `E0308` expected `Metres`, found `f64` | `E0277` cannot add `f64` to `Metres` |
+| `Odd * Odd`, no ops, never opted in | `E0369` cannot multiply `Odd` by `Odd` — *must implement `Mul`* | `E0277` cannot multiply `Odd` by `Odd` — *if `Odd` is a type of yours that is not opted in yet, add `reassoc::passthrough!(Odd);`* |
+| `P * P`, has `Mul`, never opted in | compiles | `E0277` cannot multiply `P` by `P` — *add `reassoc::passthrough!(P);`* |
+| `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C` — *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
+| `&c + d`, `C: Add<C>` only | `E0369` cannot add `C` to `&C` | `E0277` cannot add `C` to `&C` |
+| `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |
+| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277` until the bound is `T: reassoc::Passthrough + Mul<Output = T>` — then compiles |
+| `f64 + f64` in a fn returning `f32` | `E0308` expected `f32`, found `f64` | **identical** |
+
+## What to read off it
+
+**Opted-in types and the std types read like Rust.** Once a type is in, the
+failing bound is its own `Add`/`Mul`/`AddAssign`, and the message is rustc's.
+`Wrapping`, `Duration`, a user type, a missing `AddAssign`, a missing
+reference impl: same sentence, sometimes a different code (`E0277` for
+rustc's `E0308`/`E0368`/`E0369` — a trait bound failing in a generic call
+rather than the operator's own check).
+
+**Primitive mismatches are `E0277` where rustc leads with `E0308`, and lose
+the `.into()` hint.** `E0308` is a unification failure: rustc must already
+know the type an argument requires, which needs one impl per type with the
+right-hand type spelled out. Dispatch resolves the output from the impl that
+matches, and when none does there is no expected type to suggest converting
+to. An earlier shape of the layer (a second trait that pinned the output to
+the left operand before the operand bound was checked) kept that hint; it
+could not coexist with outputs that are not the left type, and the type's own
+`Output` won.
+
+**Primitive mismatches get two errors.** When a primitive is on the left
+and the pair does not match, rustc commits to the blanket (the `&T` and
+float-left impls make it a plausible candidate) and reports both of its
+unsatisfied bounds: the `std::ops` one, in rustc's wording, and the
+`Passthrough` one — "no `reassoc` dispatch for `u8` with this operand", whose
+note says a primitive needs no opt-in and to cast. It cannot be suppressed
+without the blanket ceasing to be a candidate, which is what makes every
+other row match. A type never opted in gets *one* error, from the operator
+trait itself, whose note names `passthrough!` — rustc rejects the blanket for
+it outright, since nothing implements `Passthrough` for the type.
+
+**Counts differ case by case.** Plain Rust reports a mismatched pair two or
+three times (both `E0308` directions, then `E0277`); this reports it once or
+twice. Order differs for the same reason: unification errors come during
+type-checking, trait-selection errors after.
+
+**Unchanged from plain Rust, and pinned:** `arithmetic_overflow` on an
+operation with a non-float literal or an integer cast on either side (it is
+left native), `unused_parens` in both directions, the literal-receiver
+`E0689`, return-type mismatches, and everything `strict!(..)` wraps.
 
 ## Reproducing this
 
-Every message above is real `rustc` output. To regenerate the comparison, write
-one file with the mismatches spelled plainly and a second with the same
-expressions inside `alg!`, then build each and read the errors side by side. The
-cases pinned as tests live in [`reassoc/tests/ui/mismatched_operands.rs`](../reassoc/tests/ui/mismatched_operands.rs)
-and [`reassoc/tests/ui/const_binding_overflow.rs`](../reassoc/tests/ui/const_binding_overflow.rs);
-their `.stderr` files are the current expected output, regenerated with:
+```bash
+python3 scripts/diag-compare.py                       # native vs this checkout
+python3 scripts/diag-compare.py --against 0.6.0       # .. and a published release
+python3 scripts/diag-compare.py --full out/           # raw stderr per case and variant
+```
+
+The cases are `scripts/diag-compare/cases/*.rs`, written once with the
+macros; the tool derives the plain-Rust twin by stripping them. Add a case
+there rather than in a scratch crate. The ones pinned as tests live in
+`reassoc/tests/ui/` (`mismatched_operands.rs`, `unsupported_type.rs`,
+`compound_without_assign_impl.rs`, `reference_operand_needs_impl.rs`,
+`generic_fn_rejected.rs`, `ambiguous_receiver.rs`); their `.stderr` files are
+the current expected output, regenerated with:
 
 ```bash
 TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored
