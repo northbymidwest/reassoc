@@ -18,6 +18,8 @@ pub struct Rewriter {
     /// annotated `impl`, `mod` or `trait`, and containers nested in those —
     /// are entered regardless: that is what annotating the container means.
     pub items: bool,
+    /// Enter the arguments of the std macros whose arguments are expressions.
+    pub macros: bool,
     /// Whether the visitor is currently inside a function body, which is
     /// where `items` applies.
     in_body: bool,
@@ -33,6 +35,7 @@ impl Rewriter {
         Rewriter {
             closures: true,
             items: true,
+            macros: true,
             in_body: true,
             errors: Vec::new(),
         }
@@ -42,6 +45,7 @@ impl Rewriter {
         Rewriter {
             closures: scope.closures,
             items: scope.items,
+            macros: scope.macros,
             in_body: false,
             errors: Vec::new(),
         }
@@ -66,6 +70,7 @@ impl Rewriter {
         let mut probe = Rewriter {
             closures: self.closures,
             items: self.items,
+            macros: self.macros,
             in_body: true,
             errors: Vec::new(),
         };
@@ -192,12 +197,22 @@ impl VisitMut for Rewriter {
         }
     }
 
+    fn visit_stmt_mut(&mut self, stmt: &mut syn::Stmt) {
+        match stmt {
+            syn::Stmt::Macro(m) => self.macro_arguments(&mut m.mac),
+            _ => visit_mut::visit_stmt_mut(self, stmt),
+        }
+    }
+
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        // A macro's body is an opaque token stream and is never entered; this
-        // is also exactly what makes `strict!(..)` an escape hatch. An inline
-        // `const {}` block is a const position.
-        if matches!(expr, Expr::Macro(_) | Expr::Const(_)) {
-            return;
+        // A macro's body is an opaque token stream and is never entered —
+        // which is exactly what makes `strict!(..)` an escape hatch — except
+        // for the std macros whose arguments are known to be expressions. An
+        // inline `const {}` block is a const position.
+        match expr {
+            Expr::Macro(m) => return self.macro_arguments(&mut m.mac),
+            Expr::Const(_) => return,
+            _ => {}
         }
 
         // Children first, so nested operators are already calls by the time
@@ -272,6 +287,87 @@ impl VisitMut for Rewriter {
         })
         .expect("generated compound assignment must parse");
     }
+}
+
+impl Rewriter {
+    /// Enters the arguments of a listed std macro. Only a macro whose last
+    /// path segment is on the list, and only when its tokens parse as
+    /// comma-separated expressions (or `vec!`'s `elem; len`); anything else —
+    /// a user macro, a listed name carrying a different grammar, `strict!` —
+    /// is left untouched, tokens and all.
+    fn macro_arguments(&mut self, mac: &mut syn::Macro) {
+        if !self.macros || !is_listed_macro(&mac.path) {
+            return;
+        }
+        if mac.path.segments.last().is_some_and(|s| s.ident == "vec")
+            && let Ok(mut repeat) = syn::parse2::<VecRepeat>(mac.tokens.clone())
+        {
+            self.visit_expr_mut(&mut repeat.elem);
+            self.visit_expr_mut(&mut repeat.len);
+            let VecRepeat { elem, semi, len } = repeat;
+            mac.tokens = quote::quote!(#elem #semi #len);
+            return;
+        }
+        let parser = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated;
+        if let Ok(mut args) = syn::parse::Parser::parse2(parser, mac.tokens.clone()) {
+            for arg in args.iter_mut() {
+                self.visit_expr_mut(arg);
+            }
+            mac.tokens = args.to_token_stream();
+        }
+    }
+}
+
+/// `vec![elem; len]`.
+struct VecRepeat {
+    elem: Expr,
+    semi: syn::Token![;],
+    len: Expr,
+}
+
+impl syn::parse::Parse for VecRepeat {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(VecRepeat {
+            elem: input.parse()?,
+            semi: input.parse()?,
+            len: input.parse()?,
+        })
+    }
+}
+
+/// The std macros whose arguments are expressions separated by commas (format
+/// strings being string-literal expressions, and `name = value` an assignment
+/// expression that re-emits unchanged), matched on the last path segment so
+/// `std::println!` counts. `strict!` is deliberately not here, nor is anything
+/// whose arguments are patterns or token soup (`matches!`, `cfg!`,
+/// `stringify!`, `concat!`).
+const LISTED_MACROS: [&str; 20] = [
+    "assert",
+    "assert_eq",
+    "assert_ne",
+    "debug_assert",
+    "debug_assert_eq",
+    "debug_assert_ne",
+    "panic",
+    "unreachable",
+    "todo",
+    "unimplemented",
+    "print",
+    "println",
+    "eprint",
+    "eprintln",
+    "format",
+    "format_args",
+    "write",
+    "writeln",
+    "dbg",
+    "vec",
+];
+
+fn is_listed_macro(path: &syn::Path) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|s| LISTED_MACROS.iter().any(|m| s.ident == m))
 }
 
 /// The dispatch function for an arithmetic operator, and whether the operator

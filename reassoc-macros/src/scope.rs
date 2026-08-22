@@ -5,6 +5,9 @@ use proc_macro2::{Span, TokenStream};
 pub struct Scope {
     pub closures: bool,
     pub items: bool,
+    /// Enter the arguments of the std macros whose arguments are
+    /// expressions (`assert!`, `println!`, `vec!`, ..).
+    pub macros: bool,
     pub skip: bool,
     /// Where the deprecated `items` parameter was written, if it was: the
     /// expansion emits a deprecation warning there.
@@ -23,6 +26,7 @@ impl Default for Scope {
         Scope {
             closures: true,
             items: true,
+            macros: true,
             skip: false,
             items_span: None,
         }
@@ -47,12 +51,16 @@ impl Scope {
                 scope.items = meta.value()?.parse::<syn::LitBool>()?.value();
                 scope.items_span = Some(meta.path.segments[0].ident.span());
                 Ok(())
+            } else if meta.path.is_ident("macros") {
+                scope.macros = meta.value()?.parse::<syn::LitBool>()?.value();
+                Ok(())
             } else if meta.path.is_ident("skip") {
                 scope.skip = true;
                 Ok(())
             } else {
                 Err(meta.error(
-                    "unknown `#[algebraic]` parameter; expected `closures`, `items`, or `skip`",
+                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, or `skip` \
+                     (`items` is deprecated)",
                 ))
             }
         });

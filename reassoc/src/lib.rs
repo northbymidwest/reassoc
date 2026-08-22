@@ -58,6 +58,16 @@
 //! # }
 //! ```
 //!
+//! # What is rewritten
+//!
+//! Everything lexically inside the scope: closure bodies, nested items, and
+//! the arguments of the std macros whose arguments are expressions —
+//! `assert!` and friends, `panic!` and friends, the `print`/`format`/`write`
+//! families, `dbg!`, `vec!`. Any other macro is opaque, which is exactly what
+//! makes [`strict!`] an escape hatch. `#[algebraic(closures = false)]` and
+//! `#[algebraic(macros = false)]` turn those two off; `#[algebraic(skip)]` on
+//! a nested item or container member leaves it alone.
+//!
 //! # Rewriting a whole `impl`, module or trait
 //!
 //! The attribute also goes on an `impl` block (inherent or trait), an inline

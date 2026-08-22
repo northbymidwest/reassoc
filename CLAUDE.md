@@ -66,7 +66,9 @@ reverts to a worse result if undone.
 - `passthrough!` emits an output impl only when the output differs from the
   left type as written, via `declare_output!`. Never emit it unconditionally.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
-- Nothing is matched by name; `strict!` works because macros are never entered.
+- Macros are opaque — `strict!` depends on it — except the std expression
+  macros (`LISTED_MACROS` in `rewrite.rs`), entered by last path segment and
+  only when the arguments parse as expressions; `macros = false` turns it off.
 - `unparen` strips groups, then exactly one paren layer.
 - A non-float literal, or a cast to an integer type, on either side leaves the
   operation native. Do not widen to all literals (silently drops algebraic on

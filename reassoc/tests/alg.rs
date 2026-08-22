@@ -183,18 +183,21 @@ fn strict_blocks_are_emitted_verbatim() {
     assert_eq!(alg!(t * strict!(sum + y)), 9.0);
 }
 
-// This passes structurally: syn's VisitMut cannot descend into a macro's
-// token stream, so non-descent holds even with no handling code at all.
-// Kept as executable documentation of the guarantee, not as a regression
-// guard — deleting the macro-handling code in rewrite.rs would not make
-// this fail.
+// The std macros whose arguments are expressions are entered; any other
+// macro is opaque. `tests/ui/macro_non_descent.rs` pins the opaque side with
+// a type that has no `std::ops`; this pins that an entered `format!` still
+// formats.
 #[test]
-fn other_macros_are_not_descended_into() {
+fn std_macros_are_entered_and_others_are_not() {
     let a = 2.0f32;
-    // format! contains arithmetic the rewriter must not touch; if it tried,
-    // this would fail to compile.
     let s = alg!(format!("{}", a * a));
     assert_eq!(s, "4");
+    macro_rules! opaque {
+        ($e:expr) => {
+            $e
+        };
+    }
+    assert_eq!(alg!(opaque!(a * a)), 4.0);
 }
 
 #[test]

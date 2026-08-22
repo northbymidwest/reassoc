@@ -191,10 +191,12 @@ macro_rules! passthrough {
 /// algebraic dispatch.
 ///
 /// An identity macro, taking an expression or a brace-delimited statement
-/// sequence. It works as an escape hatch inside `alg!` and `#[algebraic]` only
-/// because the rewriter never descends into any macro's token stream —
-/// `strict!` is not matched by name. Like any macro it must be in scope:
-/// `use reassoc::strict;` or `reassoc::strict!(..)`.
+/// sequence. It works as an escape hatch inside `alg!` and `#[algebraic]`
+/// because the rewriter never descends into a macro's token stream unless the
+/// macro is one of the std ones whose arguments are expressions (`assert!`,
+/// `println!`, `vec!`, ..) — and `strict!` is not, so it is opaque even as an
+/// argument of those. Like any macro it must be in scope: `use
+/// reassoc::strict;` or `reassoc::strict!(..)`.
 ///
 /// This exists to protect algorithms that depend on exact rounding — most
 /// importantly compensated summation, where `(t - sum) - y` is algebraically

@@ -1,4 +1,4 @@
-error: unknown `#[algebraic]` parameter; expected `closures`, `items`, or `skip`
+error: unknown `#[algebraic]` parameter; expected `closures`, `macros`, or `skip` (`items` is deprecated)
  --> tests/ui/bad_scope_param.rs:1:22
   |
 1 | #[reassoc::algebraic(nonsense = true)]

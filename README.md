@@ -157,15 +157,19 @@ not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`.
 
 ### Scope
 
-Everything lexically inside the annotated scope is rewritten: closure bodies
-and nested `fn`/`impl`/`mod`/`trait` items alike. `#[algebraic(skip)]` on a
-nested item or a container member excludes it. A `const fn` cannot be
-rewritten; one with nothing to rewrite is skipped, one with arithmetic is an
-error asking for `skip`.
+Everything lexically inside the annotated scope is rewritten: closure bodies,
+nested `fn`/`impl`/`mod`/`trait` items, and the arguments of the std macros
+whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
+`write!`, `dbg!`, `vec!` and their relatives). Any other macro is opaque —
+which is what makes `strict!` work. `#[algebraic(skip)]` on a nested item or a
+container member excludes it. A `const fn` cannot be rewritten; one with
+nothing to rewrite is skipped, one with arithmetic is an error asking for
+`skip`.
 
 | parameter | default | effect |
 | --- | --- | --- |
 | `closures` | `true` | `false` leaves closure bodies alone |
+| `macros` | `true` | `false` leaves every macro's arguments alone |
 | `items` | `true` | **deprecated**, slated for removal: `false` leaves items declared inside a function body alone |
 
 ## Correctness
@@ -177,8 +181,9 @@ will delete it.
 
 ## Limitations
 
-The short version: arithmetic inside other macros is left alone (which is also
-why `strict!` works); user types need a one-line opt-in; const positions and
+The short version: arithmetic inside a macro other than the std expression
+macros is left alone (which is also why `strict!` works); user types need a
+one-line opt-in; const positions and
 generic functions are out; `+=` on a non-`Copy` user type needs its `AddAssign`
 declared; debug builds carry some call overhead.
 

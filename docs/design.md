@@ -79,10 +79,18 @@ from that.
 
 ## The rewriter
 
-**Nothing is matched by name.** `strict!` works because `VisitMut` cannot
-descend into a macro's token stream. A version that consumed `strict!` during
-rewriting made `use reassoc::{algebraic, strict};` warn as unused — an error
-under `#![deny(warnings)]`.
+**Nothing is matched by name, except the std expression macros.** `strict!`
+works because `VisitMut` cannot descend into a macro's token stream. A version
+that consumed `strict!` during rewriting made `use reassoc::{algebraic,
+strict};` warn as unused — an error under `#![deny(warnings)]`. The exception
+came in 0.4.1: `assert!(x * y > eps)` inside a kernel silently computing
+strict IEEE was the most common everyday surprise, so the `assert`, `panic`,
+`print`, `format` and `write` families, `dbg!` and `vec!` are entered — by
+last path segment, and only when the tokens parse as comma-separated
+expressions (`vec!`'s `elem; len` aside). A listed name whose arguments do not
+parse is left whole, so a user macro sharing a std name keeps its grammar
+unless it takes expressions and reads their tokens. `strict!` is never on the
+list; `macros = false` turns the entry off.
 
 **`unparen` strips invisible groups, then exactly one paren layer.** Groups are
 what a `macro_rules!` `$e:expr` arrives in; not looking through them made

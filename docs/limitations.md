@@ -4,12 +4,18 @@ What the rewrite does not do, and why. Each item is a deliberate choice or a
 measured constraint; none is an oversight. Diagnostics have their own page in
 [diagnostics.md](diagnostics.md).
 
-- Arithmetic inside a macro invocation (`assert_eq!`, `format!`, `vec![`) is
-  not rewritten. The proc macro runs before macro expansion and cannot tell
-  arithmetic from any other tokens in a macro body, so it never descends into
-  one. Use `alg!` inside if you need it — and note this is also exactly why
-  `strict!(..)` works as an escape hatch: it is an ordinary identity macro, not
-  a name the rewriter special-cases. Like any macro, it has to be in scope.
+- Arithmetic inside a macro invocation is rewritten only for the std macros
+  whose arguments are known to be expressions — the `assert`, `panic`,
+  `print`, `format` and `write` families, `dbg!`, `vec!` — matched on the last
+  path segment, and only when the arguments actually parse as expressions. The
+  proc macro runs before macro expansion and cannot tell arithmetic from any
+  other tokens in an arbitrary macro body, so every other macro is opaque; use
+  `alg!` inside one if you need it. That is also exactly why `strict!(..)`
+  works as an escape hatch, even as an argument of `assert!`. The one hazard:
+  a user macro that shares a listed name *and* takes expressions but treats
+  their tokens as something else (a `vec!`-named DSL that `stringify!`s its
+  input) would see the rewritten tokens; `#[algebraic(macros = false)]` turns
+  the entry off.
 - User-defined types need a one-line opt-in: `passthrough!(Ty)` or
   `#[derive(Passthrough)]`. A type that implements only some of the five
   operators names them — `#[passthrough(add, mul)]`, or one

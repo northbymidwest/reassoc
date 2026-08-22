@@ -4,6 +4,16 @@ Notable changes per release. Dates are the publish date.
 
 ## Unreleased
 
+### Added
+
+- **Arithmetic inside std macro arguments is rewritten.** `assert!(x * y >
+  eps)`, `println!("{}", a * b)`, `vec![a + b; n]` and the rest of the
+  `assert`, `panic`, `print`, `format` and `write` families, `dbg!` and `vec!`
+  are entered, matched on the last path segment and only when the arguments
+  parse as comma-separated expressions (`vec!`'s `elem; len` too). Every
+  other macro is opaque as before — `strict!` is never entered, even as an
+  argument of `assert!`. `#[algebraic(macros = false)]` turns the entry off.
+
 ### Fixed
 
 - **A const-generic parameter's default** (`struct Buf<const N: usize = {
