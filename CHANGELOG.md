@@ -2,7 +2,10 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.5.0 — 2026-08-21
+
+A minor bump rather than a patch because the first item changes what existing
+code computes, with no compile error to say so.
 
 ### Added
 

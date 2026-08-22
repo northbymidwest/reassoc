@@ -83,7 +83,7 @@ from that.
 works because `VisitMut` cannot descend into a macro's token stream. A version
 that consumed `strict!` during rewriting made `use reassoc::{algebraic,
 strict};` warn as unused — an error under `#![deny(warnings)]`. The exception
-came in 0.4.1: `assert!(x * y > eps)` inside a kernel silently computing
+came in 0.5.0: `assert!(x * y > eps)` inside a kernel silently computing
 strict IEEE was the most common everyday surprise, so the `assert`, `panic`,
 `print`, `format` and `write` families, `dbg!` and `vec!` are entered — by
 last path segment, and only when the tokens parse as comma-separated
