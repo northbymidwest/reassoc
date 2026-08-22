@@ -67,3 +67,40 @@ fn system_time_plus_duration_works() {
         std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1)
     );
 }
+
+#[test]
+fn wrapping_subtraction_and_the_narrow_integers() {
+    use core::num::Wrapping;
+    use reassoc::ops::{add, mul, sub};
+    assert_eq!(sub(Wrapping(0u8), Wrapping(1u8)), Wrapping(255u8));
+    assert_eq!(add(1i8, 2i8), 3i8);
+    assert_eq!(add(1i16, 2i16), 3i16);
+    assert_eq!(mul(3u16, 4u16), 12u16);
+    assert_eq!(add(1i128, 2i128), 3i128);
+    assert_eq!(mul(3u128, 4u128), 12u128);
+    assert_eq!(sub(5isize, 2isize), 3isize);
+}
+
+#[cfg(feature = "alloc")]
+#[test]
+fn string_plus_a_cow_goes_through_as_ref() {
+    use alloc_or_std::borrow::Cow;
+    let c: Cow<str> = Cow::Borrowed("b");
+    assert_eq!(add(String::from("a"), &c), "ab");
+    let owned: Cow<str> = Cow::Owned(String::from("c"));
+    assert_eq!(add(String::from("a"), &owned), "ac");
+}
+
+#[cfg(feature = "alloc")]
+extern crate alloc as alloc_or_std;
+
+#[cfg(feature = "std")]
+#[test]
+fn system_time_minus_duration_works() {
+    use reassoc::ops::sub;
+    let t = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(10);
+    assert_eq!(
+        sub(t, Duration::from_secs(1)),
+        std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(9)
+    );
+}

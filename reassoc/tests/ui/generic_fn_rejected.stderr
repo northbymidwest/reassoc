@@ -1,0 +1,21 @@
+error[E0277]: cannot multiply `T` by `T`
+ --> tests/ui/generic_fn_rejected.rs:8:9
+  |
+6 | #[algebraic]
+  | ------------ required by a bound introduced by this call
+7 | fn scale<T: core::ops::Mul<Output = T> + Copy>(a: T, k: T) -> T {
+8 |     a * k
+  |         ^ cannot multiply `T` by `T`
+  |
+  = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
+  = note: if these are numeric types, cast one of them; if `T` is not opted in yet, add `reassoc::passthrough!(T);`, or wrap the expression in `strict!(..)` to use ordinary operators
+  = note: if `T` is a generic type parameter, none of those apply: dispatch is resolved per concrete type, so `#[algebraic]` cannot be used in a generic function
+note: required by a bound in `reassoc::ops::mul`
+ --> src/ops.rs
+  |
+  | pub fn mul<A: MulOut<B, O>, B: MulRhs<A, O>, O>(a: A, b: B) -> O {
+  |                                ^^^^^^^^^^^^ required by this bound in `mul`
+help: consider further restricting type parameter `T` with trait `MulRhs`
+  |
+7 | fn scale<T: core::ops::Mul<Output = T> + Copy + reassoc::traits::MulRhs<T, T>>(a: T, k: T) -> T {
+  |                                               +++++++++++++++++++++++++++++++

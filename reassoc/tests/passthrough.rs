@@ -467,3 +467,101 @@ fn float_literal_scalars_infer_against_a_user_vector() {
         (V2(2.0, 4.0), V2(2.0, 4.0), V2(3.0, 6.0), v, V2(0.5, 1.0))
     );
 }
+
+// ---- the remaining `passthrough!` arms and derive shapes ----
+
+/// The whole-type `no_refs` arm: five operators by value on a non-`Copy` type.
+#[derive(Debug, Clone, PartialEq)]
+struct Big(i64);
+macro_rules! big_ops {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl core::ops::$t for Big {
+            type Output = Big;
+            fn $m(self, o: Big) -> Big { Big(self.0 $op o.0) }
+        }
+    )*};
+}
+big_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
+passthrough!(no_refs Big);
+
+#[test]
+fn whole_type_no_refs_covers_all_five_operators() {
+    use reassoc::alg;
+    let (a, b) = (Big(7), Big(2));
+    assert_eq!(alg!(a.clone() + b.clone()), Big(9));
+    assert_eq!(alg!(a.clone() - b.clone()), Big(5));
+    assert_eq!(alg!(a.clone() * b.clone()), Big(14));
+    assert_eq!(alg!(a.clone() / b.clone()), Big(3));
+    assert_eq!(alg!(a % b), Big(1));
+}
+
+/// The five-operator `out` arm, for operand traits implemented by hand whose
+/// output is not the left type — every one of the five.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Quint(f64);
+macro_rules! q_by_hand {
+    ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
+        impl reassoc::traits::$t<Quint, f64> for Quint {
+            fn $m(self, lhs: Quint) -> f64 { lhs.0 $op self.0 }
+        }
+    )*};
+}
+q_by_hand!(AddRhs, add_rhs, +; SubRhs, sub_rhs, -; MulRhs, mul_rhs, *; DivRhs, div_rhs, /; RemRhs, rem_rhs, %);
+passthrough!(out Quint, Quint => f64);
+
+#[test]
+fn five_operator_out_arm_declares_every_output() {
+    use reassoc::alg;
+    let (a, b) = (Quint(7.0), Quint(2.0));
+    assert_eq!(
+        (
+            alg!(a + b),
+            alg!(a - b),
+            alg!(a * b),
+            alg!(a / b),
+            alg!(a % b)
+        ),
+        (9.0, 5.0, 14.0, 3.5, 1.0)
+    );
+}
+
+/// Derive on an enum, on a type with a lifetime parameter, and with two
+/// `#[passthrough]` attributes that accumulate.
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[passthrough(mul)]
+enum Sign {
+    Pos,
+    Neg,
+}
+impl core::ops::Mul for Sign {
+    type Output = Sign;
+    fn mul(self, o: Sign) -> Sign {
+        if self == o { Sign::Pos } else { Sign::Neg }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[passthrough(add)]
+#[passthrough(mul)]
+struct Tagged<'a>(f32, &'a str);
+impl core::ops::Add for Tagged<'_> {
+    type Output = Self;
+    fn add(self, o: Self) -> Self {
+        Tagged(self.0 + o.0, self.1)
+    }
+}
+impl core::ops::Mul for Tagged<'_> {
+    type Output = Self;
+    fn mul(self, o: Self) -> Self {
+        Tagged(self.0 * o.0, self.1)
+    }
+}
+
+#[test]
+fn derive_on_an_enum_a_lifetime_and_accumulated_attributes() {
+    use reassoc::alg;
+    assert_eq!(alg!(Sign::Neg * Sign::Neg), Sign::Pos);
+    let t = Tagged(2.0, "m");
+    assert_eq!(alg!(t + t * t), Tagged(6.0, "m"));
+    assert_eq!(alg!(&t * &t), Tagged(4.0, "m"));
+}

@@ -665,3 +665,39 @@ fn a_user_variable_named_like_the_generated_binding_on_the_right_still_resolves(
     alg!(v[0] += __reassoc_rhs_9f2c1a * x);
     assert_eq!(v[0], 25.0);
 }
+
+// ---------------------------------------------------------------------------
+// More place shapes: raw pointer deref, nested index, tuple fields
+// ---------------------------------------------------------------------------
+
+/// `*p` for a raw pointer is a place; `&mut *p` reborrows it. The one `unsafe`
+/// shape not covered above.
+#[test]
+fn raw_pointer_deref_place() {
+    #[algebraic]
+    unsafe fn bump(p: *mut f64, x: f64) {
+        unsafe { *p += x * 2.0 }
+    }
+    let mut v = 1.0f64;
+    unsafe { bump(&mut v, 3.0) };
+    assert_eq!(v, 7.0);
+}
+
+/// A place that is an index of an index, and a tuple field — nested, so the
+/// re-emitted `&mut t.0.1` is three tokens and not the float literal `0.1`.
+#[test]
+fn nested_index_and_tuple_field_places() {
+    #[algebraic]
+    fn go(m: &mut [[f64; 2]; 2], t: &mut (f64, (f64, f64)), k: f64) {
+        m[1][0] += k;
+        m[0][1] *= m[1][0];
+        t.0 += k;
+        t.1.1 -= t.0;
+        (*t).1.0 /= k;
+    }
+    let mut m = [[1.0, 2.0], [3.0, 4.0]];
+    let mut t = (1.0, (8.0, 2.0));
+    go(&mut m, &mut t, 2.0);
+    assert_eq!(m, [[1.0, 10.0], [5.0, 4.0]]);
+    assert_eq!(t, (3.0, (4.0, -1.0)));
+}

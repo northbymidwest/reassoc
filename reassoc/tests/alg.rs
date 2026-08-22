@@ -290,3 +290,18 @@ fn block_form_enters_nested_items() {
     };
     assert_eq!(got, Dispatched(12.0));
 }
+
+/// Corner forms: an empty invocation is `()`, and a block whose statements all
+/// end in `;` is `()` too — both usable where a unit value is expected.
+#[test]
+fn empty_and_all_statement_block_forms_are_unit() {
+    let unit: () = alg!();
+    let (mut s, mut t) = (Dispatched(1.0), Dispatched(2.0));
+    let x = Dispatched(3.0);
+    let also_unit: () = alg! {
+        s += x;
+        t *= x;
+    };
+    assert_eq!((unit, also_unit), ((), ()));
+    assert_eq!((s, t), (Dispatched(4.0), Dispatched(6.0)));
+}

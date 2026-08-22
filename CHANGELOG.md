@@ -2,6 +2,29 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- `tests/edition2021/`, the whole integration suite compiled as an
+  edition-2021 crate (every test file included by `#[path]`), run by
+  `tests/edition2021.rs` and CI: what the macros emit meets different
+  temporary-lifetime rules, lint levels and syntax there, and most consumers
+  are on 2021. 2024-only syntax lives in `tests/edition2024.rs`.
+- Pins for the remaining untested corners: binary operand evaluation order,
+  raw-pointer and nested-index and tuple-field places, `format_args!` and
+  trailing commas and an opaque macro inside an entered one, the whole-type
+  `no_refs` and five-operator `out` arms of `passthrough!`, derive on an enum
+  and on a type with a lifetime and with two attributes, `Wrapping`
+  subtraction and the narrow integers, `String + &Cow<str>`, `SystemTime -
+  Duration`, async closures, union fields, `alg!()` and all-statement blocks,
+  and a UI snapshot for `#[algebraic]` on a generic function.
+
+### Documentation
+
+- `limitations.md` notes that clippy's operator lints (`eq_op`, `identity_op`,
+  ..) do not fire inside an algebraic scope.
+
 ## 0.5.0 — 2026-08-21
 
 A minor bump rather than a patch because the first item changes what existing

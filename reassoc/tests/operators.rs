@@ -440,3 +440,35 @@ fn a_cast_to_float_is_still_dispatched() {
     }
     assert_eq!(idx(2, 3), 5);
 }
+
+// ---------------------------------------------------------------------------
+// Operand evaluation order of a binary operator
+// ---------------------------------------------------------------------------
+
+/// Native `f() + g()` evaluates `f` then `g`; the rewritten call evaluates its
+/// arguments left to right, which is the same order — pinned because
+/// evaluation order is the classic silent divergence and nothing else here
+/// observes it for the binary (rather than compound) form.
+#[test]
+fn binary_operands_are_evaluated_left_to_right_like_native() {
+    use core::cell::RefCell;
+    let log: RefCell<Vec<&'static str>> = RefCell::new(Vec::new());
+    let f = || {
+        log.borrow_mut().push("left");
+        2.0f64
+    };
+    let g = || {
+        log.borrow_mut().push("right");
+        3.0f64
+    };
+    #[algebraic]
+    fn rewritten(f: impl Fn() -> f64, g: impl Fn() -> f64) -> f64 {
+        f() * g() - g() / f()
+    }
+    let native = f() * g() - g() / f();
+    let native_order = log.borrow().clone();
+    log.borrow_mut().clear();
+    assert_eq!(rewritten(f, g), native);
+    assert_eq!(native_order, ["left", "right", "right", "left"]);
+    assert_eq!(*log.borrow(), native_order);
+}

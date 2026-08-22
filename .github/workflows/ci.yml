@@ -21,6 +21,9 @@ jobs:
       # A consumer that renames the dependency, with `resolve-crate-name` on.
       # Inside this repository the feature only ever takes the `Itself` path.
       - run: cargo test -p reassoc --test renamed -- --ignored
+      # The same suite as an edition-2021 crate: the emitted code meets
+      # different temporary-lifetime rules and lint levels there.
+      - run: cargo test -p reassoc --test edition2021 -- --ignored
 
   no_std:
     runs-on: ubuntu-latest

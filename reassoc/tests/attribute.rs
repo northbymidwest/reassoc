@@ -575,10 +575,10 @@ where
 #[algebraic]
 fn control_flow(a: Dispatched, b: Dispatched, n: usize, o: Option<Dispatched>) -> Dispatched {
     let Some(t) = o else { return a * b }; // let-else
-    let mut acc = if let Some(u) = o
-        && u * b > a
-    {
-        u + t // let chain
+    // (The let-chain form of this `if` lives in `tests/edition2024.rs`: this
+    // file is also compiled under edition 2021 by `tests/edition2021/`.)
+    let mut acc = if let Some(u) = o {
+        if u * b > a { u + t } else { a }
     } else {
         a
     };
@@ -616,7 +616,7 @@ fn every_entered_position_is_rewritten() {
     assert_eq!(unsafe { unsafe_fn(a, b) }, Dispatched(6.0));
     assert_eq!(extern_fn(2.0, 3.0), 6.0);
     assert_eq!(generic_environment("tag", a, b), Dispatched(6.0));
-    // let-else: None -> a * b; Some: let chain (3*3 > 2 -> 3+3 = 6), then
+    // let-else: None -> a * b; Some: 3*3 > 2 -> 3+3 = 6, then
     // += 4 and += 9 -> 19; labeled (n=2 > 1) = 6, looped = 12; guard 2*2>2 ->
     // 19 + 12 = 31; p = 5, q = 6, inner = 30; 31 + 30 = 61.
     assert_eq!(control_flow(a, b, 2, None), Dispatched(6.0));
@@ -794,4 +794,38 @@ fn const_param_default_is_not_rewritten() -> usize {
 #[test]
 fn const_generic_parameter_default_stays_const() {
     assert_eq!(const_param_default_is_not_rewritten(), 4);
+}
+
+// ---- async closures and union fields ----
+
+#[algebraic]
+async fn async_closure(a: Dispatched, b: Dispatched) -> Dispatched {
+    let f = async move |x: Dispatched| x * a + b;
+    f(a).await // the future borrows `f`, so it is awaited here
+}
+
+#[repr(C)]
+union Bits {
+    f: f32,
+    u: u32,
+}
+
+#[algebraic]
+fn union_field(a: f32, k: f32) -> f32 {
+    let bits = Bits { f: a };
+    // Reading a union field is unsafe; the arithmetic around it is ordinary.
+    unsafe { bits.f * k + (bits.u & 1) as f32 }
+}
+
+#[test]
+fn async_closures_and_union_fields_are_entered() {
+    use core::future::Future;
+    use core::pin::pin;
+    use core::task::{Context, Poll, Waker};
+    let mut fut = pin!(async_closure(Dispatched(2.0), Dispatched(3.0)));
+    let Poll::Ready(got) = fut.as_mut().poll(&mut Context::from_waker(Waker::noop())) else {
+        panic!("never pends")
+    };
+    assert_eq!(got, Dispatched(7.0));
+    assert_eq!(union_field(2.0, 3.0), 6.0);
 }

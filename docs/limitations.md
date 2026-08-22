@@ -61,6 +61,10 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   container, `mod foo;` is refused (the body is in a file the macro cannot
   see), and a `const fn` member whose arithmetic would be rewritten is an
   error rather than being left strict silently — mark it `#[algebraic(skip)]`.
+- Clippy lints that look at an operator expression — `eq_op` on `a - a`,
+  `identity_op`, `erasing_op`, `op_ref` and the like — do not fire inside an
+  algebraic scope, because by the time clippy runs the operator is a call.
+  `unused_parens` is the exception the rewriter takes care to keep.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —

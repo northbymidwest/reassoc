@@ -123,3 +123,21 @@ fn qualified_std_macro_paths_are_entered_too() {
         "Dispatched(6.0)"
     );
 }
+
+/// `format_args!` must be consumed in the same expression; a trailing comma in
+/// an argument list is kept; an unlisted macro (`matches!`) inside a listed
+/// one stays opaque while the listed one's own arguments are entered.
+#[algebraic]
+fn corners(a: Dispatched, b: Dispatched, n: u8) -> String {
+    assert!(a * b > a,);
+    assert!(matches!(n, 1..=3) && a * b > a, "{:?}", a + b,);
+    std::fmt::format(format_args!("{:?}", a * b))
+}
+
+#[test]
+fn format_args_trailing_commas_and_opaque_macros_inside_listed_ones() {
+    assert_eq!(
+        corners(Dispatched(2.0), Dispatched(3.0), 2),
+        "Dispatched(6.0)"
+    );
+}
