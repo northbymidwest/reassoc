@@ -49,9 +49,9 @@ macro_rules! declare_op_trait {
         ///
         /// No `on_unimplemented` here, deliberately: this bound is never the
         /// one rustc reports. The blanket always resolves `O` to the left
-        /// type first, so a missing output declaration surfaces as the
-        /// operand bound failing — with rustc's own "but `MulRhs<Ray, f64>`
-        /// is implemented" hint (`tests/ui/undeclared_output.rs`).
+        /// type first, so a pair whose output was never declared surfaces as
+        /// the operand bound failing — which `passthrough!` makes impossible,
+        /// since it declares the output itself.
         pub trait $out_trait<B, O, Tag = ()> {}
 
         impl<A, B, Tag> $out_trait<B, A, Tag> for A {}

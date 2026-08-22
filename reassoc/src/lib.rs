@@ -155,7 +155,7 @@
 //! # impl Add for Metres { type Output = Metres; fn add(self, o: Metres) -> Metres { Metres(self.0 + o.0) } }
 //! # impl Mul for Metres { type Output = Metres; fn mul(self, o: Metres) -> Metres { Metres(self.0 * o.0) } }
 //! # fn main() {
-//! assert_eq!(reassoc::ops::add(Metres(1.5), Metres(2.0)), Metres(3.5));
+//! assert_eq!(reassoc::alg!(Metres(1.5) + Metres(2.0)), Metres(3.5));
 //! # }
 //! ```
 //!
@@ -164,6 +164,11 @@
 //! type that implements two would not compile.
 //!
 //! `Wrapping<T>` and `Saturating<T>` are covered already and need no opt-in.
+//!
+//! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
+//! [`passthrough!`] and the derive. The `ops` functions and dispatch traits
+//! they expand to are implementation detail — visible because generated code
+//! has to name them, but not a surface to write against by hand.
 //!
 //! # `no_std`
 //!

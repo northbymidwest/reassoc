@@ -17,10 +17,16 @@
 /// # impl core::ops::Mul<u32> for Scaled { type Output = Scaled; fn mul(self, n: u32) -> Scaled { Scaled(self.0 * n) } }
 /// passthrough!(mul: Scaled, u32 => Scaled);       // one operator, heterogeneous
 ///
-/// # use reassoc::ops::{add, mul};
-/// # assert_eq!(add(Vec3(1.0, 2.0, 3.0), Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
-/// # assert_eq!(mul(Scaled(3), 4u32), Scaled(12));
+/// # use reassoc::alg;
+/// # assert_eq!(alg!(Vec3(1.0, 2.0, 3.0) + Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
+/// # assert_eq!(alg!(Scaled(3) * 4u32), Scaled(12));
 /// ```
+///
+/// The dispatch traits and `ops` functions these expand to are implementation
+/// detail, not a surface to write against by hand; everything an opt-in needs
+/// — including declaring the output when it is not the left type, as for a
+/// dot product `mul: Ray, Ray => f64` — the forms below work out from the
+/// types as written.
 ///
 /// Forms:
 ///
@@ -34,9 +40,6 @@
 ///   => Big`, `Label, &str => Label` — takes the value form automatically:
 ///   that is how a non-`Copy` type that implements its operators on references
 ///   opts in.
-/// - `passthrough!(mul out A, B => O)` — declares only what the operator yields,
-///   for an operand trait implemented by hand. The forms above work it out for
-///   themselves.
 /// - `passthrough!(foreign ..)` — any of the forms above, for a type defined
 ///   in *another* crate (`passthrough!(foreign glam::Vec3)`,
 ///   `passthrough!(foreign mul: &Matrix, &Vector => Vector)`). Rust's orphan
@@ -87,20 +90,6 @@ macro_rules! passthrough {
         $crate::passthrough!(@tag $tag; no_refs div: $t, $t => $t);
         $crate::passthrough!(@tag $tag; no_refs rem: $t, $t => $t);
     };
-    (@tag $tag:ty; out $a:ty, $b:ty => $o:ty) => {
-        $crate::passthrough!(@tag $tag; add out $a, $b => $o);
-        $crate::passthrough!(@tag $tag; sub out $a, $b => $o);
-        $crate::passthrough!(@tag $tag; mul out $a, $b => $o);
-        $crate::passthrough!(@tag $tag; div out $a, $b => $o);
-        $crate::passthrough!(@tag $tag; rem out $a, $b => $o);
-    };
-
-    (@tag $tag:ty; add out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out AddOut, $tag, $a, $b, $o); };
-    (@tag $tag:ty; sub out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out SubOut, $tag, $a, $b, $o); };
-    (@tag $tag:ty; mul out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out MulOut, $tag, $a, $b, $o); };
-    (@tag $tag:ty; div out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out DivOut, $tag, $a, $b, $o); };
-    (@tag $tag:ty; rem out $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@out RemOut, $tag, $a, $b, $o); };
-
     // A reference on either side takes the value form: `&&str` is useless and
     // `where &str: RefOperand` cannot name its lifetime. The left-hand arms
     // come first so `&Big, &Big` is caught before `$a:ty` swallows the `&`.
@@ -146,17 +135,11 @@ macro_rules! passthrough {
     (@tag $tag:ty; no_refs div: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value DivRhs, DivOut, SynthDivAssign, div_rhs, /, $tag, $a, $b, $o); };
     (@tag $tag:ty; no_refs rem: $a:ty, $b:ty => $o:ty) => { $crate::passthrough!(@value RemRhs, RemOut, SynthRemAssign, rem_rhs, %, $tag, $a, $b, $o); };
 
-    // Internal. `@out` states the output for a pair; `@value` is one operator
-    // by value; `@refs` adds the three reference combinations on top of it.
-    // `declare_output!` is a proc macro because it has to compare `$a` and `$o`
-    // as written and emit nothing when they match — a specific impl would
-    // collide with the blanket "yields the left type" impl.
-    (@out $out:ident, $tag:ty, $a:ty, $b:ty, $o:ty) => {
-        impl $crate::traits::$out<$b, $o, $tag> for $a {}
-        impl $crate::traits::$out<$b, $o, $tag> for &$a {}
-        impl $crate::traits::$out<&$b, $o, $tag> for $a {}
-        impl $crate::traits::$out<&$b, $o, $tag> for &$a {}
-    };
+    // Internal. `@value` is one operator by value; `@refs` adds the three
+    // reference combinations on top of it. `declare_output!` is a proc macro
+    // because it has to compare `$a` and `$o` as written and emit nothing
+    // when they match — a specific impl would collide with the blanket
+    // "yields the left type" impl.
     // `@refs` pairs are `Copy` and get `+=` formed from `+` (`$synth`);
     // `@value` types update in place through `@assign` instead.
     // `#[track_caller]` is free once inlined.
@@ -219,6 +202,18 @@ macro_rules! passthrough {
                 *lhs $op $crate::traits::RefOperand::reassoc_dup(self)
             }
         }
+    };
+
+    // Anything else that reached the tagged arms is not a form: say so, rather
+    // than let the catch-all below re-wrap it until the recursion limit.
+    (@tag $tag:ty; $($form:tt)*) => {
+        ::core::compile_error!(::core::concat!(
+            "`passthrough!`: no such form: `",
+            ::core::stringify!($($form)*),
+            "`. The forms are `T`, `no_refs T`, `OP: A, B => O`, `no_refs OP: A, B => O`, \
+             `OP_assign: A, B`, `no_refs OP_assign: A, B`, each optionally prefixed `foreign`, \
+             with OP one of add, sub, mul, div, rem"
+        ));
     };
 
     // ---- entry: a type of this crate — the plain forms, under the default tag ----

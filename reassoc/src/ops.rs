@@ -1,6 +1,7 @@
 //! The functions the proc macro emits. Each is a thin `#[inline(always)]`
 //! generic; after monomorphization they compile to the same code as calling
-//! the underlying operator directly.
+//! the underlying operator directly. Implementation detail: `pub` because
+//! generated code must name them, not a surface to call by hand.
 
 use crate::traits::{
     AddAssignRhs, AddOut, AddRhs, DivAssignRhs, DivOut, DivRhs, MulAssignRhs, MulOut, MulRhs,

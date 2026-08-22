@@ -413,8 +413,9 @@ impl reassoc::traits::MulRhs<f32, Dispatched> for Dispatched {
         Dispatched(lhs * self.0)
     }
 }
-// Implemented by hand, so the output (not the left type) is declared by hand.
-reassoc::passthrough!(mul out f32, Dispatched => Dispatched);
+// Implemented by hand (a test-only shortcut; the traits are not a user
+// surface), so the output — not the left type — is declared by hand too.
+impl reassoc::traits::MulOut<Dispatched, Dispatched> for f32 {}
 
 /// A cast *to an integer type* proves the operation is not float arithmetic,
 /// like an integer literal, and leaves it native (the must-fail direction,

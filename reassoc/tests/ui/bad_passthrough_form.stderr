@@ -1,0 +1,15 @@
+error: `passthrough!`: no such form: `mul out Odd, Odd => f32`. The forms are `T`, `no_refs T`, `OP: A, B => O`, `no_refs OP: A, B => O`, `OP_assign: A, B`, `no_refs OP_assign: A, B`, each optionally prefixed `foreign`, with OP one of add, sub, mul, div, rem
+ --> tests/ui/bad_passthrough_form.rs:8:1
+  |
+8 | reassoc::passthrough!(mul out Odd, Odd => f32);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `reassoc::passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `passthrough!`: no such form: `times: Odd, Odd => Odd`. The forms are `T`, `no_refs T`, `OP: A, B => O`, `no_refs OP: A, B => O`, `OP_assign: A, B`, `no_refs OP_assign: A, B`, each optionally prefixed `foreign`, with OP one of add, sub, mul, div, rem
+ --> tests/ui/bad_passthrough_form.rs:9:1
+  |
+9 | reassoc::passthrough!(foreign times: Odd, Odd => Odd);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `$crate::passthrough` which comes from the expansion of the macro `reassoc::passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)

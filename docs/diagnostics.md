@@ -92,17 +92,9 @@ macro except one: naming the output through an alias of the left operand
 (`=> V3` where `type V3 = Vec3`) reads as a difference and produces an
 `E0119` on the `passthrough!` line. Spelling both the same way resolves it.
 
-Implementing `MulRhs` by hand rather than through `passthrough!` skips that
-inference, so declare the output yourself when it is not the left operand:
-
-```rust
-passthrough!(mul out Ray, Ray => f64);
-```
-
-Forgetting to reports ``cannot multiply `Ray` by `Ray` `` with rustc's own
-pointer at the impl that exists — "but trait `MulRhs<Ray, f64>` is implemented
-for it" — since the blanket resolves the output to `Ray` before the operand
-bound is checked (`tests/ui/undeclared_output.rs`).
+The dispatch traits themselves are implementation detail: `passthrough!`
+and the derive are the only supported way to opt in, and they make the
+declaration for you.
 
 **Two other cases are unaffected by any of this** and behave as they always
 have: an operation with a non-float literal or a cast to an integer type on

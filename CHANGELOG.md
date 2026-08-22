@@ -4,6 +4,16 @@ Notable changes per release. Dates are the publish date.
 
 ## Unreleased
 
+### Removed
+
+- `passthrough!(out A, B => O)` and `passthrough!(add out A, B => O)` ..:
+  they existed only to pair with a dispatch-trait impl written by hand, and
+  the dispatch traits and `ops` functions are implementation detail, not a
+  surface to write against — the macros are the API. Every `passthrough!` form
+  declares its own output; nothing a macro user wrote changes. A `passthrough!`
+  invocation that is not one of the documented forms now gets an authored
+  error naming them (`tests/ui/bad_passthrough_form.rs`).
+
 ### Fixed
 
 - **`passthrough!` with a reference on the left** — `passthrough!(add: &Big,
