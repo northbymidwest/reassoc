@@ -4,11 +4,12 @@
 //! alternatives that were tried live in `docs/design.md`.
 
 use proc_macro2::Span;
-use quote::{ToTokens, quote_spanned};
-use syn::punctuated::Punctuated;
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit_mut::{self, VisitMut};
-use syn::{Attribute, BinOp, Expr, Token, UnOp};
+use syn::{Attribute, BinOp, Expr, UnOp};
+
+use crate::build;
 
 pub struct Rewriter {
     /// Descend into closure bodies.
@@ -250,7 +251,7 @@ impl VisitMut for Rewriter {
         let right = unparen(*binary.right);
 
         if !assign {
-            *expr = call(span, ops_fn(span, name), [left, right]);
+            *expr = build::call(span, ops_fn(span, name), [left, right], Vec::new());
             return;
         }
 
@@ -285,125 +286,32 @@ impl VisitMut for Rewriter {
         // on a primitive `static mut` takes no reference, and edition 2024
         // denies `&mut` on one; the allow keeps that case compiling.
         let rhs = syn::Ident::new("__reassoc_rhs_9f2c1a", span);
-        let place = Expr::Reference(syn::ExprReference {
-            attrs: Vec::new(),
-            and_token: Token![&](span),
-            mutability: Some(Token![mut](span)),
-            expr: Box::new(left),
-        });
-        let mut assign = call(
+        let assign = build::call(
             span,
             ops_fn(span, &format!("{name}_assign")),
-            [place, path_expr(rhs.clone())],
+            [build::ref_mut(span, left), build::ident(rhs.clone())],
+            vec![build::allow(span, "static_mut_refs")],
         );
-        if let Expr::Call(c) = &mut assign {
-            c.attrs.push(allow_static_mut_refs(span));
-        }
-        let arm = syn::Arm {
-            attrs: Vec::new(),
-            pat: syn::Pat::Tuple(syn::PatTuple {
-                attrs: Vec::new(),
-                paren_token: syn::token::Paren(span),
-                elems: one_tuple(
-                    syn::Pat::Ident(syn::PatIdent {
-                        attrs: Vec::new(),
-                        by_ref: None,
-                        mutability: None,
-                        ident: rhs,
-                        subpat: None,
-                    }),
-                    span,
-                ),
-            }),
-            fat_arrow_token: Token![=>](span),
-            body: Box::new(Expr::Block(syn::ExprBlock {
-                attrs: Vec::new(),
-                label: None,
-                block: syn::Block {
-                    brace_token: syn::token::Brace(span),
-                    stmts: vec![syn::Stmt::Expr(assign, Some(Token![;](span)))],
-                },
-            })),
-            comma: None,
-        };
-        *expr = Expr::Match(syn::ExprMatch {
-            attrs: Vec::new(),
-            match_token: Token![match](span),
-            expr: Box::new(Expr::Tuple(syn::ExprTuple {
-                attrs: Vec::new(),
-                paren_token: syn::token::Paren(span),
-                elems: one_tuple(right, span),
-            })),
-            brace_token: syn::token::Brace(span),
-            arms: vec![arm],
-        });
+        *expr = build::match1(
+            span,
+            build::tuple1(span, right),
+            build::pat_tuple1(span, build::bind(rhs)),
+            build::block1(span, assign),
+        );
     }
 }
-
-// ---- builders for the emitted syntax ----
 
 /// `::reassoc::ops::<func>` — every token at `span` except the function
 /// name, which keeps the call site's.
 fn ops_fn(span: Span, func: &str) -> Expr {
-    let mut segments = Punctuated::new();
-    for ident in [
-        crate::krate::ident(span),
-        syn::Ident::new("ops", span),
-        syn::Ident::new(func, Span::call_site()),
-    ] {
-        if !segments.is_empty() {
-            segments.push_punct(Token![::](span));
-        }
-        segments.push_value(syn::PathSegment::from(ident));
-    }
-    Expr::Path(syn::ExprPath {
-        attrs: Vec::new(),
-        qself: None,
-        path: syn::Path {
-            leading_colon: Some(Token![::](span)),
-            segments,
-        },
-    })
-}
-
-fn path_expr(ident: syn::Ident) -> Expr {
-    Expr::Path(syn::ExprPath {
-        attrs: Vec::new(),
-        qself: None,
-        path: syn::Path::from(ident),
-    })
-}
-
-/// `f(a, b)` with the parens at `span`.
-fn call<const N: usize>(span: Span, func: Expr, args: [Expr; N]) -> Expr {
-    Expr::Call(syn::ExprCall {
-        attrs: Vec::new(),
-        func: Box::new(func),
-        paren_token: syn::token::Paren(span),
-        args: args.into_iter().collect(),
-    })
-}
-
-/// `(x,)` — the one element with its trailing comma.
-fn one_tuple<T>(elem: T, span: Span) -> Punctuated<T, Token![,]> {
-    let mut elems = Punctuated::new();
-    elems.push_value(elem);
-    elems.push_punct(Token![,](span));
-    elems
-}
-
-/// `#[allow(static_mut_refs)]`.
-fn allow_static_mut_refs(span: Span) -> Attribute {
-    Attribute {
-        pound_token: Token![#](span),
-        style: syn::AttrStyle::Outer,
-        bracket_token: syn::token::Bracket(span),
-        meta: syn::Meta::List(syn::MetaList {
-            path: syn::Path::from(syn::Ident::new("allow", span)),
-            delimiter: syn::MacroDelimiter::Paren(syn::token::Paren(span)),
-            tokens: quote_spanned!(span=> static_mut_refs),
-        }),
-    }
+    build::path(
+        span,
+        [
+            crate::krate::ident(span),
+            syn::Ident::new("ops", span),
+            syn::Ident::new(func, Span::call_site()),
+        ],
+    )
 }
 
 impl Rewriter {

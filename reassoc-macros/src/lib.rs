@@ -1,3 +1,4 @@
+mod build;
 mod krate;
 mod passthrough;
 mod rewrite;

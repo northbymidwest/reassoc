@@ -10,6 +10,8 @@ mod krate {
         syn::Ident::new("reassoc", span)
     }
 }
+#[path = "../../../../reassoc-macros/src/build.rs"]
+mod build;
 #[path = "../../../../reassoc-macros/src/scope.rs"]
 mod scope;
 #[path = "../../../../reassoc-macros/src/rewrite.rs"]

@@ -89,3 +89,6 @@ jobs:
       - run: cargo doc --workspace --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
+      # The offline expander shares the rewriter by `#[path]` but mirrors
+      # `krate` by hand; this catches the mirror drifting.
+      - run: cargo build --release --manifest-path scripts/compile-bench/expander/Cargo.toml
