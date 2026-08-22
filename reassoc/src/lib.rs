@@ -2,18 +2,23 @@
 //!
 //! <div class="warning">
 //!
-//! **Work in progress. Expect bugs, and expect them to be subtle.**
+//! **Experimental — days old, lightly used, and it changes your results on
+//! purpose.**
 //!
-//! This crate rewrites your arithmetic. When it is wrong, the failure mode is
-//! usually not a compile error — it is code that compiles, runs, and quietly
-//! does something slightly different from what you wrote. Bugs found so far
-//! include compound assignment rejecting valid code, a compile-time overflow
-//! error silently becoming a wrapped value, and evaluation order diverging
-//! from native Rust. Each was found *after* a release.
+//! This crate rewrites your arithmetic, so when it is wrong the failure is
+//! rarely a compile error: code compiles and quietly does something other
+//! than what you wrote. The rewriter has been checked systematically against
+//! the compiler — every construct it enters has a test that fails if the
+//! rewrite stops happening — but real code finds what an author did not
+//! imagine. Please report what you find. The known differences from plain
+//! Rust are few and deliberate (`docs/limitations.md` in the repository), and
+//! none touch an ordinary float kernel.
 //!
-//! Changing your results is also the entire point: see
-//! [Floating point semantics](#floating-point-semantics) below, and wrap
-//! anything depending on exact rounding in [`strict!`].
+//! What always applies: algebraic operators may reassociate and contract, so
+//! results can differ from strict IEEE in the last bits and between targets.
+//! That is the point, and it is silent — see [Floating point
+//! semantics](#floating-point-semantics) and wrap anything that depends on
+//! exact rounding in [`strict!`].
 //!
 //! </div>
 //!
