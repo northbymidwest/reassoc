@@ -5,12 +5,9 @@
 #![allow(dead_code)]
 
 mod krate {
-    use proc_macro2::{Span, TokenStream};
-    pub fn path() -> TokenStream {
-        quote::quote!(::reassoc)
-    }
-    pub fn path_spanned(_span: Span) -> TokenStream {
-        path()
+    use proc_macro2::Span;
+    pub fn ident(span: Span) -> syn::Ident {
+        syn::Ident::new("reassoc", span)
     }
 }
 #[path = "../../../../reassoc-macros/src/scope.rs"]
