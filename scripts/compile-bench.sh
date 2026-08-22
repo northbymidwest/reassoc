@@ -65,6 +65,9 @@ echo "building the expander (release) and expanding the workload ..."
 cargo build -q --release --manifest-path "$ROOT/scripts/compile-bench/expander/Cargo.toml"
 EXP="$ROOT/scripts/compile-bench/expander/target/release/expander"
 s=$(now); "$EXP" "$WORK/alg/src/main.rs" > "$WORK/expanded/src/main.rs" 2>/dev/null; EXPAND_T=$(elapsed "$s")
+# The expander prints one token stream on one line; rustc's per-line work
+# (debuginfo, diagnostics spans) makes a 400k-column line unrepresentative.
+rustfmt --edition 2024 "$WORK/expanded/src/main.rs" 2>/dev/null || true
 
 echo "warming dependencies ..."
 for v in plain expanded alg alg-opt; do

@@ -20,6 +20,18 @@ Notable changes per release. Dates are the publish date.
   Duration`, async closures, union fields, `alg!()` and all-statement blocks,
   and a UI snapshot for `#[algebraic]` on a generic function.
 
+### Changed
+
+- **The rewriter builds its replacement as syntax tree, not as tokens
+  re-parsed.** It used to `quote!` each rewritten operator and `parse2` the
+  result, which re-printed and re-parsed the operand subtrees at every nesting
+  level, unoptimized; the operands are now moved into the new node. On the
+  reference workload (`scripts/compile-bench/`) a full `cargo check` of
+  `#[algebraic]` code goes from ~5× to ~2.8× the plain-operator time, and the
+  macro's own share per rewritten operator from ~73µs to ~21µs, leaving the
+  type-check dispatch (~21µs) as most of what remains. Emitted tokens and
+  spans are identical: every UI snapshot is unchanged.
+
 ### Tooling
 
 - `scripts/compile-bench.sh` measures compile-time cost on a generated

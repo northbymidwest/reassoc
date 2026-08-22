@@ -5,9 +5,10 @@
 
 use proc_macro2::Span;
 use quote::{ToTokens, quote_spanned};
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::{self, VisitMut};
-use syn::{Attribute, BinOp, Expr, UnOp};
+use syn::{Attribute, BinOp, Expr, Token, UnOp};
 
 pub struct Rewriter {
     /// Descend into closure bodies.
@@ -232,39 +233,47 @@ impl VisitMut for Rewriter {
             return;
         }
 
-        // Spanned at the operator so errors point there. The crate path is
-        // respanned too; left at the call site it would anchor "required by a
+        // Spanned at the operator so errors point there; the crate path
+        // too, since left at the call site it would anchor "required by a
         // bound introduced by this call" on the `#[algebraic]` attribute.
+        //
+        // The replacement is built as syntax tree, not as tokens re-parsed:
+        // the operands are moved out of the old node and into the new one,
+        // never re-printed. With `quote!` + `parse2` every nesting level
+        // re-printed and re-parsed its whole subtree, and the proc macro ran
+        // that unoptimized; `scripts/compile-bench.sh` has the numbers.
         let span = binary.op.span();
-        let krate = crate::krate::path_spanned(span);
-        let func = syn::Ident::new(name, Span::call_site());
-        let left = unparen(&binary.left);
-        let right = unparen(&binary.right);
+        let Expr::Binary(binary) = core::mem::replace(expr, Expr::PLACEHOLDER) else {
+            unreachable!("matched `Expr::Binary` above");
+        };
+        let left = unparen(*binary.left);
+        let right = unparen(*binary.right);
 
         if !assign {
-            *expr = syn::parse2(quote_spanned! {span=>
-                #krate::ops::#func(#left, #right)
-            })
-            .expect("generated dispatch call must parse");
+            *expr = call(span, ops_fn(span, name), [left, right]);
             return;
         }
 
-        if !is_place_expr(left) {
+        if !is_place_expr(&left) {
             // Mirror rustc's E0067; letting `a + b += x` through would mutate
             // a discarded temporary.
             let err =
-                syn::Error::new_spanned(left, "invalid left-hand side of compound assignment");
-            *expr = syn::parse2(err.to_compile_error()).expect("compile_error! must parse");
+                syn::Error::new_spanned(&left, "invalid left-hand side of compound assignment");
+            *expr = Expr::Verbatim(err.to_compile_error());
             return;
         }
 
         // RHS first, bound through a `match` (native order; native temporary
-        // lifetime). The scrutinee is a one-tuple because a bare struct
-        // literal is not allowed as a scrutinee, and `unparen` has already
-        // removed any parens the user put around it. The binding resolves at
-        // the call site with a nonsense suffix, not with `Span::mixed_site()`
-        // hygiene: rustc re-anchors a span from an external macro's context
-        // at the invocation, so a mixed-site binding moves the caret of an
+        // lifetime):
+        //
+        //     match (rhs,) { (__r,) => { ops::add_assign(&mut place, __r); } }
+        //
+        // The scrutinee is a one-tuple because a bare struct literal is not
+        // allowed as a scrutinee, and `unparen` has already removed any parens
+        // the user put around it. The binding resolves at the call site with a
+        // nonsense suffix, not with `Span::mixed_site()` hygiene: rustc
+        // re-anchors a span from an external macro's context at the
+        // invocation, so a mixed-site binding moves the caret of an
         // unsatisfied `+=` from the operator to the `#[algebraic]` attribute
         // (measured; `tests/ui/compound_assign_not_opted_in.rs` pins it). A
         // user binding of the same name is a loud error, never a misresolve.
@@ -275,17 +284,125 @@ impl VisitMut for Rewriter {
         // and a temporary behind a deref lives through the call. Native `+=`
         // on a primitive `static mut` takes no reference, and edition 2024
         // denies `&mut` on one; the allow keeps that case compiling.
-        let func_assign = syn::Ident::new(&format!("{name}_assign"), Span::call_site());
         let rhs = syn::Ident::new("__reassoc_rhs_9f2c1a", span);
-        *expr = syn::parse2(quote_spanned! {span=>
-            match (#right,) {
-                (#rhs,) => {
-                    #[allow(static_mut_refs)]
-                    #krate::ops::#func_assign(&mut #left, #rhs);
-                }
-            }
-        })
-        .expect("generated compound assignment must parse");
+        let place = Expr::Reference(syn::ExprReference {
+            attrs: Vec::new(),
+            and_token: Token![&](span),
+            mutability: Some(Token![mut](span)),
+            expr: Box::new(left),
+        });
+        let mut assign = call(
+            span,
+            ops_fn(span, &format!("{name}_assign")),
+            [place, path_expr(rhs.clone())],
+        );
+        if let Expr::Call(c) = &mut assign {
+            c.attrs.push(allow_static_mut_refs(span));
+        }
+        let arm = syn::Arm {
+            attrs: Vec::new(),
+            pat: syn::Pat::Tuple(syn::PatTuple {
+                attrs: Vec::new(),
+                paren_token: syn::token::Paren(span),
+                elems: one_tuple(
+                    syn::Pat::Ident(syn::PatIdent {
+                        attrs: Vec::new(),
+                        by_ref: None,
+                        mutability: None,
+                        ident: rhs,
+                        subpat: None,
+                    }),
+                    span,
+                ),
+            }),
+            fat_arrow_token: Token![=>](span),
+            body: Box::new(Expr::Block(syn::ExprBlock {
+                attrs: Vec::new(),
+                label: None,
+                block: syn::Block {
+                    brace_token: syn::token::Brace(span),
+                    stmts: vec![syn::Stmt::Expr(assign, Some(Token![;](span)))],
+                },
+            })),
+            comma: None,
+        };
+        *expr = Expr::Match(syn::ExprMatch {
+            attrs: Vec::new(),
+            match_token: Token![match](span),
+            expr: Box::new(Expr::Tuple(syn::ExprTuple {
+                attrs: Vec::new(),
+                paren_token: syn::token::Paren(span),
+                elems: one_tuple(right, span),
+            })),
+            brace_token: syn::token::Brace(span),
+            arms: vec![arm],
+        });
+    }
+}
+
+// ---- builders for the emitted syntax ----
+
+/// `::reassoc::ops::<func>` — every token at `span` except the function
+/// name, which keeps the call site's.
+fn ops_fn(span: Span, func: &str) -> Expr {
+    let mut segments = Punctuated::new();
+    for ident in [
+        crate::krate::ident(span),
+        syn::Ident::new("ops", span),
+        syn::Ident::new(func, Span::call_site()),
+    ] {
+        if !segments.is_empty() {
+            segments.push_punct(Token![::](span));
+        }
+        segments.push_value(syn::PathSegment::from(ident));
+    }
+    Expr::Path(syn::ExprPath {
+        attrs: Vec::new(),
+        qself: None,
+        path: syn::Path {
+            leading_colon: Some(Token![::](span)),
+            segments,
+        },
+    })
+}
+
+fn path_expr(ident: syn::Ident) -> Expr {
+    Expr::Path(syn::ExprPath {
+        attrs: Vec::new(),
+        qself: None,
+        path: syn::Path::from(ident),
+    })
+}
+
+/// `f(a, b)` with the parens at `span`.
+fn call<const N: usize>(span: Span, func: Expr, args: [Expr; N]) -> Expr {
+    Expr::Call(syn::ExprCall {
+        attrs: Vec::new(),
+        func: Box::new(func),
+        paren_token: syn::token::Paren(span),
+        args: args.into_iter().collect(),
+    })
+}
+
+/// `(x,)` — the one element with its trailing comma.
+fn one_tuple<T>(elem: T, span: Span) -> Punctuated<T, Token![,]> {
+    let mut elems = Punctuated::new();
+    elems.push_value(elem);
+    elems.push_punct(Token![,](span));
+    elems
+}
+
+/// `#[allow(static_mut_refs)]`.
+fn allow_static_mut_refs(span: Span) -> Attribute {
+    Attribute {
+        pound_token: Token![#](span),
+        style: syn::AttrStyle::Outer,
+        bracket_token: syn::token::Bracket(span),
+        meta: syn::Meta::List(syn::MetaList {
+            path: syn::Path::from(syn::Ident::new("allow", span)),
+            delimiter: syn::MacroDelimiter::Paren(syn::token::Paren(span)),
+            tokens: quote_spanned!(span=> static_mut_refs),
+        }),
     }
 }
 
@@ -392,17 +509,19 @@ fn dispatch_fn(op: &BinOp) -> Option<(&'static str, bool)> {
 /// Strips invisible groups — what a `macro_rules!` `$e:expr` arrives in — and
 /// then exactly one layer of parentheses. One, because that layer is the one
 /// the call's own delimiters make redundant; any further layers were already
-/// redundant in the source and are left for `unused_parens` to report.
-fn unparen(expr: &Expr) -> &Expr {
-    match ungroup(expr) {
-        Expr::Paren(inner) => ungroup(&inner.expr),
+/// redundant in the source and are left for `unused_parens` to report. By
+/// value: the operand is moved into the replacement, not copied.
+fn unparen(expr: Expr) -> Expr {
+    let expr = ungroup(expr);
+    match expr {
+        Expr::Paren(inner) => ungroup(*inner.expr),
         expr => expr,
     }
 }
 
-fn ungroup(mut expr: &Expr) -> &Expr {
+fn ungroup(mut expr: Expr) -> Expr {
     while let Expr::Group(inner) = expr {
-        expr = &inner.expr;
+        expr = *inner.expr;
     }
     expr
 }
@@ -412,7 +531,11 @@ fn ungroup(mut expr: &Expr) -> &Expr {
 /// through to rustc's own check, while a false positive would reject valid
 /// code.
 fn is_place_expr(expr: &Expr) -> bool {
-    match ungroup(expr) {
+    let mut expr = expr;
+    while let Expr::Group(inner) = expr {
+        expr = &inner.expr;
+    }
+    match expr {
         Expr::Path(_) | Expr::Field(_) | Expr::Index(_) | Expr::Macro(_) => true,
         Expr::Unary(unary) => matches!(unary.op, UnOp::Deref(_)),
         Expr::Paren(inner) => is_place_expr(&inner.expr),
