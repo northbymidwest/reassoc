@@ -81,6 +81,11 @@ reverts to a worse result if undone.
   are concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
+- `#[algebraic]` on an `impl`/inline `mod`/`trait` enters every member and
+  every container nested in it; `items` governs only items declared inside a
+  function body. A `const fn` in an algebraic scope is skipped if the rewrite
+  would not change it (probed on a clone), an error otherwise. `mod foo;` and
+  other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.
 

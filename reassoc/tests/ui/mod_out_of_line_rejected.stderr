@@ -1,0 +1,13 @@
+error[E0658]: file modules in proc macro input are unstable
+ --> tests/ui/mod_out_of_line_rejected.rs:9:1
+  |
+9 | mod kernels;
+  | ^^^^^^^^^^^^
+  |
+  = note: see issue #54727 <https://github.com/rust-lang/rust/issues/54727> for more information
+
+error: `#[algebraic]` cannot see the body of an out-of-line module; put it on the items inside that file, or on an inline `mod name { .. }`
+ --> tests/ui/mod_out_of_line_rejected.rs:9:5
+  |
+9 | mod kernels;
+  |     ^^^^^^^

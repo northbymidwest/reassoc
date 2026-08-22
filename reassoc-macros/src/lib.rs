@@ -46,7 +46,8 @@ pub fn alg(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Rewrite arithmetic operators throughout a function body.
+/// Rewrite arithmetic operators throughout a function body — or throughout
+/// every member body of an `impl` block, an inline module or a trait.
 #[proc_macro_attribute]
 pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
     let scope = match scope::Scope::parse(attr.into()) {
@@ -54,11 +55,31 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => return err.to_compile_error().into(),
     };
 
-    let mut func = match syn::parse::<syn::ItemFn>(item.clone()) {
-        Ok(func) => func,
+    // A function first: the common case, and a method's tokens (`fn f(&self)
+    // ..`) parse as one.
+    match syn::parse::<syn::ItemFn>(item.clone()) {
+        Ok(mut func) => {
+            // `ops::*` are not `const fn`; rejecting up front beats an E0015
+            // blamed on the attribute.
+            if let Some(const_token) = func.sig.constness {
+                return syn::Error::new_spanned(
+                    const_token,
+                    "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \
+                     functions it generates (`reassoc::ops::*`) are not `const fn`",
+                )
+                .to_compile_error()
+                .into();
+            }
+            // `skip` at the top level simply means "do nothing".
+            if scope.skip {
+                return func.to_token_stream().into();
+            }
+            let mut rewriter = rewrite::Rewriter::from_scope(scope);
+            rewriter.visit_item_fn_mut(&mut func);
+            with_errors(func.to_token_stream(), rewriter.errors).into()
+        }
         Err(err) => {
-            // Not a function at all gets an authored message; a function
-            // with a syntax error keeps syn's, which points at the problem.
+            // A trait method without a body gets an authored message.
             if let Ok(f) = syn::parse::<syn::TraitItemFn>(item.clone())
                 && f.default.is_none()
             {
@@ -70,36 +91,49 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .to_compile_error()
                 .into();
             }
-            return match syn::parse::<syn::Item>(item) {
-                Ok(syn::Item::Fn(_)) | Err(_) => err,
+            match syn::parse::<syn::Item>(item) {
+                // A function with a syntax error keeps syn's, which points
+                // at the problem.
+                Ok(syn::Item::Fn(_)) | Err(_) => err.to_compile_error().into(),
+                Ok(syn::Item::Mod(m)) if m.content.is_none() => syn::Error::new_spanned(
+                    m.ident,
+                    "`#[algebraic]` cannot see the body of an out-of-line module; put it on \
+                     the items inside that file, or on an inline `mod name { .. }`",
+                )
+                .to_compile_error()
+                .into(),
+                Ok(
+                    mut container @ (syn::Item::Impl(_) | syn::Item::Mod(_) | syn::Item::Trait(_)),
+                ) => {
+                    if scope.skip {
+                        return container.to_token_stream().into();
+                    }
+                    let mut rewriter = rewrite::Rewriter::from_scope(scope);
+                    rewriter.visit_item_mut(&mut container);
+                    with_errors(container.to_token_stream(), rewriter.errors).into()
+                }
                 Ok(_) => syn::Error::new(
                     err.span(),
-                    "`#[algebraic]` applies to functions; it cannot be applied to this item",
-                ),
+                    "`#[algebraic]` applies to functions, `impl` blocks, inline modules and \
+                     traits; it cannot be applied to this item",
+                )
+                .to_compile_error()
+                .into(),
             }
-            .to_compile_error()
-            .into();
         }
-    };
-
-    // `ops::*` are not `const fn`; rejecting up front beats an E0015 blamed
-    // on the attribute.
-    if let Some(const_token) = func.sig.constness {
-        return syn::Error::new_spanned(
-            const_token,
-            "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \
-             functions it generates (`reassoc::ops::*`) are not `const fn`",
-        )
-        .to_compile_error()
-        .into();
     }
+}
 
-    // `skip` at the top level simply means "do nothing".
-    if !scope.skip {
-        rewrite::Rewriter::from_scope(scope).visit_item_fn_mut(&mut func);
+/// The rewritten item, followed by any errors the rewriter collected — the
+/// item is still emitted so that everything else in it is checked too.
+fn with_errors(
+    mut tokens: proc_macro2::TokenStream,
+    errors: Vec<syn::Error>,
+) -> proc_macro2::TokenStream {
+    for err in errors {
+        tokens.extend(err.to_compile_error());
     }
-
-    func.to_token_stream().into()
+    tokens
 }
 
 /// Opt a type into `reassoc`'s dispatch layer at its definition.

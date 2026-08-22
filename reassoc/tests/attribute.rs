@@ -450,7 +450,11 @@ fn doubles_behave_like_floats() {
 
 /// Const positions inside a nested `impl` are const contexts too. An
 /// associated const and a `const fn` method are `ImplItem`s, not `Item`s, so
-/// the `Item`-level check used to miss them and they failed with E0015.
+/// the `Item`-level check used to miss them and they failed with E0015. A
+/// `const fn` whose arithmetic the rewrite would touch is no longer skipped
+/// silently — it must say `#[algebraic(skip)]` (the must-fail direction is
+/// `tests/ui/const_fn_member_with_arithmetic.rs`); one with nothing to
+/// rewrite, like `h`, is skipped without a word.
 struct Consts;
 
 // The nested `impl` is the point: it is what puts an associated const and a
@@ -461,16 +465,20 @@ struct Consts;
 fn const_positions_in_nested_impls(x: f32) -> f32 {
     impl Consts {
         const K: f32 = 1.0 + 2.0;
+        #[algebraic(skip)]
         const fn g() -> f32 {
             3.0 + 4.0
         }
+        const fn h() -> f32 {
+            7.0
+        }
     }
-    x * Consts::K + Consts::g()
+    x * Consts::K + Consts::g() - Consts::h()
 }
 
 #[test]
 fn nested_impl_consts_compile() {
-    assert_eq!(const_positions_in_nested_impls(2.0), 13.0);
+    assert_eq!(const_positions_in_nested_impls(2.0), 6.0);
 }
 
 /// Compound assignment must keep native evaluation and drop order: the RHS's
@@ -514,6 +522,7 @@ fn compound_assignment_matches_native_order() {
 // ---- pinned here so it stays that way                                   ----
 
 impl reassoc::traits::SynthAddAssign<Dispatched> for Dispatched {}
+impl reassoc::traits::SynthMulAssign<Dispatched> for Dispatched {}
 impl PartialOrd for Dispatched {
     fn partial_cmp(&self, o: &Dispatched) -> Option<core::cmp::Ordering> {
         self.0.partial_cmp(&o.0)
@@ -639,4 +648,123 @@ fn algebraic_then_test() {
     let w = Dispatched(3.0);
     let sq = w * w;
     assert_eq!(sq, Dispatched(9.0));
+}
+
+// ---- `#[algebraic]` on containers: impl, trait impl, trait, inline mod ----
+//
+// `Dispatched` throughout, so a member the container form failed to enter is
+// a compile error. The must-fail directions — a `skip`ped member, a nested fn
+// inside a member body under the default `items = false`, a member carrying
+// its own narrower attribute — are `tests/ui/container_*.rs`.
+
+mod container {
+    use super::Dispatched;
+    use reassoc::algebraic;
+
+    pub struct V(pub Dispatched);
+
+    #[algebraic]
+    impl V {
+        pub fn double(&self) -> Dispatched {
+            self.0 + self.0
+        }
+        pub fn scale(&mut self, k: Dispatched) {
+            self.0 *= k; // compound on a field place
+        }
+        // A `const fn` with nothing to rewrite is skipped silently.
+        pub const fn new(d: Dispatched) -> V {
+            V(d)
+        }
+        pub const ZERO: Dispatched = Dispatched(0.0);
+        #[algebraic(skip)]
+        pub fn strict_unit(&self) -> f32 {
+            1.0 + 0.0 // left alone; would be fine either way, pinned by UI
+        }
+    }
+
+    pub trait Area {
+        fn area(&self) -> Dispatched;
+    }
+    #[algebraic]
+    impl Area for V {
+        fn area(&self) -> Dispatched {
+            self.0 * self.0
+        }
+    }
+
+    #[algebraic]
+    pub trait Shape {
+        fn side(&self) -> Dispatched; // required: nothing to rewrite, skipped
+        fn perimeter(&self) -> Dispatched {
+            let four = Dispatched(4.0);
+            self.side() * four // default body: rewritten
+        }
+    }
+    impl Shape for V {
+        fn side(&self) -> Dispatched {
+            self.0
+        }
+    }
+
+    #[algebraic]
+    pub mod deep {
+        use super::super::Dispatched;
+        pub fn top(a: Dispatched) -> Dispatched {
+            a + a
+        }
+        pub mod inner {
+            use super::super::super::Dispatched;
+            pub struct W(pub Dispatched);
+            impl W {
+                pub fn sq(&self) -> Dispatched {
+                    self.0 * self.0 // mod -> mod -> impl -> method: all entered
+                }
+            }
+            pub fn with_closure(a: Dispatched) -> Dispatched {
+                let f = |x: Dispatched| x - a; // closures on by default
+                f(a + a)
+            }
+        }
+    }
+}
+
+#[test]
+fn containers_rewrite_every_member_body() {
+    use container::{Area, Shape, V, deep};
+    let mut v = V::new(Dispatched(3.0));
+    assert_eq!(v.double(), Dispatched(6.0));
+    v.scale(Dispatched(2.0));
+    assert_eq!(v.0, Dispatched(6.0));
+    assert_eq!(v.area(), Dispatched(36.0));
+    assert_eq!(v.perimeter(), Dispatched(24.0));
+    assert_eq!(v.strict_unit(), 1.0);
+    assert_eq!(V::ZERO, Dispatched(0.0));
+    assert_eq!(deep::top(Dispatched(1.0)), Dispatched(2.0));
+    assert_eq!(deep::inner::W(Dispatched(3.0)).sq(), Dispatched(9.0));
+    assert_eq!(deep::inner::with_closure(Dispatched(1.0)), Dispatched(1.0));
+}
+
+/// Container parameters apply to every member; `items = true` on the
+/// container reaches a fn declared inside a member's body.
+mod container_params {
+    use super::Dispatched;
+    use reassoc::algebraic;
+    pub struct U;
+    #[algebraic(items = true)]
+    impl U {
+        pub fn via_nested(a: Dispatched) -> Dispatched {
+            fn helper(x: Dispatched) -> Dispatched {
+                x * x
+            }
+            helper(a)
+        }
+    }
+}
+
+#[test]
+fn container_items_parameter_reaches_fns_inside_member_bodies() {
+    assert_eq!(
+        container_params::U::via_nested(Dispatched(3.0)),
+        Dispatched(9.0)
+    );
 }

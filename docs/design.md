@@ -163,6 +163,23 @@ never a misresolve.
 call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
+**`#[algebraic]` on a container** — `impl`, inline `mod`, `trait` — enters
+every member body, and containers nested in those, unconditionally: the
+annotation on an `impl` means "these methods". `items` keeps its one meaning,
+items declared inside a function body, tracked by an `in_body` flag the three
+fn visitors set; the default visitor's free functions bypass overrides, so the
+impl/trait visitors must call the overriding method, not the free function —
+`tests/ui/container_items_default_excludes_nested_fn.rs` caught exactly that.
+A `const fn` in any algebraic scope is decided by probing: the body is cloned
+and rewritten under the same scope, and if the tokens changed the fn is an
+error naming `#[algebraic(skip)]`; otherwise it is skipped silently. Probing
+rather than a syntactic "contains `+`" keeps the literal rule, `strict!` and
+const positions exactly as consistent as everywhere else, and costs one extra
+walk of a body that is usually `Self(x)`. `mod foo;` is refused with an
+authored message (stable rustc refuses attribute macros on file modules
+first, E0658). A trait's required methods are skipped, its default bodies
+rewritten; the attribute does not propagate to implementors.
+
 **A nested item with its own `#[algebraic(..)]` is left alone**; rewriting it
 under the outer scope first would make the inner attribute run over already-
 rewritten code and silently ignore its parameters.

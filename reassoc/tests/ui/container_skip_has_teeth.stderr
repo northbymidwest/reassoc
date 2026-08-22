@@ -1,0 +1,18 @@
+error[E0369]: cannot multiply `Dispatched` by `Dispatched`
+  --> tests/ui/container_skip_has_teeth.rs:23:16
+   |
+23 |         self.0 * self.0
+   |         ------ ^ ------ Dispatched
+   |         |
+   |         Dispatched
+   |
+note: an implementation of `Mul` might be missing for `Dispatched`
+  --> tests/ui/container_skip_has_teeth.rs:7:1
+   |
+ 7 | struct Dispatched(f32);
+   | ^^^^^^^^^^^^^^^^^ must implement `Mul`
+note: the trait `Mul` must be implemented
+  --> $RUST/core/src/ops/arith.rs
+   |
+   | pub const trait Mul<Rhs = Self> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

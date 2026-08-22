@@ -58,6 +58,31 @@
 //! # }
 //! ```
 //!
+//! # Rewriting a whole `impl`, module or trait
+//!
+//! The attribute also goes on an `impl` block (inherent or trait), an inline
+//! `mod`, or a `trait`, and rewrites every member body. `#[algebraic(skip)]`
+//! excludes one member; a member with its own `#[algebraic(..)]` follows that
+//! instead. A `const fn` member is skipped if the rewrite would not touch it
+//! and is an error otherwise — `reassoc::ops::*` are not `const fn`, so
+//! rewriting it cannot compile, and leaving it strict silently would be worse.
+//!
+//! ```
+//! use reassoc::algebraic;
+//! #[derive(Clone, Copy)]
+//! struct V(f32, f32);
+//!
+//! #[algebraic]
+//! impl V {
+//!     const fn new(x: f32, y: f32) -> V { V(x, y) }          // nothing to rewrite: fine
+//!     fn dot(self, o: V) -> f32 { self.0 * o.0 + self.1 * o.1 }
+//!     fn scaled(self, k: f32) -> V { V(self.0 * k, self.1 * k) }
+//!     #[algebraic(skip)]
+//!     fn exact_sum(self) -> f32 { self.0 + self.1 }          // strict IEEE
+//! }
+//! # assert_eq!(V::new(1.0, 2.0).dot(V(3.0, 4.0)), 11.0);
+//! ```
+//!
 //! # Rewriting part of a function
 //!
 //! [`alg!`] takes a braced block as well as a single expression, for when only

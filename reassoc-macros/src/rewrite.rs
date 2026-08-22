@@ -4,7 +4,7 @@
 //! alternatives that were tried live in `docs/design.md`.
 
 use proc_macro2::Span;
-use quote::quote_spanned;
+use quote::{ToTokens, quote_spanned};
 use syn::spanned::Spanned;
 use syn::visit_mut::{self, VisitMut};
 use syn::{Attribute, BinOp, Expr, UnOp};
@@ -12,17 +12,28 @@ use syn::{Attribute, BinOp, Expr, UnOp};
 pub struct Rewriter {
     /// Descend into closure bodies.
     pub closures: bool,
-    /// Descend into nested `fn` / `impl` / `mod` items.
+    /// Descend into `fn` / `impl` / `mod` / `trait` items declared inside a
+    /// function body. Items met *outside* one — the members of an annotated
+    /// `impl`, `mod` or `trait`, and containers nested in those — are always
+    /// entered: that is what annotating the container means.
     pub items: bool,
+    /// Whether the visitor is currently inside a function body, which is
+    /// where `items` applies.
+    in_body: bool,
+    /// Errors to report alongside the rewritten item: a `const fn` whose
+    /// arithmetic would have been rewritten.
+    pub errors: Vec<syn::Error>,
 }
 
 impl Rewriter {
     /// Scope used by `alg!`: closures in, nested items out, matching
-    /// `#[algebraic]`'s default.
+    /// `#[algebraic]`'s default. An expression is always inside a body.
     pub fn expression_scope() -> Self {
         Rewriter {
             closures: true,
             items: false,
+            in_body: true,
+            errors: Vec::new(),
         }
     }
 
@@ -30,6 +41,42 @@ impl Rewriter {
         Rewriter {
             closures: scope.closures,
             items: scope.items,
+            in_body: false,
+            errors: Vec::new(),
+        }
+    }
+
+    /// Runs `f` with the visitor marked as inside a function body.
+    fn in_body<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let outer = core::mem::replace(&mut self.in_body, true);
+        let out = f(self);
+        self.in_body = outer;
+        out
+    }
+
+    /// A `const fn` met in an algebraic scope. `ops::*` are not `const fn`,
+    /// so it cannot be rewritten; one the rewrite would not touch is skipped
+    /// silently, one it would touch is an error naming the way out — never
+    /// a member left strict without a word. "Would touch" is decided by
+    /// rewriting a clone of the body under the same scope and comparing, so
+    /// the literal rule, `strict!` and const positions all count exactly as
+    /// they do elsewhere.
+    fn const_fn(&mut self, const_token: syn::token::Const, body: &syn::Block) {
+        let mut probe = Rewriter {
+            closures: self.closures,
+            items: self.items,
+            in_body: true,
+            errors: Vec::new(),
+        };
+        let mut clone = body.clone();
+        probe.visit_block_mut(&mut clone);
+        if clone.to_token_stream().to_string() != body.to_token_stream().to_string() {
+            self.errors.push(syn::Error::new_spanned(
+                const_token,
+                "`#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch \
+                 functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it \
+                 `#[algebraic(skip)]` to leave it as written, or drop `const`",
+            ));
         }
     }
 }
@@ -68,7 +115,7 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_item_mut(&mut self, item: &mut syn::Item) {
-        if !self.items {
+        if self.in_body && !self.items {
             return;
         }
         if let Some(attrs) = item_attrs_mut(item) {
@@ -79,22 +126,41 @@ impl VisitMut for Rewriter {
                 return;
             }
         }
-        let is_const = match item {
-            syn::Item::Const(_) | syn::Item::Static(_) => true,
-            syn::Item::Fn(f) => f.sig.constness.is_some(),
-            _ => false,
-        };
-        if !is_const {
-            visit_mut::visit_item_mut(self, item);
+        match item {
+            syn::Item::Const(_) | syn::Item::Static(_) => {}
+            syn::Item::Fn(f) if f.sig.constness.is_some() => {
+                self.const_fn(f.sig.constness.unwrap(), &f.block);
+            }
+            _ => visit_mut::visit_item_mut(self, item),
         }
+    }
+
+    // Function bodies are where `items` applies; the three kinds of fn mark
+    // their block as one.
+
+    fn visit_item_fn_mut(&mut self, f: &mut syn::ItemFn) {
+        self.in_body(|v| visit_mut::visit_item_fn_mut(v, f));
+    }
+
+    fn visit_impl_item_fn_mut(&mut self, f: &mut syn::ImplItemFn) {
+        self.in_body(|v| visit_mut::visit_impl_item_fn_mut(v, f));
+    }
+
+    fn visit_trait_item_fn_mut(&mut self, f: &mut syn::TraitItemFn) {
+        self.in_body(|v| visit_mut::visit_trait_item_fn_mut(v, f));
     }
 
     fn visit_impl_item_mut(&mut self, item: &mut syn::ImplItem) {
         match item {
             syn::ImplItem::Const(_) => {}
             syn::ImplItem::Fn(f) => {
-                if !leave_fn_alone(&mut f.attrs, f.sig.constness.is_some()) {
-                    visit_mut::visit_impl_item_fn_mut(self, f);
+                if leave_fn_alone(&mut f.attrs) {
+                    return;
+                }
+                match f.sig.constness {
+                    Some(c) => self.const_fn(c, &f.block),
+                    // Through the override, so the body counts as one.
+                    None => self.visit_impl_item_fn_mut(f),
                 }
             }
             _ => visit_mut::visit_impl_item_mut(self, item),
@@ -105,8 +171,14 @@ impl VisitMut for Rewriter {
         match item {
             syn::TraitItem::Const(_) => {}
             syn::TraitItem::Fn(f) => {
-                if !leave_fn_alone(&mut f.attrs, f.sig.constness.is_some()) {
-                    visit_mut::visit_trait_item_fn_mut(self, f);
+                if leave_fn_alone(&mut f.attrs) {
+                    return;
+                }
+                // A required method has no body: nothing to rewrite, and
+                // nothing to warn about.
+                match (f.sig.constness, &f.default) {
+                    (Some(c), Some(body)) => self.const_fn(c, body),
+                    _ => self.visit_trait_item_fn_mut(f),
                 }
             }
             _ => visit_mut::visit_trait_item_mut(self, item),
@@ -333,10 +405,10 @@ fn strip_skip(attrs: &mut Vec<Attribute>) -> bool {
     attrs.len() != before
 }
 
-/// A nested `fn` the rewriter must not enter: `const fn` (a const position),
-/// `#[algebraic(skip)]`, or one carrying its own `#[algebraic(..)]`.
-fn leave_fn_alone(attrs: &mut Vec<Attribute>, is_const: bool) -> bool {
-    strip_skip(attrs) || is_const || attrs.iter().any(is_algebraic_attr)
+/// A nested `fn` the rewriter must not enter: `#[algebraic(skip)]`, or one
+/// carrying its own `#[algebraic(..)]`.
+fn leave_fn_alone(attrs: &mut Vec<Attribute>) -> bool {
+    strip_skip(attrs) || attrs.iter().any(is_algebraic_attr)
 }
 
 fn item_attrs_mut(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
@@ -344,6 +416,7 @@ fn item_attrs_mut(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
         syn::Item::Fn(f) => Some(&mut f.attrs),
         syn::Item::Impl(i) => Some(&mut i.attrs),
         syn::Item::Mod(m) => Some(&mut m.attrs),
+        syn::Item::Trait(t) => Some(&mut t.attrs),
         _ => None,
     }
 }

@@ -140,7 +140,8 @@ reassoc = "0.3"
   }
   # }
   ```
-- `#[algebraic]` — rewrite a whole function.
+- `#[algebraic]` — rewrite a whole function; or every method of an `impl`
+  block, every item of an inline `mod`, every default body of a `trait`.
 - `strict!(expr)` — opt a subexpression back out to strict IEEE.
 - `passthrough!(Ty)` — opt your own type into the dispatch layer.
 - `#[derive(Passthrough)]` — the same, at the type's definition. Add
@@ -163,8 +164,12 @@ not `Copy` uses `passthrough!(no_refs Ty)` or `#[passthrough(no_refs)]`.
 | `closures` | `true` | `false` leaves closure bodies alone |
 | `items` | `false` | `true` descends into nested `fn`/`impl`/`mod` |
 
-`#[algebraic(skip)]` on a nested item excludes it from an enclosing
-`items = true`.
+`#[algebraic(skip)]` on a nested item or a container member excludes it. On
+a container, `items` keeps this meaning — items declared *inside a member's
+body* — while the container's own members are always entered, containers
+nested in it included. A `const fn` member cannot be rewritten; one with
+nothing to rewrite is skipped, one with arithmetic is an error asking for
+`skip`.
 
 ## Correctness
 

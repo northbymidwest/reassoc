@@ -50,6 +50,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   `static_mut_refs` and borrows the static for the duration of the assignment,
   which native `+=` on a primitive does not do. The usual rules for references
   to a `static mut` apply to that borrow.
+- `#[algebraic]` on a trait rewrites the trait's default bodies only; it does
+  not propagate to implementors, which annotate their own `impl`. On any
+  container, `mod foo;` is refused (the body is in a file the macro cannot
+  see), and a `const fn` member whose arithmetic would be rewritten is an
+  error rather than being left strict silently — mark it `#[algebraic(skip)]`.
 - Generic functions cannot use `#[algebraic]`. `fn g<T: Mul<Output = T>>(a: T,
   b: T) -> T { a * b }` fails with `E0277`, because dispatch resolves per
   concrete type. The diagnostic says so, and says that the usual advice —

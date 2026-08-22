@@ -2,6 +2,30 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- **`#[algebraic]` on an `impl` block, an inline `mod`, or a `trait`.** Every
+  member body is rewritten — containers nested inside too — so a type's
+  arithmetic methods take one annotation instead of one per method, and a
+  forgotten method can no longer sit silently strict. `#[algebraic(skip)]` on
+  a member excludes it; a member with its own `#[algebraic(..)]` follows that.
+  `closures` and `items` keep their meaning, `items` being items declared
+  inside a member's body. Trait definitions rewrite default bodies and skip
+  required methods; the attribute does not propagate to implementors. `mod
+  foo;` is refused with a message saying why. Other item kinds are still
+  refused, by name.
+
+### Changed
+
+- **A `const fn` in an algebraic scope is an error if the rewrite would have
+  touched it**, naming `#[algebraic(skip)]` as the way out; one with nothing
+  to rewrite is skipped silently. Under `items = true` such a fn used to be
+  skipped silently either way, leaving its arithmetic strict without a word.
+  Decided by rewriting a clone of the body, so the literal rule, `strict!`
+  and const positions count exactly as they do elsewhere.
+
 ## 0.3.7 — 2026-08-21
 
 A review of 0.3.6 against the compiler; every item below was reproduced

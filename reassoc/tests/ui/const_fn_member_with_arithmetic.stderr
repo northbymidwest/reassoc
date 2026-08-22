@@ -1,0 +1,11 @@
+error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+  --> tests/ui/const_fn_member_with_arithmetic.rs:16:9
+   |
+16 |     pub const fn scale(self, k: f32) -> V {
+   |         ^^^^^
+
+error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+  --> tests/ui/const_fn_member_with_arithmetic.rs:24:5
+   |
+24 |     const fn twice(y: f32) -> f32 {
+   |     ^^^^^
