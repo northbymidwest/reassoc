@@ -569,6 +569,52 @@ impl core::ops::Add for IVec {
     }
 }
 
+/// A primitive on the left of an opted-in type **in place**: `x *= v` with
+/// `impl MulAssign<V> for f32`, which is native Rust and was not dispatched
+/// (found adopting micromath, whose `f32 *= F32` is exactly this). The
+/// binary form was already covered; this is its compound twin.
+impl core::ops::MulAssign<IVec> for i32 {
+    fn mul_assign(&mut self, v: IVec) {
+        *self *= v.0;
+    }
+}
+impl core::ops::AddAssign<IVec> for u8 {
+    fn add_assign(&mut self, v: IVec) {
+        *self += v.0 as u8;
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+struct Scale(f64);
+impl core::ops::MulAssign<Scale> for f64 {
+    fn mul_assign(&mut self, s: Scale) {
+        *self *= s.0;
+    }
+}
+impl core::ops::SubAssign<Scale> for f64 {
+    fn sub_assign(&mut self, s: Scale) {
+        *self -= s.0;
+    }
+}
+
+#[test]
+fn primitive_scalars_on_the_left_of_a_user_type_in_place() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(mut x: f64, mut k: i32, mut b: u8, s: Scale, v: IVec) -> (f64, f64, i32, u8) {
+        let mut y = x;
+        x *= s;
+        y -= s;
+        k *= v;
+        b += v;
+        (x, y, k, b)
+    }
+    assert_eq!(
+        go(3.0, 4, 1, Scale(2.0), IVec(3, 0)),
+        (6.0, 1.0, 12, 4)
+    );
+}
+
 #[test]
 fn integer_scalars_on_the_left_of_a_user_type() {
     use reassoc::algebraic;

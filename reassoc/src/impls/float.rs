@@ -149,10 +149,34 @@ macro_rules! float_left_one {
 macro_rules! float_lefts {
     ($($a:tt)*) => { konst!(float_lefts_k!($($a)*)); };
 }
+// The in-place twin: `x *= v` with `impl MulAssign<V> for f32` is native
+// Rust, so it dispatches too (micromath's `f32 *= F32`).
+macro_rules! float_left_assign {
+    ($c:tt $b:tt $t:ty; $($assign_trait:ident, $assign_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
+        float_left_assign_one!($c $b $t; $assign_trait, $assign_method, $std, $op);
+    )*};
+}
+macro_rules! float_left_assign_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty; $assign_trait:ident, $assign_method:ident, $std:ident, $op:tt) => {
+        $($c)* impl<B: Passthrough> $assign_trait<$t> for B
+        where
+            $t: $($b)* core::ops::$std<B>,
+        {
+            #[inline(always)]
+            #[track_caller]
+            fn $assign_method(self, lhs: &mut $t) { *lhs $op self; }
+        }
+    };
+}
 macro_rules! float_lefts_k {
     ($c:tt $b:tt $($t:ty)*) => {$(
         float_left!($c $b $t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
                         DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
+        float_left_assign!($c $b $t; AddAssignRhs, add_assign_rhs, AddAssign, +=;
+                                     SubAssignRhs, sub_assign_rhs, SubAssign, -=;
+                                     MulAssignRhs, mul_assign_rhs, MulAssign, *=;
+                                     DivAssignRhs, div_assign_rhs, DivAssign, /=;
+                                     RemAssignRhs, rem_assign_rhs, RemAssign, %=);
     )*};
 }
 float_lefts!(f32 f64);

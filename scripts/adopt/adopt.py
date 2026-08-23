@@ -45,7 +45,11 @@ RE_CONST_FN = re.compile(rf"^(?P<indent>\s*){VIS}(?:(?:async|unsafe|default|exte
 RE_IMPL = re.compile(r"^(?:unsafe\s+)?impl\b")
 RE_TRAIT = re.compile(rf"^{VIS}(?:unsafe\s+)?(?:auto\s+)?trait\s+[A-Za-z_]\w*")
 RE_MOD = re.compile(rf"^{VIS}mod\s+[A-Za-z_]\w*\s*\{{")
-RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+[A-Za-z_]\w*")
+RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_]\w*")
+# `fn f(..) -> T;` — a required trait method, no body to rewrite (ndarray's
+# sealed `__private__` inside a `macro_rules!` template). The attribute is an
+# authored error there.
+RE_BODILESS_FN = re.compile(rf"^\s*{VIS}{QUAL}fn\s[^{{;]*;\s*$")
 RE_MACRO_ITEM = re.compile(r"^[A-Za-z_][\w:]*!\s*[\(\[\{]")
 RE_CFG_TEST = re.compile(r"^\s*#\[cfg\((?:test|all\(\s*test\b.*)\)\]\s*$")
 RE_ATTR_LINE = re.compile(r"^\s*#!?\[")
@@ -278,8 +282,16 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 else:
                     pending = "alg"
                 stats["mod"] += 1
-        elif not covered and items and RE_MACRO_ITEM.match(stripped) and not RE_MACRO_RULES.match(stripped):
+        elif not covered and RE_MACRO_ITEM.match(stripped) and not RE_MACRO_RULES.match(stripped):
+            # A macro *invocation* is opaque — annotating lines inside its
+            # braces corrupts the call (num-bigint's `impl_binop! { .. }`:
+            # "no rules expected `#`"). Only `macro_rules!` *definitions*
+            # take attributes in their templates.
             stats["macro-invocation item (not annotatable)"] += 1
+            if opens:
+                cover.append((depth, "native"))
+            elif stripped.rstrip().endswith(("{", "(", "[")) or code.count("{") > code.count("}"):
+                pending = "native"
         elif not covered and items and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
             out.append(pad + ATTR)
             if opens:
@@ -301,7 +313,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 cover.append((depth, "native"))
             else:
                 pending = "native"
-        elif not covered and items and RE_FN.match(line):
+        elif not covered and items and RE_FN.match(line) and not RE_BODILESS_FN.match(code):
             out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))

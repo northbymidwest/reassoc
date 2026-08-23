@@ -124,10 +124,33 @@ macro_rules! int_left_one {
 macro_rules! int_lefts {
     ($($a:tt)*) => { konst!(int_lefts_k!($($a)*)); };
 }
+// The in-place twin, as for floats: `n *= v` with `impl MulAssign<V> for u32`.
+macro_rules! int_left_assign {
+    ($c:tt $b:tt $t:ty; $($assign_trait:ident, $assign_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
+        int_left_assign_one!($c $b $t; $assign_trait, $assign_method, $std, $op);
+    )*};
+}
+macro_rules! int_left_assign_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty; $assign_trait:ident, $assign_method:ident, $std:ident, $op:tt) => {
+        $($c)* impl<B: Passthrough> $assign_trait<$t> for B
+        where
+            $t: $($b)* $std<B>,
+        {
+            #[inline(always)]
+            #[track_caller]
+            fn $assign_method(self, lhs: &mut $t) { *lhs $op self; }
+        }
+    };
+}
 macro_rules! int_lefts_k {
     ($c:tt $b:tt $($t:ty)*) => {$(
         int_left!($c $b $t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
                       DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
+        int_left_assign!($c $b $t; AddAssignRhs, add_assign_rhs, AddAssign, +=;
+                                   SubAssignRhs, sub_assign_rhs, SubAssign, -=;
+                                   MulAssignRhs, mul_assign_rhs, MulAssign, *=;
+                                   DivAssignRhs, div_assign_rhs, DivAssign, /=;
+                                   RemAssignRhs, rem_assign_rhs, RemAssign, %=);
     )*};
 }
 int_lefts!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
