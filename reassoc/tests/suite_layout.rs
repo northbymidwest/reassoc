@@ -15,6 +15,7 @@ fn every_test_file_is_included_in_the_edition_2021_twin() {
         ("suite_layout.rs", "this file"),
         ("ui.rs", "trybuild, pinned toolchain"),
         ("codegen.rs", "shells out to the assembly guard"),
+        ("codegen_matrix.rs", "shells out to the IR comparison"),
         ("renamed.rs", "shells out to the renamed consumer"),
         (
             "fuzz_corpus.rs",
