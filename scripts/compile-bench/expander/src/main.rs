@@ -9,6 +9,11 @@ mod krate {
         "reassoc".to_owned()
     }
 }
+// The rewriter's `REASSOC_TRACE` hook: a no-op here — the expander is not a
+// proc macro and has no spans to resolve.
+mod trace {
+    pub fn record(_kind: &str, _span: proc_macro2::Span, _name: &str, _ops: usize) {}
+}
 #[path = "../../../../reassoc-macros/src/build.rs"]
 mod build;
 #[path = "../../../../reassoc-macros/src/scope.rs"]
