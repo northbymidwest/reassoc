@@ -85,6 +85,12 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   dispatch traits become `const trait`s, `ops::*` become `const fn`, and
   `const fn` bodies work with no change to the rewriter; until then, a
   `const fn` kernel calls `algebraic_mul` by hand.
+  How much this costs depends on the crate: kurbo (0.13) declares 142 `const
+  fn`s, among them the primitives everything else is built on — `Vec2::dot`,
+  `cross`, `hypot2`, `Point::midpoint` — so after adopting the macros
+  everywhere else, 951 of its 6338 float operations in optimized IR were
+  still strict, all inlined from those. A way to let `#[algebraic]` reach a
+  `const fn` body is the open design item that would close it.
 - Compound assignment on a **non-primitive** type evaluates its right-hand side
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not

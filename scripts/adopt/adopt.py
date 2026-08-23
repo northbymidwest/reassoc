@@ -271,7 +271,10 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             if opens:
                 cover.append((depth, "alg"))
             stats["impl/trait"] += 1
-        elif not covered and items and RE_CONST_FN.match(line):
+        elif items and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
+            # Inside an annotated impl too: the rewriter refuses a `const fn`
+            # member whose arithmetic it would have rewritten, so every one
+            # gets `skip` (or is left, to count them).
             if const_fn == "skip":
                 out.append(pad + SKIP)
                 stats["const fn (skipped)"] += 1
@@ -357,21 +360,50 @@ def cmd_apply(a: argparse.Namespace) -> int:
 
 ERR_RE = re.compile(r"^(error(?:\[(E\d{4})\])?|warning): (.*)$", re.M)
 LOC_RE = re.compile(r"^\s+--> (\S+):(\d+):(\d+)", re.M)
-TEST_FAIL_RE = re.compile(r"^test (\S+) \.\.\. FAILED$", re.M)
+TEST_FAIL_RE = re.compile(r"^test (.+?) \.\.\. FAILED$", re.M)  # `name - should panic` included
 TEST_RESULT_RE = re.compile(r"^test result: (\w+)\. (\d+) passed; (\d+) failed; (\d+) ignored", re.M)
 
 
-def all_fns(src: Path) -> dict[tuple[str, int], str]:
-    """Every `fn` in src/ by (file, line) -> name, from the annotated tree."""
+def from_src(path: str) -> str:
+    """`.../src/a/b.rs` -> `src/a/b.rs`: rustc reports paths relative to its
+    cwd (the workspace root), the scanner relative to the crate; the part
+    from `src/` on is common to both."""
+    parts = Path(path).as_posix().split("/")
+    if "src" in parts:
+        return "/".join(parts[parts.index("src"):])
+    return Path(path).as_posix()
+
+
+def all_fns(src: Path) -> tuple[dict[tuple[str, int], str], collections.Counter]:
+    """Every `fn` in src/ by (file, line) -> name, from the annotated tree,
+    minus what was deliberately left alone — fns inside `#[cfg(test)] mod`
+    bodies and fns the tool put `#[algebraic(skip)]` on — which are counted
+    instead."""
     out = {}
+    left: collections.Counter = collections.Counter()
     for p in sorted(src.rglob("*.rs")):
-        rel = p.relative_to(src.parent).as_posix()
-        for i, line in enumerate(p.read_text().split("\n"), 1):
+        rel = from_src(p.as_posix())
+        lines = p.read_text().split("\n")
+        depth = 0
+        test_mod: int | None = None
+        for i, line in enumerate(lines):
+            if test_mod is not None and depth <= test_mod:
+                test_mod = None
+            stripped = line.lstrip()
+            if test_mod is None and RE_MOD.match(stripped) and preceding_attrs_have_cfg_test(lines, i):
+                test_mod = depth
             m = RE_FN.match(line)
             if m:
                 name = re.search(r"fn\s+(\$?\w+)", line).group(1)
-                out[(rel, i)] = name
-    return out
+                if test_mod is not None:
+                    left["in #[cfg(test)] mod"] += 1
+                elif i > 0 and lines[i - 1].strip() == SKIP:
+                    left["skipped by the tool (const fn)"] += 1
+                else:
+                    out[(rel, i + 1)] = name
+            code = strip_comments_and_strings(line)
+            depth += code.count("{") - code.count("}")
+    return out, left
 
 
 def trace_coverage(trace: Path, crate: Path) -> list[str]:
@@ -390,17 +422,14 @@ def trace_coverage(trace: Path, crate: Path) -> list[str]:
         if not ops.isdigit():
             continue  # a torn line from concurrent writers
         file, _, ln = loc.rpartition(":")
-        try:
-            key = (Path(file).resolve().relative_to(crate).as_posix() if Path(file).is_absolute() else file, int(ln))
-        except ValueError:
-            key = (file, int(ln) if ln.isdigit() else 0)
+        key = (from_src(file), int(ln) if ln.isdigit() else 0)
         if kind == "alg":
             algs += 1
             alg_ops += int(ops)
             continue
         prev = entered.get(key)
         entered[key] = (kind, name, max(int(ops), prev[2] if prev else 0))
-    fns = all_fns(crate / "src")
+    fns, left = all_fns(crate / "src")
     never = sorted(k for k in fns if k not in entered)
     zero = sorted(k for k, (kind, _, ops) in entered.items() if kind == "fn" and ops == 0)
     const_fns = sum(1 for v in entered.values() if v[0] == "const fn")
@@ -410,7 +439,8 @@ def trace_coverage(trace: Path, crate: Path) -> list[str]:
         f"functions in src/: {len(fns)}; entered by the macros: {sum(1 for v in entered.values() if v[0] == 'fn')} "
         f"(+{const_fns} const fn met and left); operators rewritten: {total_ops}; `alg!` invocations: {algs} ({alg_ops} operators)",
         f"entered but nothing rewritten (no operator arithmetic, or method-call style): {len(zero)}",
-        f"never entered (no attribute reached them — macro-generated items, `mod x;` modules, skips): {len(never)}",
+        f"never entered (no attribute reached them — macro-generated items, trait required methods, cfg'd-out files): {len(never)}",
+        "left alone on purpose: " + ", ".join(f"{v} {k}" for k, v in sorted(left.items())) if left else "left alone on purpose: none",
     ]
     for label, keys in (("never entered", never), ("entered, 0 operators", zero)):
         if keys:
@@ -421,13 +451,46 @@ def trace_coverage(trace: Path, crate: Path) -> list[str]:
     return lines
 
 
+def target_dir(crate: Path) -> Path:
+    """The build directory cargo actually uses (a workspace member's is at the
+    workspace root), falling back to crate/target."""
+    try:
+        meta = subprocess.run(["cargo", "metadata", "--format-version", "1", "--no-deps"],
+                              cwd=crate, text=True, capture_output=True, check=True).stdout
+        return Path(json.loads(meta)["target_directory"])
+    except (subprocess.CalledProcessError, KeyError, ValueError, FileNotFoundError):
+        return crate / "target"
+
+
+def baseline_failures(crate: Path, cargo_args: list[str], out_dir: Path) -> set[str] | None:
+    """Run the same tests on the pristine tree (the tool's edits stashed) and
+    return the tests that fail there too — a crate's own debug-only or flaky
+    tests are not the macros' doing. None if the tree could not be stashed."""
+    stash = subprocess.run(["git", "stash", "push", "-q", "--", "Cargo.toml", "src"], cwd=crate, capture_output=True, text=True)
+    if stash.returncode != 0:
+        return None
+    try:
+        proc = subprocess.run(["cargo", "test", "--no-fail-fast", *cargo_args], cwd=crate, text=True, capture_output=True)
+        log = proc.stdout + "\n" + proc.stderr
+        (out_dir / "cargo-test-baseline.log").write_text(log)
+        return set(TEST_FAIL_RE.findall(log))
+    finally:
+        subprocess.run(["git", "stash", "pop", "-q"], cwd=crate, check=True)
+
+
 def cmd_report(a: argparse.Namespace) -> int:
     crate = Path(a.crate).resolve()
-    out_dir = crate / "target" / "reassoc-adopt"
+    out_dir = target_dir(crate) / "reassoc-adopt"
     out_dir.mkdir(parents=True, exist_ok=True)
     trace = out_dir / "trace.log"
     if trace.exists():
         trace.unlink()
+    baseline = None
+    if a.baseline:
+        print("$ (baseline) cargo test --no-fail-fast", " ".join(a.cargo_args), "  on the pristine tree")
+        baseline = baseline_failures(crate, a.cargo_args, out_dir)
+        if baseline is None:
+            print("  could not stash the tree; no baseline")
     cmd = ["cargo", "test", "--no-fail-fast", *a.cargo_args]
     print("$", " ".join(cmd), f"  (in {crate}, REASSOC_TRACE={trace})")
     env = dict(os.environ, REASSOC_TRACE=str(trace))
@@ -472,7 +535,11 @@ def cmd_report(a: argparse.Namespace) -> int:
     if failed:
         lines.append("## failed tests")
         for t in failed:
-            lines.append(f"- {t}")
+            mark = "  (fails on the pristine tree too)" if baseline is not None and t in baseline else ""
+            lines.append(f"- {t}{mark}")
+        if baseline is not None:
+            ours = [t for t in failed if t not in baseline]
+            lines.append(f"new failures (not in the baseline): {len(ours)}")
         lines.append("")
     lines.extend(trace_coverage(trace, crate))
     lines.append(f"full log: {out_dir / 'cargo-test.log'}; trace: {trace}")
@@ -497,7 +564,7 @@ def cmd_ir(a: argparse.Namespace) -> int:
     if r.returncode != 0:
         sys.stderr.write(r.stderr[-4000:])
         return r.returncode
-    deps = crate / "target" / "release" / "deps"
+    deps = target_dir(crate) / "release" / "deps"
     lls = sorted(deps.glob("*.ll"), key=lambda p: p.stat().st_mtime)
     if not lls:
         sys.exit("no .ll emitted")
@@ -555,6 +622,8 @@ def main() -> int:
     p.set_defaults(fn=cmd_apply)
     p = sub.add_parser("report", help="run the crate's tests and summarise")
     p.add_argument("crate")
+    p.add_argument("--baseline", action="store_true",
+                   help="also run the tests on the pristine tree (tool edits stashed) and mark failures that happen there too")
     p.add_argument("cargo_args", nargs="*", help="extra `cargo test` arguments (after --)")
     p.set_defaults(fn=cmd_report)
     p = sub.add_parser("ir", help="optimized IR: which functions still have strict float ops")

@@ -10,6 +10,7 @@ a test that moves is where reassociation or contraction changed a result.
 # in a checkout of the target crate, on a branch
 python3 scripts/adopt/adopt.py apply  ../glam-rs --reassoc ./reassoc          # annotate in place
 python3 scripts/adopt/adopt.py report ../glam-rs                              # cargo test, summarised
+python3 scripts/adopt/adopt.py report ../glam-rs --baseline -- --release      # .. and mark tests that fail on the pristine tree too
 python3 scripts/adopt/adopt.py report ../glam-rs -- --release --features scalar-math
 python3 scripts/adopt/adopt.py ir     ../glam-rs -- --features scalar-math    # which functions still have strict float ops
 python3 scripts/adopt/adopt.py revert ../glam-rs                              # git checkout -- Cargo.toml src
@@ -41,10 +42,14 @@ a refactoring tool. It prints what it did and what it could not do.
 ## What `report` does
 
 Runs `cargo test --no-fail-fast` (extra arguments after `--`) with
-`REASSOC_TRACE` set, and writes `target/reassoc-adopt/report.md`:
+`REASSOC_TRACE` set, and writes `<target>/reassoc-adopt/report.md` (the
+workspace's target dir, found through `cargo metadata`):
 
 - compile errors grouped by code and message (names folded), with locations;
-- failed tests;
+- failed tests — with `--baseline`, the same tests are first run on the
+  pristine tree (the tool's edits stashed) and failures that happen there
+  too are marked: a crate's own debug-only assertions are not the macros'
+  doing (kurbo has two);
 - **macro coverage** from the trace: every `fn` in `src/` against what the
   macros actually entered — the ones never reached (items made by macro
   invocations, skipped `const fn`s, modules the attribute could not sit on)
@@ -99,3 +104,24 @@ Reading the coverage numbers: "functions in src/" counts every `fn` line
 the scanner sees, including the four SIMD backends that are `cfg`'d out on
 any given target — those are most of "never entered". Trait required
 methods and `macro_rules!` templates are in the count too.
+
+## kurbo 0.13.1 (2026-08-22) — local branch `reassoc-adopt` in ../kurbo (fork northbymidwest/kurbo)
+
+32 files, 274 impl blocks, 71 types, 142 `const fn`, operator-written
+(4 method-call sites in the whole crate). One tool fix on the way: `const fn`
+members of an annotated impl were not being skipped (the rewriter rightly
+refuses to leave one with arithmetic silently strict), 23 errors, then none.
+
+- Debug: 0 compile errors, 242/242.
+- Release, against a baseline of the pristine tree: 236/242; two failures are
+  kurbo's own (`should_panic` tests that rely on debug assertions fail
+  natively in release too), **four are ours** — three exact-equality tests
+  off in the last digit (`767.5164401068897` vs `…898`, `386.49999999999994`
+  vs `386.5`) and `test_solve_quartic` with a root 3.3e-6 from the expected
+  value where the test tolerates 1e-6: a quartic solve is where reassociation
+  is not last-bit.
+- `ir`: 5387 algebraic against **951 strict** float ops, and those are the
+  interesting number: kurbo's primitives — `Vec2::dot`, `cross`, `hypot2`,
+  `Point::midpoint` and friends — are `const fn`, which `#[algebraic]` cannot
+  enter, and they inline into everything (`offset_rec`: 198 strict / 402
+  algebraic). The const-fn gap, measured on a crate that leans on it.
