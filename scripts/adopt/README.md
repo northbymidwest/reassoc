@@ -165,3 +165,54 @@ tests hold; the crates written generically do not adopt at all, and the
 errors are exactly the two known gaps — arithmetic on a generic parameter
 (`T: Float`-style bounds and trait default bodies on `Self`) and foreign
 *generic* types. Both are design questions for reassoc, not tool work.
+
+## Systematic sweep of 20 upstream crates (2026-08-23, reassoc 0.10 + the fixes below)
+
+Cloned from upstream into `~/workplace/adopt-sweep/` (no forks, nothing
+pushed), adopted, reported; foreign types opted in by `opt-in` where the
+crate computes with another crate's types. Ordered by what remains.
+
+| crate | errors | notes |
+| --- | --- | --- |
+| half, micromath | **0** | 98 and 41 tests pass. micromath needed the library fix below. |
+| time | 2 | both upstream's own (`rstest`), on the pristine tree too |
+| ultraviolet | 1146 → **2** | four `passthrough!(foreign wide::f32xN)` lines; the 2 left are upstream's own `deny(unused)` |
+| fixed, num-bigint, ordered-float, chrono | 4–11 | all generic type parameters |
+| tiny-skia | 25 → 14 | after opting in `tiny_skia_path::{Point, f32x2, NormalizedF32}`; 4 are the inference limitation now documented |
+| ndarray, noise, num-complex, num-rational, rand_distr, vek | 61–291 | generic type parameters, wholesale |
+| lyon_geom, nalgebra, euclid, palette | 474–957 | generic parameters and associated types (`<T as ComplexField>::RealField`, `<C as Mix>::Scalar`) |
+| rustfft | 626 | **all** of it `num_complex::Complex<T>` — a *generic* foreign type, which `passthrough!` has no form for; the opt-in pass reports and skips them |
+
+Everything that remains is one of three known shapes: arithmetic on a
+generic type parameter or associated type (out of scope by design), a
+generic foreign type (no `passthrough!` form exists), or the documented
+inference limitation. Nothing else survived triage.
+
+### What the sweep changed
+
+One library gap, found by micromath and fixed: **a primitive on the left of
+an opted-in type did not dispatch in place** — `f32 *= F32` with
+`impl MulAssign<F32> for f32` is native Rust. The binary form had been added
+when glam surfaced `i8 / I8Vec2`; this is its compound twin.
+
+One divergence, found by tiny-skia and documented: an operand whose type is
+only knowable from the operator, with the result used as a method receiver,
+needs an annotation (`E0282`).
+
+Six tool bugs, each surfaced by a different crate:
+
+- **num-bigint** — annotating inside a macro *invocation* corrupted the call
+  (`impl_binop! { impl Mul<BigInt> for BigInt; }`); invocation bodies are now
+  opaque, except `cfg_if!`, whose body is ordinary items (**tiny-skia**).
+- **ndarray, fixed** — annotating inside a `macro_rules!` **matcher** changed
+  what the macro accepts (`no rules expected keyword \`unsafe\``). Only
+  transcribers are annotated now.
+- **ndarray** — `#[algebraic]` landed on a bodiless `fn f();` in a template.
+- **noise** — types declared in `macro_rules!` templates (`struct $name<T>`)
+  never got the derive (201 → 66 errors).
+- **ultraviolet** — a crate-root insertion landed *inside* a multi-line
+  `#![deny(..)]`; `apply` is also idempotent now.
+- **ultraviolet, tiny-skia, rustfft** — `opt-in`, the second pass that reads
+  the last report and writes `passthrough!(foreign T);` for every foreign
+  type the errors named, resolving bare re-exports through the crate's own
+  `use` statements.
