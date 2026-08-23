@@ -231,6 +231,17 @@ per dependency tree; const positions are out, and a generic function needs a
 `Passthrough` bound; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 
+Almost all of the above is about code that is *not* float arithmetic but sits
+inside an algebraic scope — a `Vec3 += Vec3`, a `String + &str`, a
+`Duration * 2` next to the float work. The macros rewrite only `+ - * / %`; on
+`f32` and `f64` those become the algebraic operators, on integers and every
+other primitive they stay what they were, and a numeric routine over primitive
+types compiles and behaves as written. The opt-ins, the `+=` rules and the
+rest exist so that an annotated function which also happens to touch a vector
+type or a `String` keeps compiling, and they only come into play when such a
+type appears. The two that can reach a purely primitive routine are the ones
+named above: a `const fn` body, and arithmetic on a generic type parameter.
+
 **[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with
 the reason behind it.
 
