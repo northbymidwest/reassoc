@@ -8,6 +8,10 @@ fn every_test_file_is_included_in_the_edition_2021_twin() {
     // Not included, each for a stated reason.
     let excluded = [
         ("edition2024.rs", "edition-2024-only syntax"),
+        (
+            "f16_and_f128.rs",
+            "nightly-only feature gate at crate level; a module cannot carry it",
+        ),
         ("suite_layout.rs", "this file"),
         ("ui.rs", "trybuild, pinned toolchain"),
         ("codegen.rs", "shells out to the assembly guard"),

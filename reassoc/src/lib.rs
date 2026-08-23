@@ -170,12 +170,20 @@
 //! they expand to are implementation detail — visible because generated code
 //! has to name them, but not a surface to write against by hand.
 //!
+//! # `f16` and `f128`
+//!
+//! On nightly, the `f16_and_f128` feature makes those two floats algebraic
+//! too — same literal inference, same reference forms, same `op=` — by
+//! turning on `#![feature(f16, f128)]`; it cannot build on stable while the
+//! types are unstable. One feature for both, since they are tracked together.
+//!
 //! # `no_std`
 //!
 //! The crate is `#![no_std]`. Default features enable `std`; use
 //! `default-features = false` for core-only builds, which keep every
 //! primitive, every reference combination, and `Duration`.
 #![no_std]
+#![cfg_attr(feature = "f16_and_f128", feature(f16, f128))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

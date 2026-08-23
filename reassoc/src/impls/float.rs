@@ -25,6 +25,10 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for f32 {}
     impl Sealed for f64 {}
+    #[cfg(feature = "f16_and_f128")]
+    impl Sealed for f16 {}
+    #[cfg(feature = "f16_and_f128")]
+    impl Sealed for f128 {}
 }
 
 /// `f32` and `f64`: the algebraic methods under one name. Sealed; not a
@@ -49,6 +53,8 @@ macro_rules! float {
     )*};
 }
 float!(f32 f64);
+#[cfg(feature = "f16_and_f128")]
+float!(f16 f128);
 
 macro_rules! alg_float_op {
     ($rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $alg:ident) => {
@@ -118,3 +124,5 @@ macro_rules! float_lefts {
     )*};
 }
 float_lefts!(f32 f64);
+#[cfg(feature = "f16_and_f128")]
+float_lefts!(f16 f128);

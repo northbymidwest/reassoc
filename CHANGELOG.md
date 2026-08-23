@@ -2,6 +2,17 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Added
+
+- `f16_and_f128` feature (nightly only): `f16` and `f128` dispatch to their
+  `algebraic_*` methods like `f32`/`f64`, with the same literal inference,
+  reference forms and `op=`. Turns on `#![feature(f16, f128)]`; one feature
+  for both since rust-lang/rust#116909 tracks them together. CI gains a
+  nightly lane; the stable lint/doc lanes name their features explicitly
+  instead of `--all-features`.
+
 ## 0.7.0 — 2026-08-22
 
 ### Changed

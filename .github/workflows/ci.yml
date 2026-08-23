@@ -54,6 +54,17 @@ jobs:
           components: rust-src
       - run: cargo test -p reassoc --test ui -- --ignored
 
+  # `f16` and `f128` are unstable (rust-lang/rust#116909); the feature that
+  # makes them algebraic builds only on nightly.
+  nightly_floats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo test -p reassoc --features f16_and_f128
+      - run: cargo test -p reassoc --no-default-features --features f16_and_f128
+      - run: cargo clippy -p reassoc --all-targets --features f16_and_f128 -- -D warnings
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -81,9 +92,11 @@ jobs:
       # Feature-gated code is only linted when its feature is on. The
       # `resolve-crate-name` path broke the crate's own examples and no
       # default-feature run could have seen it.
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # Explicit features rather than `--all-features`: `f16_and_f128` is
+      # nightly-only and has its own job below.
+      - run: cargo clippy --workspace --all-targets --features resolve-crate-name -- -D warnings
       - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-      - run: cargo doc --workspace --no-deps --all-features
+      - run: cargo doc --workspace --no-deps --features resolve-crate-name
         env:
           RUSTDOCFLAGS: -D warnings
       # The offline expander shares the rewriter by `#[path]` but mirrors
