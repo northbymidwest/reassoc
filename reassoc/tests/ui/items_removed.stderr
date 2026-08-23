@@ -1,0 +1,5 @@
+error: `items` was removed: nested items are always entered. To leave one alone, put `#[algebraic(skip)]` on it
+ --> tests/ui/items_removed.rs:6:13
+  |
+6 | #[algebraic(items = false)]
+  |             ^^^^^

@@ -1,17 +1,13 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 
 /// Which parts of an item `#[algebraic]` descends into.
 #[derive(Clone, Copy)]
 pub struct Scope {
     pub closures: bool,
-    pub items: bool,
     /// Enter the arguments of the std macros whose arguments are
     /// expressions (`assert!`, `println!`, `vec!`, ..).
     pub macros: bool,
     pub skip: bool,
-    /// Where the deprecated `items` parameter was written, if it was: the
-    /// expansion emits a deprecation warning there.
-    pub items_span: Option<Span>,
 }
 
 impl Default for Scope {
@@ -25,10 +21,8 @@ impl Default for Scope {
         // `#[algebraic(skip)]` on the item.
         Scope {
             closures: true,
-            items: true,
             macros: true,
             skip: false,
-            items_span: None,
         }
     }
 }
@@ -44,23 +38,22 @@ impl Scope {
             if meta.path.is_ident("closures") {
                 scope.closures = meta.value()?.parse::<syn::LitBool>()?.value();
                 Ok(())
-            } else if meta.path.is_ident("items") {
-                // Deprecated: nested items are entered by default. Kept so
-                // `items = false` still restores the old boundary; slated for
-                // removal.
-                scope.items = meta.value()?.parse::<syn::LitBool>()?.value();
-                scope.items_span = Some(meta.path.segments[0].ident.span());
-                Ok(())
             } else if meta.path.is_ident("macros") {
                 scope.macros = meta.value()?.parse::<syn::LitBool>()?.value();
                 Ok(())
             } else if meta.path.is_ident("skip") {
                 scope.skip = true;
                 Ok(())
+            } else if meta.path.is_ident("items") {
+                // Deprecated in 0.4.0, removed in 0.8.0. An authored error
+                // rather than "unknown parameter", since old code has it.
+                Err(meta.error(
+                    "`items` was removed: nested items are always entered. To leave one \
+                     alone, put `#[algebraic(skip)]` on it",
+                ))
             } else {
                 Err(meta.error(
-                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, or `skip` \
-                     (`items` is deprecated)",
+                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, or `skip`",
                 ))
             }
         });

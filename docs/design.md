@@ -257,15 +257,17 @@ a standalone item"; that left a helper silently strict inside a body that
 looked covered — the silent-miss shape the rest of the crate is built to
 avoid — treated `fn sq(x)` and `|x| ..` differently on syntax alone, and once
 containers propagated all the way down made a function body the one place
-nesting stopped. `items` survives as a deprecated knob (`false` restores the
-old boundary), warned about through a `#[deprecated]` const the expansion
-uses at the parameter's span, since a stable proc macro cannot warn directly.
+nesting stopped. The `items` knob that restored the old boundary was
+deprecated in 0.4.0 (warned about through a `#[deprecated]` const the
+expansion used at the parameter's span, since a stable proc macro cannot warn
+directly) and removed in 0.8.0; writing it is an authored error naming
+`skip`.
 **`#[algebraic]` on a container** — `impl`, inline `mod`, `trait` — enters
 every member body, and containers nested in those: the annotation on an
-`impl` means "these methods". `items` governs items declared inside a
-function body, tracked by an `in_body` flag the three fn visitors set; the default visitor's free functions bypass overrides, so the
-impl/trait visitors must call the overriding method, not the free function —
-`tests/ui/container_items_default_excludes_nested_fn.rs` caught exactly that.
+`impl` means "these methods". (When `items` still existed, it applied to
+items inside function bodies only, tracked by an `in_body` flag the fn
+visitors set; a UI case once caught the impl visitor calling syn's free
+function instead of the overriding method and bypassing it.)
 A `const fn` in any algebraic scope is decided by probing: the body is cloned
 and rewritten under the same scope, and if the tokens changed the fn is an
 error naming `#[algebraic(skip)]`; otherwise it is skipped silently. Probing

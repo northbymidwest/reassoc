@@ -14,17 +14,8 @@ use crate::build;
 pub struct Rewriter {
     /// Descend into closure bodies.
     pub closures: bool,
-    /// Descend into `fn` / `impl` / `mod` / `trait` items declared inside a
-    /// function body. On by default; `false` only through the deprecated
-    /// `items = false`. Items met *outside* a body — the members of an
-    /// annotated `impl`, `mod` or `trait`, and containers nested in those —
-    /// are entered regardless: that is what annotating the container means.
-    pub items: bool,
     /// Enter the arguments of the std macros whose arguments are expressions.
     pub macros: bool,
-    /// Whether the visitor is currently inside a function body, which is
-    /// where `items` applies.
-    in_body: bool,
     /// Errors to report alongside the rewritten item: a `const fn` whose
     /// arithmetic would have been rewritten.
     pub errors: Vec<syn::Error>,
@@ -36,13 +27,11 @@ pub struct Rewriter {
 
 impl Rewriter {
     /// Scope used by `alg!`: closures and nested items in, matching
-    /// `#[algebraic]`'s default. An expression is always inside a body.
+    /// `#[algebraic]`'s default.
     pub fn expression_scope() -> Self {
         Rewriter {
             closures: true,
-            items: true,
             macros: true,
-            in_body: true,
             errors: Vec::new(),
             krate: crate::krate::name(),
         }
@@ -51,9 +40,7 @@ impl Rewriter {
     pub fn from_scope(scope: crate::scope::Scope) -> Self {
         Rewriter {
             closures: scope.closures,
-            items: scope.items,
             macros: scope.macros,
-            in_body: false,
             errors: Vec::new(),
             krate: crate::krate::name(),
         }
@@ -72,14 +59,6 @@ impl Rewriter {
         )
     }
 
-    /// Runs `f` with the visitor marked as inside a function body.
-    fn in_body<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
-        let outer = core::mem::replace(&mut self.in_body, true);
-        let out = f(self);
-        self.in_body = outer;
-        out
-    }
-
     /// A `const fn` met in an algebraic scope. `ops::*` are not `const fn`,
     /// so it cannot be rewritten; one the rewrite would not touch is skipped
     /// silently, one it would touch is an error naming the way out — never
@@ -90,9 +69,7 @@ impl Rewriter {
     fn const_fn(&mut self, const_token: syn::token::Const, body: &mut syn::Block) {
         let mut probe = Rewriter {
             closures: self.closures,
-            items: self.items,
             macros: self.macros,
-            in_body: true,
             errors: Vec::new(),
             krate: self.krate.clone(),
         };
@@ -157,9 +134,6 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_item_mut(&mut self, item: &mut syn::Item) {
-        if self.in_body && !self.items {
-            return;
-        }
         match item_attrs_mut(item).map(claim) {
             Some(Claim::Theirs) => return,
             Some(Claim::Skipped) => return StripSkip.visit_item_mut(item),
@@ -174,21 +148,6 @@ impl VisitMut for Rewriter {
         }
     }
 
-    // Function bodies are where `items` applies; the three kinds of fn mark
-    // their block as one.
-
-    fn visit_item_fn_mut(&mut self, f: &mut syn::ItemFn) {
-        self.in_body(|v| visit_mut::visit_item_fn_mut(v, f));
-    }
-
-    fn visit_impl_item_fn_mut(&mut self, f: &mut syn::ImplItemFn) {
-        self.in_body(|v| visit_mut::visit_impl_item_fn_mut(v, f));
-    }
-
-    fn visit_trait_item_fn_mut(&mut self, f: &mut syn::TraitItemFn) {
-        self.in_body(|v| visit_mut::visit_trait_item_fn_mut(v, f));
-    }
-
     fn visit_impl_item_mut(&mut self, item: &mut syn::ImplItem) {
         match impl_item_attrs_mut(item).map(claim) {
             Some(Claim::Theirs) => return,
@@ -199,7 +158,6 @@ impl VisitMut for Rewriter {
             syn::ImplItem::Const(_) => {}
             syn::ImplItem::Fn(f) => match f.sig.constness {
                 Some(c) => self.const_fn(c, &mut f.block),
-                // Through the override, so the body counts as one.
                 None => self.visit_impl_item_fn_mut(f),
             },
             _ => visit_mut::visit_impl_item_mut(self, item),

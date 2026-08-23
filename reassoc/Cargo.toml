@@ -30,7 +30,7 @@ f16 = []
 f128 = []
 
 [dependencies]
-reassoc-macros = { version = "=0.7.1", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.8.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"

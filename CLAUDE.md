@@ -127,9 +127,8 @@ reverts to a worse result if undone.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Everything lexically inside an annotated scope is entered: closures, nested
   items, and (on an `impl`/inline `mod`/`trait`) every member and nested
-  container. `items` is deprecated (warns at the parameter through a
-  `#[deprecated]` const; `false` restores the old boundary for items inside
-  fn bodies) and slated for removal. A `const fn` in an algebraic scope is
+  container. The `items` parameter is gone (0.8.0; an authored error names
+  `skip`). A `const fn` in an algebraic scope is
   skipped if the rewrite would not change it (probed on a clone), an error
   otherwise. `mod foo;` and other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned

@@ -30,7 +30,7 @@ fn closures_untouched(v: &[f32]) -> f32 {
     total + 1.0
 }
 
-// `items = true` used to be required here; nested items are in by default.
+// Nested items are in by default.
 #[algebraic]
 fn descends_into_items(x: f32) -> f32 {
     fn helper(y: f32) -> f32 {
@@ -313,7 +313,7 @@ fn dispatch_only_nested_item(w: Dispatched) -> Dispatched {
 }
 
 #[test]
-fn items_true_descends_into_nested_fn_dispatch_only() {
+fn nested_fn_in_body_is_entered_dispatch_only() {
     assert_eq!(dispatch_only_nested_item(Dispatched(3.0)), Dispatched(9.0));
 }
 
@@ -662,7 +662,7 @@ fn algebraic_then_test() {
 //
 // `Dispatched` throughout, so a member the container form failed to enter is
 // a compile error. The must-fail directions — a `skip`ped member, a nested fn
-// inside a member body under the deprecated `items = false`, a member
+// a member
 // carrying its own narrower attribute — are `tests/ui/container_*.rs`.
 
 mod container {
@@ -755,9 +755,9 @@ fn containers_rewrite_every_member_body() {
 // ---- nested items are entered by default ----
 
 /// A `fn` declared inside an algebraic body is part of it, like a closure: no
-/// `items = true` needed. The opt-out is `#[algebraic(skip)]` on the item (or
-/// the deprecated `items = false` on the attribute, pinned in
-/// `tests/ui/items_false_excludes_nested_fn.rs`).
+/// parameter needed. The opt-out is `#[algebraic(skip)]` on the item
+/// (`tests/ui/skip_excludes_nested_fn.rs`); the old `items` parameter is gone
+/// (`tests/ui/items_removed.rs`).
 #[algebraic]
 fn nested_fn_entered_by_default(w: Dispatched) -> Dispatched {
     fn helper(v: Dispatched) -> Dispatched {

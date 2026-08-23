@@ -2,6 +2,27 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.8.0 — 2026-08-22
+
+### Removed
+
+- The `items` parameter of `#[algebraic]`, deprecated since 0.4.0. Nested
+  items are always entered; `#[algebraic(skip)]` on an item leaves it alone.
+  Writing `items = ..` is an authored error saying so (`tests/ui/items_removed.rs`).
+
+### Changed
+
+- The codegen matrix runs at `-C opt-level=1,2,3,s,z` — identical IR at 2/3,
+  the same instructions order-insensitively (annotations and lifetime
+  markers erased) at 1/s/z, where the pipelines schedule a block by the
+  shape the code arrived in — and replaces the assembly guard
+  (`scripts/codegen-check.sh`, `examples/dot_kernel.rs`, `tests/codegen.rs`):
+  the `f32` dot loop with its strict control and the `axpy` loop moved in,
+  with an explicit vectorization check (a vector `fadd` instruction in the
+  algebraic dot, none in the strict one). It is no longer `#[ignore]`d and
+  runs under `cargo test`, in its own target directory per level; 36 pairs;
+  mutation-checked at every level (float `*` to IEEE fails 15 pairs).
+
 ## 0.7.1 — 2026-08-22
 
 ### Changed
@@ -31,11 +52,8 @@ Notable changes per release. Dates are the publish date.
   through the tag, `Wrapping`/`Duration`/`NonZero` — must produce identical
   optimized LLVM IR (alpha-renamed; or be merged by LLVM), with strict-IEEE
   negative controls that must differ and carry no `reassoc` flag. Mutation
-  checked: routing float `*` to IEEE fails eight pairs. Runs at
-  `-C opt-level=1,2,3,s,z` — identical IR at 2/3, the same instructions
-  order-insensitively at 1/s/z — and replaces the assembly guard
-  (`scripts/codegen-check.sh`, `examples/dot_kernel.rs`): its two kernels
-  moved in, with the vectorization check. Not `#[ignore]`d.
+  checked: routing float `*` to IEEE fails eight pairs. CI runs it beside the
+  assembly guard.
 - `f16` and `f128` features (nightly only): each type dispatches to its
   `algebraic_*` methods like `f32`/`f64`, with the same literal inference,
   reference forms and `op=`. Each turns on its own `#![feature(..)]` gate,

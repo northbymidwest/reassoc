@@ -134,7 +134,7 @@ negation is exact anyway.
 
 ```toml
 [dependencies]
-reassoc = "0.7"
+reassoc = "0.8"
 ```
 
 - `alg!(expr)` — rewrite one expression.
@@ -197,7 +197,6 @@ error asking for `skip`.
 | --- | --- | --- |
 | `closures` | `true` | `false` leaves closure bodies alone |
 | `macros` | `true` | `false` leaves every macro's arguments alone |
-| `items` | `true` | **deprecated**, slated for removal: `false` leaves items declared inside a function body alone |
 
 ## Correctness
 

@@ -76,11 +76,6 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             let mut rewriter = rewrite::Rewriter::from_scope(scope);
             rewriter.visit_item_fn_mut(&mut func);
-            if let Some(span) = scope.items_span {
-                // Inside the body: a method has no room for a sibling item.
-                let warn = items_deprecation(span);
-                func.block.stmts.insert(0, syn::parse_quote!(#warn;));
-            }
             with_errors(func.to_token_stream(), rewriter.errors).into()
         }
         Err(err) => {
@@ -112,12 +107,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ) => {
                     let mut rewriter = rewrite::Rewriter::from_scope(scope);
                     rewriter.visit_item_mut(&mut container);
-                    let mut tokens = container.to_token_stream();
-                    if let Some(span) = scope.items_span {
-                        let warn = items_deprecation(span);
-                        tokens.extend(quote::quote!(const _: () = #warn;));
-                    }
-                    with_errors(tokens, rewriter.errors).into()
+                    with_errors(container.to_token_stream(), rewriter.errors).into()
                 }
                 Ok(_) => syn::Error::new(
                     err.span(),
@@ -127,24 +117,6 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .to_compile_error()
                 .into(),
             }
-        }
-    }
-}
-
-/// A use of a `#[deprecated]` constant, spanned at the `items` parameter, so
-/// rustc's own `deprecated` lint reports it there: a stable proc macro has no
-/// way to emit a warning directly.
-fn items_deprecation(span: proc_macro2::Span) -> proc_macro2::TokenStream {
-    let name = syn::Ident::new("items_parameter_of_algebraic_is_deprecated", span);
-    quote::quote_spanned! {span=>
-        {
-            #[deprecated(
-                note = "nested items are entered by default; `items` is slated for removal. \
-                        To leave an item alone, put `#[algebraic(skip)]` on it"
-            )]
-            #[allow(non_upper_case_globals)]
-            const items_parameter_of_algebraic_is_deprecated: () = ();
-            #name
         }
     }
 }
