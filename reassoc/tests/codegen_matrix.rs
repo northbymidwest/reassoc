@@ -159,8 +159,12 @@ fn emit_ir(level: &str) -> String {
         status.success(),
         "building the fixture at -C opt-level={level} failed"
     );
-    let ir_path = std::fs::read_dir(format!("{target}/release/examples"))
-        .unwrap()
+    // Cargo versions differ on where an example's `--emit` output lands:
+    // `release/examples/` or `release/deps/`. Look in both.
+    let ir_path = ["examples", "deps"]
+        .iter()
+        .filter_map(|d| std::fs::read_dir(format!("{target}/release/{d}")).ok())
+        .flatten()
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| {
