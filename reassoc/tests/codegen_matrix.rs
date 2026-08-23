@@ -160,8 +160,9 @@ fn emit_ir(level: &str) -> String {
         "building the fixture at -C opt-level={level} failed"
     );
     // Cargo versions differ on where an example's `--emit` output lands
-    // (`release/examples/`, `release/deps/`, ..): walk the whole profile dir.
-    let release = format!("{target}/release");
+    // (`release/examples/`, `release/deps/`, a separate `build/` tree on
+    // newer cargo): walk the whole per-level target dir.
+    let release = target.clone();
     let mut found = Vec::new();
     walk(std::path::Path::new(&release), &mut found);
     let ir_path = found
@@ -194,7 +195,7 @@ fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
             let p = e.path();
             if p.is_dir() {
                 if p.file_name()
-                    .is_some_and(|n| n == "build" || n == "incremental" || n == ".fingerprint")
+                    .is_some_and(|n| n == "incremental" || n == ".fingerprint")
                 {
                     continue;
                 }
