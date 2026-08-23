@@ -75,7 +75,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
 - Compound assignment on a **non-primitive** type evaluates its right-hand side
   before the place, whereas native `+=` on an overloaded type evaluates the
   place first. Distinguishing the two needs type information a macro does not
-  have. Primitive `+=` is RHS-first natively and matches.
+  have. Primitive `+=` is RHS-first natively and matches. Observable only when
+  both sides have effects or can panic (`v[idx()] += rhs()` runs `rhs()` first
+  here, `idx()` first natively), and in one direction of leniency: `v[i] +=
+  v[j]` on an overloaded `Copy` type compiles here and is `E0502` natively,
+  since native borrows the place before reading the right-hand side.
 - Compound assignment borrows the place: `place += rhs` becomes
   `ops::add_assign(&mut place, rhs)`. Two things follow. A field of a
   `#[repr(packed)]` struct cannot be borrowed (`E0793`), so `p.x += 1.0` on
