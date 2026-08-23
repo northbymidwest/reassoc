@@ -70,6 +70,23 @@ scope had no impl, the only compile error left once glam's `.mul()`-style
 bodies were turned into operators. `u32 * Duration`, once a named pair, goes
 through it.
 
+**The layer is `const` under the nightly `const-fn` feature.** The
+`algebraic_*` methods have been const-stable since 1.98; what kept
+`#[algebraic]` out of a `const fn` was that `ops::add` is a generic bounded on
+a trait, and a stable `const fn` cannot call a trait method. With
+`const_trait_impl` the dispatch traits are `const trait`s, every impl on the
+primitive path is a `const impl`, and `ops::*` are `const fn` with `[const]`
+bounds (`ops/konst.rs` — the syntax is gated at parse time, so it lives in a
+file that is only compiled under the feature). `konst!` in `lib.rs` hands the
+two token groups to the impl-stamping macros, nothing at all otherwise; the
+macros keep their one-line invocations because rustc renders them in impl
+listings. `ops.rs` is written out rather than stamped for the same reason: the
+"required by a bound in `add`" note on every operand error quotes it. A
+rewritten `const fn` evaluates exactly at compile time (CTFE has no
+reassociation) and algebraically at runtime; `tests/const_fn.rs`. On kurbo it
+entered all 142 `const fn`s and rewrote the 84 operators in them
+(`scripts/adopt/README.md`).
+
 **Outputs are type parameters, never associated types.** With `type Out`,
 rustc cannot invert the projection, so `let s = 0.0;` in a function returning
 `f32` defaults the literal to `f64` and fails with `E0271`. The blanket's

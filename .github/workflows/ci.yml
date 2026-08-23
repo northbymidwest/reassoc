@@ -64,8 +64,10 @@ jobs:
       - run: cargo test -p reassoc --features f16
       - run: cargo test -p reassoc --features f128
       - run: cargo test -p reassoc --features f16,f128
-      - run: cargo test -p reassoc --no-default-features --features f16,f128
-      - run: cargo clippy -p reassoc --all-targets --features f16,f128 -- -D warnings
+      - run: cargo test -p reassoc --features const-fn
+      - run: cargo test -p reassoc --features f16,f128,const-fn
+      - run: cargo test -p reassoc --no-default-features --features f16,f128,const-fn
+      - run: cargo clippy -p reassoc --all-targets --features f16,f128,const-fn -- -D warnings
 
   package:
     runs-on: ubuntu-latest

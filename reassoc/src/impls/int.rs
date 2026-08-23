@@ -18,55 +18,73 @@ mod sealed {
 }
 
 /// The primitive integers. Sealed; not a user surface.
-pub trait Int:
-    sealed::Sealed
-    + Copy
-    + Add<Output = Self>
-    + Sub<Output = Self>
-    + Mul<Output = Self>
-    + Div<Output = Self>
-    + Rem<Output = Self>
-    + AddAssign
-    + SubAssign
-    + MulAssign
-    + DivAssign
-    + RemAssign
-{
+macro_rules! int_trait {
+    ($($a:tt)*) => { konst!(int_trait_k!($($a)*)); };
 }
+macro_rules! int_trait_k {
+    (($($c:tt)*) ($($b:tt)*)) => {
+        pub $($c)* trait Int:
+            sealed::Sealed
+            + Copy
+            + $($b)* Add<Output = Self>
+            + $($b)* Sub<Output = Self>
+            + $($b)* Mul<Output = Self>
+            + $($b)* Div<Output = Self>
+            + $($b)* Rem<Output = Self>
+            + $($b)* AddAssign
+            + $($b)* SubAssign
+            + $($b)* MulAssign
+            + $($b)* DivAssign
+            + $($b)* RemAssign
+        {
+        }
+    };
+}
+int_trait!();
 
 macro_rules! int {
-    ($($t:ty)*) => {$( impl sealed::Sealed for $t {} impl Int for $t {} )*};
+    ($($a:tt)*) => { konst!(int_k!($($a)*)); };
+}
+macro_rules! int_k {
+    ($c:tt $b:tt $($t:ty)*) => {$( int_one!($c $b $t); )*};
+}
+macro_rules! int_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty) => { impl sealed::Sealed for $t {} $($c)* impl Int for $t {} };
 }
 int!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
 
 macro_rules! plain_int_op {
-    ($rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $op:tt, $op_assign:tt) => {
-        impl<I: Int> $rhs_trait<I, I, IntTag> for I {
+    ($($a:tt)*) => { konst!(plain_int_op_k!($($a)*)); };
+}
+macro_rules! plain_int_op_k {
+    (($($c:tt)*) ($($b:tt)*)
+     $rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $op:tt, $op_assign:tt) => {
+        $($c)* impl<I: $($b)* Int> $rhs_trait<I, I, IntTag> for I {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: I) -> I { lhs $op self }
         }
-        impl<I: Int> $rhs_trait<I, I, IntTag> for &I {
+        $($c)* impl<I: $($b)* Int> $rhs_trait<I, I, IntTag> for &I {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: I) -> I { lhs $op *self }
         }
-        impl<I: Int> $rhs_trait<&I, I, IntTag> for I {
+        $($c)* impl<I: $($b)* Int> $rhs_trait<&I, I, IntTag> for I {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: &I) -> I { *lhs $op self }
         }
-        impl<I: Int> $rhs_trait<&I, I, IntTag> for &I {
+        $($c)* impl<I: $($b)* Int> $rhs_trait<&I, I, IntTag> for &I {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: &I) -> I { *lhs $op *self }
         }
-        impl<I: Int> $assign_trait<I, IntTag> for I {
+        $($c)* impl<I: $($b)* Int> $assign_trait<I, IntTag> for I {
             #[inline(always)]
             #[track_caller]
             fn $assign_method(self, lhs: &mut I) { *lhs $op_assign self; }
         }
-        impl<I: Int> $assign_trait<I, IntTag> for &I {
+        $($c)* impl<I: $($b)* Int> $assign_trait<I, IntTag> for &I {
             #[inline(always)]
             #[track_caller]
             fn $assign_method(self, lhs: &mut I) { *lhs $op_assign *self; }
@@ -87,20 +105,28 @@ plain_int_op!(RemRhs, rem_rhs, RemAssignRhs, rem_assign_rhs, %, %=);
 // never `Passthrough`. By value, like the float form. (Found adopting glam:
 // `i8 / I8Vec2` inside an algebraic scope had no impl.)
 macro_rules! int_left {
-    ($t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
-        impl<B: Passthrough> $rhs_trait<$t, <$t as $std<B>>::Output> for B
+    ($c:tt $b:tt $t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
+        int_left_one!($c $b $t; $rhs_trait, $rhs_method, $std, $op);
+    )*};
+}
+macro_rules! int_left_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty; $rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt) => {
+        $($c)* impl<B: Passthrough> $rhs_trait<$t, <$t as $std<B>>::Output> for B
         where
-            $t: $std<B>,
+            $t: $($b)* $std<B>,
         {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: $t) -> <$t as $std<B>>::Output { lhs $op self }
         }
-    )*};
+    };
 }
 macro_rules! int_lefts {
-    ($($t:ty)*) => {$(
-        int_left!($t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
+    ($($a:tt)*) => { konst!(int_lefts_k!($($a)*)); };
+}
+macro_rules! int_lefts_k {
+    ($c:tt $b:tt $($t:ty)*) => {$(
+        int_left!($c $b $t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
                       DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
     )*};
 }

@@ -17,22 +17,22 @@ help: the trait `MulRhs<Odd, _, _>` is not implemented for `Odd`
 help: the following other types implement trait `MulRhs<Lhs, O, Tag>`
  --> src/impls/float.rs
   |
-  |         impl<F: Float> $rhs_trait<F, F, FloatTag> for &F {
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<F, F, FloatTag>`
+  |         $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for &F {
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<F, F, FloatTag>`
 ...
-  |         impl<F: Float> $rhs_trait<&F, F, FloatTag> for &F {
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<&F, F, FloatTag>`
+  |         $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for &F {
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<&F, F, FloatTag>`
 ...
   | alg_float_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, alg_mul);
   | --------------------------------------------------------------------- in this macro invocation
   |
  ::: src/impls/int.rs
   |
-  |         impl<I: Int> $rhs_trait<I, I, IntTag> for &I {
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<I, I, IntTag>`
+  |         $($c)* impl<I: $($b)* Int> $rhs_trait<I, I, IntTag> for &I {
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<I, I, IntTag>`
 ...
-  |         impl<I: Int> $rhs_trait<&I, I, IntTag> for &I {
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<&I, I, IntTag>`
+  |         $($c)* impl<I: $($b)* Int> $rhs_trait<&I, I, IntTag> for &I {
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<&I, I, IntTag>`
 ...
   | plain_int_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, *, *=);
   | ------------------------------------------------------------------- in this macro invocation
@@ -41,4 +41,4 @@ note: required by a bound in `reassoc::ops::mul`
   |
   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
-  = note: this error originates in the macro `alg_float_op` which comes from the expansion of the macro `plain_int_op` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this error originates in the macro `alg_float_op_k` which comes from the expansion of the macro `plain_int_op` (in Nightly builds, run with -Z macro-backtrace for more info)

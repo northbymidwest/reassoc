@@ -70,7 +70,9 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             // `ops::*` are not `const fn`; rejecting up front beats an E0015
             // blamed on the attribute.
-            if let Some(const_token) = func.sig.constness {
+            if let Some(const_token) = func.sig.constness
+                && !cfg!(feature = "const-fn")
+            {
                 return syn::Error::new_spanned(
                     const_token,
                     "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \

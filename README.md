@@ -285,6 +285,13 @@ README explains the variants and what remains, and why. Release codegen is
 unaffected either way: the dispatch is `#[inline(always)]` and compiles to the
 same instructions as hand-written algebraic calls.
 
+## `const fn` (nightly)
+
+The `const-fn` feature lets `#[algebraic]` enter a `const fn` (the dispatch
+layer becomes `const` via `const_trait_impl`; the using crate enables that
+gate too). A rewritten `const fn` evaluates exactly at compile time and
+algebraically at runtime.
+
 ## `f16` and `f128`
 
 On nightly, the `f16` and `f128` features make those floats algebraic as

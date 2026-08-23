@@ -271,10 +271,11 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             if opens:
                 cover.append((depth, "alg"))
             stats["impl/trait"] += 1
-        elif items and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
+        elif items and const_fn != "enter" and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
             # Inside an annotated impl too: the rewriter refuses a `const fn`
             # member whose arithmetic it would have rewritten, so every one
-            # gets `skip` (or is left, to count them).
+            # gets `skip` (or is left, to count them). With `enter` (reassoc's
+            # nightly `const-fn` feature) a const fn is annotated like any fn.
             if const_fn == "skip":
                 out.append(pad + SKIP)
                 stats["const fn (skipped)"] += 1
@@ -298,11 +299,15 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
 
 
 def allow_lint(root: Path, lint: str) -> None:
-    """Insert `#![allow(lint)]` after the crate root's leading inner
-    attributes and doc comments (the rewritten `(x * y)` forms are often
-    redundant parens in tail position)."""
+    """`#![allow(lint)]` at the crate root (the rewritten `(x * y)` forms are
+    often redundant parens in tail position)."""
+    crate_attr(root, f"#![allow({lint})]")
+
+
+def crate_attr(root: Path, line: str) -> None:
+    """Insert an inner attribute after the crate root's leading inner
+    attributes and doc comments."""
     text = root.read_text()
-    line = f"#![allow({lint})]"
     if line in text:
         return
     lines = text.split("\n")
@@ -313,16 +318,17 @@ def allow_lint(root: Path, lint: str) -> None:
     root.write_text("\n".join(lines))
 
 
-def add_dependency(cargo_toml: Path, reassoc: str) -> None:
+def add_dependency(cargo_toml: Path, reassoc: str, features: str = "") -> None:
     text = cargo_toml.read_text()
     if re.search(r"^reassoc\s*=", text, re.M):
         return
+    feats = f', features = {json.dumps([f for f in features.split(",") if f])}' if features else ""
     if os.path.isdir(reassoc) or reassoc.startswith((".", "/")):
         # Relative to the crate, so the change is committable on a branch.
         rel = os.path.relpath(Path(reassoc).resolve(), cargo_toml.parent)
-        dep = f'reassoc = {{ path = {json.dumps(rel)} }}'
+        dep = f'reassoc = {{ path = {json.dumps(rel)}{feats} }}'
     else:
-        dep = f'reassoc = {json.dumps(reassoc)}'
+        dep = f'reassoc = {{ version = {json.dumps(reassoc)}{feats} }}'
     if re.search(r"^\[dependencies\]\s*$", text, re.M):
         text = re.sub(r"^\[dependencies\]\s*$", f"[dependencies]\n{dep}", text, count=1, flags=re.M)
     else:
@@ -346,12 +352,19 @@ def cmd_apply(a: argparse.Namespace) -> int:
             if not a.dry_run:
                 p.write_text(after)
     if not a.dry_run and not a.no_dep:
-        add_dependency(crate / "Cargo.toml", a.reassoc)
+        add_dependency(crate / "Cargo.toml", a.reassoc, a.dep_features)
     if not a.dry_run and a.method_calls:
         for root in (src / "lib.rs", src / "main.rs"):
             if root.exists():
                 allow_lint(root, "unused_parens")
                 stats["crate root: #![allow(unused_parens)]"] += 1
+    if not a.dry_run and a.const_fn == "enter":
+        # A `const fn` calling a conditionally-const function needs the gate
+        # in its own crate (nightly).
+        for root in (src / "lib.rs", src / "main.rs"):
+            if root.exists():
+                crate_attr(root, "#![feature(const_trait_impl)]")
+                stats["crate root: #![feature(const_trait_impl)]"] += 1
     print(f"{'would annotate' if a.dry_run else 'annotated'} {len(files)} files under {src}:")
     for k, v in sorted(stats.items()):
         print(f"  {v:6}  {k}")
@@ -607,8 +620,10 @@ def main() -> int:
     p = sub.add_parser("apply", help="annotate the crate in place")
     p.add_argument("crate")
     p.add_argument("--reassoc", default="reassoc", help="path to a reassoc checkout's facade crate, or a version string")
-    p.add_argument("--const-fn", choices=["skip", "leave"], default="skip",
-                   help="skip: put #[algebraic(skip)] on every const fn (default); leave: let members with arithmetic error, to count them")
+    p.add_argument("--const-fn", choices=["skip", "leave", "enter"], default="skip",
+                   help="skip: put #[algebraic(skip)] on every const fn (default); leave: let members with arithmetic error, to count them; "
+                        "enter: annotate const fns like any fn (needs reassoc's nightly `const-fn` feature: --dep-features const-fn and RUSTUP_TOOLCHAIN=nightly)")
+    p.add_argument("--dep-features", default="", help="comma-separated features for the reassoc dependency, e.g. const-fn")
     p.add_argument("--no-types", action="store_true", help="do not derive Passthrough on types")
     p.add_argument("--no-items", action="store_true", help="do not put #[algebraic] on items")
     p.add_argument("--no-dep", action="store_true", help="do not touch Cargo.toml")

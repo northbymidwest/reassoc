@@ -22,6 +22,9 @@ proc-macro = true
 # a poor trade for every consumer when renaming this dependency is rare. Turn
 # it on only if you rename it.
 resolve-crate-name = ["dep:proc-macro-crate"]
+# Enter `const fn` bodies: the facade's dispatch layer is `const` under its
+# feature of the same name (nightly). Never turn on alone.
+const-fn = []
 
 [dependencies]
 proc-macro-crate = { version = "3.5", optional = true }

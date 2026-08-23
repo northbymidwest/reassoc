@@ -28,6 +28,10 @@ alloc = []
 # rustc gates them separately and they may stabilise apart.
 f16 = []
 f128 = []
+# `#[algebraic]` on a `const fn`. Nightly only: the dispatch layer becomes
+# `const` through `const_trait_impl`/`const_ops`. Forwarded to the macros,
+# which then enter `const fn` bodies instead of refusing them.
+const-fn = ["reassoc-macros/const-fn"]
 
 [dependencies]
 reassoc-macros = { version = "=0.8.0", path = "../reassoc-macros" }
@@ -38,3 +42,9 @@ trybuild = "1.0"
 regex-lite = "0.1"
 # Types from another crate, for the `passthrough!(foreign ..)` tests.
 foreign-types = { path = "../consumers/foreign-types" }
+
+# `const impl` is feature-gated at parse time: the file cannot be compiled on
+# stable even empty, so the target exists only with the feature.
+[[test]]
+name = "const_fn"
+required-features = ["const-fn"]

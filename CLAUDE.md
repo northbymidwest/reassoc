@@ -34,6 +34,7 @@ cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo +nightly test -p reassoc --features f16,f128      # nightly-only: f16/f128 as algebraic floats
+cargo +nightly test -p reassoc --features const-fn      # nightly-only: #[algebraic] enters const fn (const dispatch layer)
 ```
 
 `--all-features` is never used on stable: `f16` and `f128` turn on unstable
@@ -128,7 +129,10 @@ reverts to a worse result if undone.
   tokens are never touched. `consumers/lints/` pins both directions. The binding is call-site with a suffix — mixed-site hygiene
   moves the error caret to the attribute. `String`'s in-place impls are
   concrete, not `&T: AsRef<str>`.
-- Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.
+- Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected
+  — except under the nightly `const-fn` feature, where the whole dispatch
+  layer is `const` (`konst!` in `lib.rs` pastes `const`/`[const]` into the
+  impl-stamping macros) and a `const fn` is entered like any other.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Everything lexically inside an annotated scope is entered: closures, nested
   items, and (on an `impl`/inline `mod`/`trait`) every member and nested

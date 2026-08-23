@@ -32,25 +32,43 @@ mod sealed {
 }
 
 /// `f32` and `f64`: the algebraic methods under one name. Sealed; not a
-/// user surface.
-pub trait Float: sealed::Sealed + Copy {
-    fn alg_add(self, o: Self) -> Self;
-    fn alg_sub(self, o: Self) -> Self;
-    fn alg_mul(self, o: Self) -> Self;
-    fn alg_div(self, o: Self) -> Self;
-    fn alg_rem(self, o: Self) -> Self;
+/// user surface. (A `const trait` under `const-fn`: the methods are
+/// const-stable, so the impls can be `const impl`.)
+macro_rules! float_trait {
+    ($($a:tt)*) => { konst!(float_trait_k!($($a)*)); };
 }
+macro_rules! float_trait_k {
+    (($($c:tt)*) ($($b:tt)*)) => {
+        pub $($c)* trait Float: sealed::Sealed + Copy {
+            fn alg_add(self, o: Self) -> Self;
+            fn alg_sub(self, o: Self) -> Self;
+            fn alg_mul(self, o: Self) -> Self;
+            fn alg_div(self, o: Self) -> Self;
+            fn alg_rem(self, o: Self) -> Self;
+        }
+    };
+}
+float_trait!();
 
+// The type-list macros take the two groups as single token trees (`$c`,
+// `$b`) and hand them on, since a `$($c)*` cannot be used inside a `$($t)*`
+// repetition; the per-type macro destructures them.
 macro_rules! float {
-    ($($t:ty)*) => {$(
-        impl Float for $t {
+    ($($a:tt)*) => { konst!(float_k!($($a)*)); };
+}
+macro_rules! float_k {
+    ($c:tt $b:tt $($t:ty)*) => {$( float_one!($c $b $t); )*};
+}
+macro_rules! float_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty) => {
+        $($c)* impl Float for $t {
             #[inline(always)] fn alg_add(self, o: $t) -> $t { <$t>::algebraic_add(self, o) }
             #[inline(always)] fn alg_sub(self, o: $t) -> $t { <$t>::algebraic_sub(self, o) }
             #[inline(always)] fn alg_mul(self, o: $t) -> $t { <$t>::algebraic_mul(self, o) }
             #[inline(always)] fn alg_div(self, o: $t) -> $t { <$t>::algebraic_div(self, o) }
             #[inline(always)] fn alg_rem(self, o: $t) -> $t { <$t>::algebraic_rem(self, o) }
         }
-    )*};
+    };
 }
 float!(f32 f64);
 #[cfg(feature = "f16")]
@@ -59,26 +77,30 @@ float!(f16);
 float!(f128);
 
 macro_rules! alg_float_op {
-    ($rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $alg:ident) => {
-        impl<F: Float> $rhs_trait<F, F, FloatTag> for F {
+    ($($a:tt)*) => { konst!(alg_float_op_k!($($a)*)); };
+}
+macro_rules! alg_float_op_k {
+    (($($c:tt)*) ($($b:tt)*)
+     $rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $alg:ident) => {
+        $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for F {
             #[inline(always)]
             fn $rhs_method(self, lhs: F) -> F {
                 lhs.$alg(self)
             }
         }
-        impl<F: Float> $rhs_trait<F, F, FloatTag> for &F {
+        $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for &F {
             #[inline(always)]
             fn $rhs_method(self, lhs: F) -> F {
                 lhs.$alg(*self)
             }
         }
-        impl<F: Float> $rhs_trait<&F, F, FloatTag> for F {
+        $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for F {
             #[inline(always)]
             fn $rhs_method(self, lhs: &F) -> F {
                 lhs.$alg(self)
             }
         }
-        impl<F: Float> $rhs_trait<&F, F, FloatTag> for &F {
+        $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for &F {
             #[inline(always)]
             fn $rhs_method(self, lhs: &F) -> F {
                 lhs.$alg(*self)
@@ -86,13 +108,13 @@ macro_rules! alg_float_op {
         }
         // `+=` reads the place and writes back the algebraic result; same
         // codegen.
-        impl<F: Float> $assign_trait<F, FloatTag> for F {
+        $($c)* impl<F: $($b)* Float> $assign_trait<F, FloatTag> for F {
             #[inline(always)]
             fn $assign_method(self, lhs: &mut F) {
                 *lhs = lhs.$alg(self);
             }
         }
-        impl<F: Float> $assign_trait<F, FloatTag> for &F {
+        $($c)* impl<F: $($b)* Float> $assign_trait<F, FloatTag> for &F {
             #[inline(always)]
             fn $assign_method(self, lhs: &mut F) {
                 *lhs = lhs.$alg(*self);
@@ -108,20 +130,28 @@ alg_float_op!(DivRhs, div_rhs, DivAssignRhs, div_assign_rhs, alg_div);
 alg_float_op!(RemRhs, rem_rhs, RemAssignRhs, rem_assign_rhs, alg_rem);
 
 macro_rules! float_left {
-    ($t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
-        impl<B: Passthrough> $rhs_trait<$t, <$t as core::ops::$std<B>>::Output> for B
+    ($c:tt $b:tt $t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
+        float_left_one!($c $b $t; $rhs_trait, $rhs_method, $std, $op);
+    )*};
+}
+macro_rules! float_left_one {
+    (($($c:tt)*) ($($b:tt)*) $t:ty; $rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt) => {
+        $($c)* impl<B: Passthrough> $rhs_trait<$t, <$t as core::ops::$std<B>>::Output> for B
         where
-            $t: core::ops::$std<B>,
+            $t: $($b)* core::ops::$std<B>,
         {
             #[inline(always)]
             #[track_caller]
             fn $rhs_method(self, lhs: $t) -> <$t as core::ops::$std<B>>::Output { lhs $op self }
         }
-    )*};
+    };
 }
 macro_rules! float_lefts {
-    ($($t:ty)*) => {$(
-        float_left!($t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
+    ($($a:tt)*) => { konst!(float_lefts_k!($($a)*)); };
+}
+macro_rules! float_lefts_k {
+    ($c:tt $b:tt $($t:ty)*) => {$(
+        float_left!($c $b $t; AddRhs, add_rhs, Add, +; SubRhs, sub_rhs, Sub, -; MulRhs, mul_rhs, Mul, *;
                         DivRhs, div_rhs, Div, /; RemRhs, rem_rhs, Rem, %);
     )*};
 }

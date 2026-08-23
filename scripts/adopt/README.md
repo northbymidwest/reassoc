@@ -120,8 +120,22 @@ refuses to leave one with arithmetic silently strict), 23 errors, then none.
   vs `386.5`) and `test_solve_quartic` with a root 3.3e-6 from the expected
   value where the test tolerates 1e-6: a quartic solve is where reassociation
   is not last-bit.
-- `ir`: 5387 algebraic against **951 strict** float ops, and those are the
-  interesting number: kurbo's primitives — `Vec2::dot`, `cross`, `hypot2`,
-  `Point::midpoint` and friends — are `const fn`, which `#[algebraic]` cannot
-  enter, and they inline into everything (`offset_rec`: 198 strict / 402
-  algebraic). The const-fn gap, measured on a crate that leans on it.
+- `ir`: 5387 algebraic against **951 strict** float ops. A first reading
+  blamed kurbo's `const fn` primitives (`Vec2::dot`, `cross`, …), which
+  `#[algebraic]` cannot enter. The measurement below disproved most of that.
+
+### kurbo with reassoc's nightly `const-fn` feature
+
+`apply --const-fn enter --dep-features const-fn` on nightly (the tool adds
+`#![feature(const_trait_impl)]` to the crate root — a `const fn` calling a
+conditionally-const function needs the gate in its own crate). Debug
+242/242, release the same four last-digit/`test_solve_quartic` differences
+as before, no new ones. The trace shows all 142 `const fn`s entered and 84
+more operators rewritten (`Vec2::dot` 3, `cross` 3, `Point::midpoint` 4 …;
+`hypot2` is `self.dot(self)`, a method call, 0). And `ir` is **unchanged at
+951 strict**: those ops were never the const fns. They are
+`Iterator::sum::<f64>()` in the Gauss–Legendre arc length (core's `Sum`
+impl, inlined strict — user code cannot annotate it) and root finding in
+`polycool`, the sibling crate in kurbo's workspace that was not adopted.
+Two honest limits of *any* source-level approach, and a reminder to measure
+before attributing.

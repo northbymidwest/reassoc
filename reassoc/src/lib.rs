@@ -180,12 +180,40 @@
 //!
 //! # `no_std`
 //!
+//! # `const-fn`
+//!
+//! On nightly, the `const-fn` feature lets `#[algebraic]` enter a `const fn`:
+//! the dispatch layer becomes `const` (`const_trait_impl`; the calling crate
+//! needs `#![feature(const_trait_impl)]` as well), and since the
+//! `algebraic_*` methods are const-stable the rewritten body evaluates at
+//! compile time — exactly, as const evaluation always is — and algebraically
+//! at runtime. Without the feature a `const fn` in an algebraic scope is an
+//! error if it has arithmetic to rewrite.
+//!
 //! The crate is `#![no_std]`. Default features enable `std`; use
 //! `default-features = false` for core-only builds, which keep every
 //! primitive, every reference combination, and `Duration`.
 #![no_std]
 #![cfg_attr(feature = "f16", feature(f16))]
 #![cfg_attr(feature = "f128", feature(f128))]
+#![cfg_attr(feature = "const-fn", feature(const_trait_impl, const_ops))]
+
+// `const-fn` (nightly): the dispatch traits are `const trait`s, every impl
+// on the primitive path is a `const impl`, and `ops::*` are `const fn` with
+// `[const]` bounds — so the code `#[algebraic]` emits is legal inside a
+// `const fn`. The `algebraic_*` methods themselves have been const-stable
+// since 1.98; only this layer stood in the way. `konst!` hands the two token
+// sets — `const` before an item, `[const]` in a bound — to the macros that
+// stamp the impls out, or nothing at all without the feature; a macro cannot
+// expand in bound position, so the macros take them as parameters.
+#[cfg(feature = "const-fn")]
+macro_rules! konst {
+    ($m:ident ! ( $($rest:tt)* )) => { $m!((const) ([const]) $($rest)*); };
+}
+#[cfg(not(feature = "const-fn"))]
+macro_rules! konst {
+    ($m:ident ! ( $($rest:tt)* )) => { $m!(() () $($rest)*); };
+}
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

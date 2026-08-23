@@ -59,8 +59,14 @@ pub struct FloatTag;
 /// The tag the integer impls live under (`impls/int.rs`); see [`FloatTag`].
 pub struct IntTag;
 
+// `declare_op_trait!` stays the one-line invocation rustc shows in impl
+// listings; `_k` is the form that takes the `const`/`[const]` groups.
 macro_rules! declare_op_trait {
-    ($rhs_trait:ident, $rhs_method:ident, $msg:literal, $std:ident, $op:tt,
+    ($($a:tt)*) => { konst!(declare_op_trait_k!($($a)*)); };
+}
+macro_rules! declare_op_trait_k {
+    (($($c:tt)*) ($($b:tt)*)
+     $rhs_trait:ident, $rhs_method:ident, $msg:literal, $std:ident, $op:tt,
      $assign_trait:ident, $assign_method:ident, $assign_msg:literal, $std_assign:ident, $op_assign:tt) => {
         /// The right-hand operand of one operator, for a given left type:
         /// `b.add_rhs(a)` is `a + b`. The blanket impl below covers every
@@ -76,13 +82,13 @@ macro_rules! declare_op_trait {
                     the expression in `strict!(..)` to use ordinary operators",
             note = "if `{Lhs}` is a generic type parameter, bound it: `T: reassoc::Passthrough`"
         )]
-        pub trait $rhs_trait<Lhs, O, Tag = ()> {
+        pub $($c)* trait $rhs_trait<Lhs, O, Tag = ()> {
             fn $rhs_method(self, lhs: Lhs) -> O;
         }
 
-        impl<A, B, Tag: OptInTag> $rhs_trait<A, <A as $std<B>>::Output, Tag> for B
+        $($c)* impl<A, B, Tag: OptInTag> $rhs_trait<A, <A as $std<B>>::Output, Tag> for B
         where
-            A: Passthrough<Tag> + $std<B>,
+            A: Passthrough<Tag> + $($b)* $std<B>,
         {
             #[inline(always)]
             #[track_caller]
@@ -101,13 +107,13 @@ macro_rules! declare_op_trait {
                     defined (`passthrough!(foreign {Lhs});` for a type from another crate)",
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
-        pub trait $assign_trait<Lhs, Tag = ()> {
+        pub $($c)* trait $assign_trait<Lhs, Tag = ()> {
             fn $assign_method(self, lhs: &mut Lhs);
         }
 
-        impl<A, B, Tag: OptInTag> $assign_trait<A, Tag> for B
+        $($c)* impl<A, B, Tag: OptInTag> $assign_trait<A, Tag> for B
         where
-            A: Passthrough<Tag> + $std_assign<B>,
+            A: Passthrough<Tag> + $($b)* $std_assign<B>,
         {
             #[inline(always)]
             #[track_caller]
