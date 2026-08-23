@@ -2,3 +2,4 @@ target/
 Cargo.lock
 *.rlib
 *.s
+__pycache__/
