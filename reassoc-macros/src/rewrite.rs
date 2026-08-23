@@ -257,6 +257,7 @@ impl VisitMut for Rewriter {
         // Children first, so nested operators are already calls by the time
         // this node is rebuilt.
         visit_mut::visit_expr_mut(self, expr);
+        reparen_tight_positions(expr);
 
         let Expr::Binary(binary) = expr else { return };
         let Some(func) = dispatch_fn(&binary.op) else {
@@ -497,6 +498,57 @@ fn dispatch_fn(op: &BinOp) -> Option<Dispatch> {
         BinOp::RemAssign(_) => Compound("rem_assign"),
         _ => return None,
     })
+}
+
+/// A `$e:expr` fragment arrives in an invisible group, and rustc does not
+/// honour that grouping once a proc macro has re-emitted the tokens: a
+/// closure passed as `$call` and invoked as `$call(x)` reads back as
+/// `|..| body(x)`. Any attribute macro on such a function breaks it; this one
+/// gives a grouped low-precedence expression real parentheses wherever the
+/// position binds tighter (callee, receiver, base of a field, index, `?` or
+/// `.await`, operand of a cast or unary). Nothing else is touched: the
+/// operands the rewriter itself consumes go through `unparen`.
+fn reparen_tight_positions(expr: &mut Expr) {
+    let slot = match expr {
+        Expr::Call(c) => &mut *c.func,
+        Expr::MethodCall(m) => &mut *m.receiver,
+        Expr::Field(f) => &mut *f.base,
+        Expr::Index(i) => &mut *i.expr,
+        Expr::Try(t) => &mut *t.expr,
+        Expr::Await(a) => &mut *a.base,
+        Expr::Cast(c) => &mut *c.expr,
+        Expr::Unary(u) => &mut *u.expr,
+        _ => return,
+    };
+    if !matches!(slot, Expr::Group(_)) {
+        return;
+    }
+    let inner = ungroup(core::mem::replace(slot, Expr::PLACEHOLDER));
+    let low = matches!(
+        inner,
+        Expr::Closure(_)
+            | Expr::Binary(_)
+            | Expr::Unary(_)
+            | Expr::Cast(_)
+            | Expr::Range(_)
+            | Expr::Assign(_)
+            | Expr::Let(_)
+            | Expr::Return(_)
+            | Expr::Break(_)
+            | Expr::Continue(_)
+            | Expr::Yield(_)
+            | Expr::Reference(_)
+            | Expr::RawAddr(_)
+    );
+    *slot = if low {
+        Expr::Paren(syn::ExprParen {
+            attrs: Vec::new(),
+            paren_token: syn::token::Paren::default(),
+            expr: Box::new(inner),
+        })
+    } else {
+        inner
+    };
 }
 
 /// Strips invisible groups — what a `macro_rules!` `$e:expr` arrives in — and

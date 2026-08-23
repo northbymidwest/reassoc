@@ -170,3 +170,34 @@ fn matches_enters_its_scrutinee_and_leaves_the_pattern_alone() {
         (true, true, true)
     );
 }
+
+/// A `$e:expr` fragment arrives in an invisible group, and rustc does not
+/// honour that grouping once a proc macro has re-emitted the tokens: in a
+/// function an attribute rewrites, `$call(x)` with a closure for `$call`
+/// would read back as `|..| body(x)` and fail (libm's `select_once!` has
+/// exactly this shape). The rewriter re-parenthesises a grouped
+/// low-precedence expression in the positions that bind tighter.
+macro_rules! apply_to {
+    ($call:expr, $x:expr, $range:expr, $neg:expr) => {{
+        #[reassoc::algebraic]
+        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, f32) {
+            let called = $call(a * b);
+            let len = $range.len();
+            let start = $range.start;
+            let idx = [1.0f32, 2.0][$range.start];
+            let cast = $neg as f32;
+            (called, len, start, idx, cast)
+        }
+        go($x, 2.0)
+    }};
+}
+
+#[test]
+fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
+    let (called, len, start, idx, cast) = apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, -2.0 * 1.5);
+    assert_eq!(called, 11.0);
+    assert_eq!(len, 2);
+    assert_eq!(start, 0);
+    assert_eq!(idx, 1.0);
+    assert_eq!(cast, -3.0);
+}

@@ -70,16 +70,17 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             // `ops::*` are not `const fn`; rejecting up front beats an E0015
             // blamed on the attribute.
+            // The function is still emitted, unrewritten, so that its callers
+            // resolve and the user reads one error rather than a cascade.
             if let Some(const_token) = func.sig.constness
                 && !cfg!(feature = "const-fn")
             {
-                return syn::Error::new_spanned(
+                let err = syn::Error::new_spanned(
                     const_token,
                     "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \
                      functions it generates (`reassoc::ops::*`) are not `const fn`",
-                )
-                .to_compile_error()
-                .into();
+                );
+                return with_errors(func.to_token_stream(), vec![err]).into();
             }
             let mut rewriter = rewrite::Rewriter::from_scope(scope);
             rewriter.visit_item_fn_mut(&mut func);
@@ -90,13 +91,13 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             if let Ok(f) = syn::parse::<syn::TraitItemFn>(item.clone())
                 && f.default.is_none()
             {
-                return syn::Error::new_spanned(
-                    f.sig.ident,
+                let err = syn::Error::new_spanned(
+                    &f.sig.ident,
                     "`#[algebraic]` applies to functions with a body; this trait method has \
                      none to rewrite",
-                )
-                .to_compile_error()
-                .into();
+                );
+                // The method stays in the trait: removing it would fail every impl.
+                return with_errors(f.to_token_stream(), vec![err]).into();
             }
             match syn::parse::<syn::Item>(item) {
                 // A function with a syntax error keeps syn's, which points
@@ -116,13 +117,14 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                     rewriter.visit_item_mut(&mut container);
                     with_errors(container.to_token_stream(), rewriter.errors).into()
                 }
-                Ok(_) => syn::Error::new(
-                    err.span(),
-                    "`#[algebraic]` applies to functions, `impl` blocks, inline modules and \
-                     traits; it cannot be applied to this item",
-                )
-                .to_compile_error()
-                .into(),
+                Ok(other) => {
+                    let err = syn::Error::new(
+                        err.span(),
+                        "`#[algebraic]` applies to functions, `impl` blocks, inline modules and \
+                         traits; it cannot be applied to this item",
+                    );
+                    with_errors(other.to_token_stream(), vec![err]).into()
+                }
             }
         }
     }

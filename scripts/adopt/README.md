@@ -139,3 +139,29 @@ impl, inlined strict — user code cannot annotate it) and root finding in
 `polycool`, the sibling crate in kurbo's workspace that was not adopted.
 Two honest limits of *any* source-level approach, and a reminder to measure
 before attributing.
+
+## Batch of five (2026-08-22, all against the published reassoc 0.9; local branches `reassoc-adopt` in ../<crate>)
+
+Picked for the failure mode each would exercise. Two tool lessons first, both
+from the first run: an item head whose `{` is on a later line
+(`pub trait T<K: ..>:\n Base<K>\n{`) was not covered, so its required
+methods got the attribute themselves — one authored error, and because the
+attribute then swallowed the method, hundreds of `E0407 not a member of
+trait` behind it (the rewriter now keeps the item on every authored error);
+and a crate-root item must go after the whole head, license comment
+included, or every later `//!` is E0753. Also: cgmath has no `edition` key —
+2015 — where `::reassoc::..` needs `extern crate reassoc;` (added).
+
+| crate | what it probes | result |
+| --- | --- | --- |
+| **wide** 1.6 (SIMD wrapper types, `unsafe` intrinsics, 31 `macro_rules!`, per-arch cfg) | passthrough of SIMD wrappers, arithmetic inside `unsafe`, macro templates | **0 errors; debug 186/186** — every `f32x4 * f32x4` goes through the blanket; the `ir` and release numbers are in `reassoc-adopt/` |
+| **rust_decimal** 2.0-alpha (decimal type with the full operator set incl. `op=`, refs, `checked_*`) | struct arithmetic at scale must be bit-identical; compile-time cost | **0 errors; debug 260/260; release 260/260**. (db dev-deps trimmed for the run: they need libmysqlclient/libpq.) |
+| **cgmath** 0.18 (edition 2015, `S: BaseFloat` everywhere, 204 macro-invocation items) | generic float code | **252 errors, all one kind**: arithmetic on a type parameter / associated type / `Self` (198 on `S`, 24 on `<A as Angle>::Unitless`, 7 on `Self`, …). The generic-code gap, pure. |
+| **statrs** 0.19 (f64 special functions; nalgebra for multivariate) | tolerance-tested numerics, foreign generic types | **31 errors**: 23 on nalgebra's `Matrix<f64, D, ..>` — a *generic* foreign type, which `passthrough!(foreign ..)` has no form for — and 8 on a generic `K: Num` helper. The rest of the crate rewrote. |
+| **libm** 0.2 (in rust-lang/compiler-builtins; musl-port routines, bit tricks, `force_eval!`) | designed-strict numerics, generics over its own `Float`/`Int` traits | **61 errors**: generic `Self`/`U`/`F` arithmetic under libm's traits, plus one rustc limitation: a `$call:expr` closure fragment invoked as `$call(x)` loses its invisible grouping when *any* proc macro re-emits the function (`E0618`). Fixed in the rewriter (grouped low-precedence expressions get real parentheses in tight positions). |
+
+Reading: the crates written against concrete types adopt cleanly and their
+tests hold; the crates written generically do not adopt at all, and the
+errors are exactly the two known gaps — arithmetic on a generic parameter
+(`T: Float`-style bounds and trait default bodies on `Self`) and foreign
+*generic* types. Both are design questions for reassoc, not tool work.

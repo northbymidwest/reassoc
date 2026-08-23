@@ -229,11 +229,22 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
     # attribute, "native" = deliberately left alone (test mods, skipped const
     # fns, macro_rules! bodies).
     cover: list[tuple[int, str]] = []
+    # An annotated head whose `{` has not arrived yet (`impl<T> Tr for X<T>\n
+    # where ..\n{`): its cover starts at the line that opens the block; a `;`
+    # first (a required trait method) means there is no body to cover.
+    pending: str | None = None
     # depth at which the innermost `fn (&self ..)` / `fn (&mut self ..)` opened
     ref_self_fn: list[int] = []
     for i, line in enumerate(lines):
         while cover and depth <= cover[-1][0]:
             cover.pop()
+        if pending is not None:
+            code_now = strip_comments_and_strings(line)
+            if code_now.count("{") - code_now.count("}") > 0:
+                cover.append((depth, pending))
+                pending = None
+            elif ";" in code_now:
+                pending = None
         while ref_self_fn and depth <= ref_self_fn[-1]:
             ref_self_fn.pop()
         if RE_REF_SELF_FN.search(strip_comments_and_strings(line)):
@@ -262,7 +273,10 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 stats["mod: has `mod x;` members (not annotatable, E0658; its items are)"] += 1
             elif items:
                 out.append(pad + ATTR)
-                cover.append((depth, "alg"))
+                if opens:
+                    cover.append((depth, "alg"))
+                else:
+                    pending = "alg"
                 stats["mod"] += 1
         elif not covered and items and RE_MACRO_ITEM.match(stripped) and not RE_MACRO_RULES.match(stripped):
             stats["macro-invocation item (not annotatable)"] += 1
@@ -270,6 +284,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
+            else:
+                pending = "alg"
             stats["impl/trait"] += 1
         elif items and const_fn != "enter" and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
             # Inside an annotated impl too: the rewriter refuses a `const fn`
@@ -283,10 +299,14 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 stats["const fn (left; errors if it has arithmetic)"] += 1
             if opens:
                 cover.append((depth, "native"))
+            else:
+                pending = "native"
         elif not covered and items and RE_FN.match(line):
             out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
+            else:
+                pending = "alg"
             stats["fn"] += 1
         elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "native" and RE_MACRO_RULES.match(lines[cover[-1][0]] if False else "")):
             # A derive is fine anywhere a type is declared, covered or not —
@@ -298,6 +318,56 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
     return "\n".join(out)
 
 
+def crate_edition(cargo_toml: Path) -> str:
+    m = re.search(r'^edition\s*=\s*"(\d{4})"', cargo_toml.read_text(), re.M)
+    if m:
+        return m.group(1)
+    # `edition.workspace = true` or absent: look up, then default (2015).
+    for parent in cargo_toml.parent.parents:
+        ws = parent / "Cargo.toml"
+        if ws.exists() and "[workspace" in ws.read_text():
+            m = re.search(r'^edition\s*=\s*"(\d{4})"', ws.read_text(), re.M)
+            if m and "workspace" in cargo_toml.read_text():
+                return m.group(1)
+            break
+    return "2015"
+
+
+def head_end(lines: list[str]) -> int:
+    """Index of the first line after the crate root's head: inner attributes,
+    inner docs, plain comments (license headers), block comments, blanks.
+    An item inserted before a later `//!` would make it an error (E0753)."""
+    i = 0
+    in_block = False
+    while i < len(lines):
+        l = lines[i].strip()
+        if in_block:
+            if "*/" in l:
+                in_block = False
+            i += 1
+            continue
+        if l == "" or l.startswith("//") or l.startswith("#!["):
+            i += 1
+            continue
+        if l.startswith("/*"):
+            if "*/" not in l:
+                in_block = True
+            i += 1
+            continue
+        break
+    return i
+
+
+def crate_item(root: Path, line: str) -> None:
+    """Insert an item line after the crate root's head."""
+    text = root.read_text()
+    if line in text:
+        return
+    lines = text.split("\n")
+    lines.insert(head_end(lines), line)
+    root.write_text("\n".join(lines))
+
+
 def allow_lint(root: Path, lint: str) -> None:
     """`#![allow(lint)]` at the crate root (the rewritten `(x * y)` forms are
     often redundant parens in tail position)."""
@@ -305,16 +375,13 @@ def allow_lint(root: Path, lint: str) -> None:
 
 
 def crate_attr(root: Path, line: str) -> None:
-    """Insert an inner attribute after the crate root's leading inner
-    attributes and doc comments."""
+    """Insert an inner attribute after the crate root's head (before the
+    first item; inner attributes may follow comments and docs)."""
     text = root.read_text()
     if line in text:
         return
     lines = text.split("\n")
-    i = 0
-    while i < len(lines) and (lines[i].startswith("#![") or lines[i].startswith("//!") or lines[i].strip() == ""):
-        i += 1
-    lines.insert(i, line)
+    lines.insert(head_end(lines), line)
     root.write_text("\n".join(lines))
 
 
@@ -358,6 +425,13 @@ def cmd_apply(a: argparse.Namespace) -> int:
             if root.exists():
                 allow_lint(root, "unused_parens")
                 stats["crate root: #![allow(unused_parens)]"] += 1
+    if not a.dry_run and crate_edition(crate / "Cargo.toml") == "2015":
+        # `::reassoc::..` in a 2015-edition crate resolves through an
+        # `extern crate` item at the crate root.
+        for root in (src / "lib.rs", src / "main.rs"):
+            if root.exists():
+                crate_item(root, "extern crate reassoc;")
+                stats["crate root: extern crate reassoc; (edition 2015)"] += 1
     if not a.dry_run and a.const_fn == "enter":
         # A `const fn` calling a conditionally-const function needs the gate
         # in its own crate (nightly).
