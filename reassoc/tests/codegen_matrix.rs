@@ -185,7 +185,7 @@ fn emit_ir(level: &str) -> String {
                     .join("\n")
             )
         });
-    std::fs::read_to_string(&ir_path).unwrap()
+    std::fs::read_to_string(ir_path).unwrap()
 }
 
 fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
