@@ -175,13 +175,6 @@ Primitives, references to them, `Duration`, `String`, the std time types,
 `uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
 and need no opt-in.
 
-Adopting the macros across a codebase: with `REASSOC_TRACE=<file>` set for a
-build, the macros append one line per function they entered — `file:line`,
-the name, and how many operators were rewritten there — so the functions they
-never reached, or reached and found only method-call arithmetic in, are a
-diff away. `scripts/adopt/` in the repository automates the whole experiment
-for a crate.
-
 What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements
 `AddAssign<W>`, a dot product yields whatever its `Mul::Output` is. Nothing is
@@ -266,6 +259,10 @@ neither is an oversight.
 
 **[docs/diagnostics.md](https://github.com/northbymidwest/reassoc/blob/main/docs/diagnostics.md)** has the worked example, the
 reasoning, and a case-by-case comparison against plain Rust.
+
+Not sure a function was rewritten at all? Build with `REASSOC_TRACE=<file>`
+set and the macros log every function they entered, with how many operators
+were rewritten in it.
 
 ## Compile time
 
