@@ -289,8 +289,9 @@ same instructions as hand-written algebraic calls.
 
 The `const-fn` feature lets `#[algebraic]` enter a `const fn` (the dispatch
 layer becomes `const` via `const_trait_impl`; the using crate enables that
-gate too). A rewritten `const fn` evaluates exactly at compile time and
-algebraically at runtime.
+gate too). Const evaluation interprets the body as written, runtime code is
+optimized, so a `const` and the same call at runtime may differ in the last
+bits — as any two algebraic evaluations may.
 
 ## `f16` and `f128`
 

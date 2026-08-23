@@ -10,8 +10,9 @@ Notable changes per release. Dates are the publish date.
   dispatch traits become `const trait`s, the primitive impls `const impl`s and
   `ops::*` `const fn`s with `[const]` bounds (`const_trait_impl`, which the
   calling crate enables too); the `algebraic_*` methods were const-stable
-  already. A rewritten `const fn`
-  evaluates exactly at compile time and algebraically at runtime
+  already. Const evaluation
+  interprets the body as written and runtime code is optimized, so a `const`
+  and the same call at runtime may differ in the last bits
   (`tests/const_fn.rs`). Without the feature nothing changes: the same
   refusal of a `const fn`, the same messages.
 

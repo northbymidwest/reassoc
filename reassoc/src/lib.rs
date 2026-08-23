@@ -185,10 +185,13 @@
 //! On nightly, the `const-fn` feature lets `#[algebraic]` enter a `const fn`:
 //! the dispatch layer becomes `const` (`const_trait_impl`; the calling crate
 //! needs `#![feature(const_trait_impl)]` as well), and since the
-//! `algebraic_*` methods are const-stable the rewritten body evaluates at
-//! compile time — exactly, as const evaluation always is — and algebraically
-//! at runtime. Without the feature a `const fn` in an algebraic scope is an
-//! error if it has arithmetic to rewrite.
+//! `algebraic_*` methods are const-stable the rewritten body can be evaluated
+//! at compile time. Const evaluation interprets it as written (today; the
+//! language promises nothing about the precision of algebraic operations
+//! anywhere), runtime code is optimized, so a `const` and the same call at
+//! runtime may differ in the last bits — as any two algebraic evaluations
+//! may. Without the feature a `const fn` in an algebraic scope is an error
+//! if it has arithmetic to rewrite.
 //!
 //! The crate is `#![no_std]`. Default features enable `std`; use
 //! `default-features = false` for core-only builds, which keep every

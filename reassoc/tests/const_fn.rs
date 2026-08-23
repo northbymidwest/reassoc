@@ -1,7 +1,10 @@
 //! `const-fn` (nightly): `#[algebraic]` enters a `const fn`. The dispatch
 //! layer is `const`, the `algebraic_*` methods are const-stable, so the
-//! rewritten body evaluates at compile time — exactly — and algebraically at
-//! runtime.
+//! rewritten body can be evaluated at compile time. Const evaluation
+//! interprets it as written (the values below are the sequential IEEE ones);
+//! at runtime the same function is optimized and may differ in the last
+//! bits, which is why nothing here compares a `const` against its runtime
+//! twin on inputs where contraction could show.
 //!
 //! `const impl` is gated at parse time, so this target is compiled only with
 //! the feature (`required-features` in Cargo.toml), never on stable.
@@ -46,7 +49,7 @@ fn const_evaluated_values_are_exact() {
     assert_eq!(D, 32.0);
     assert_eq!(H, 0.5);
     assert_eq!(C, 30 - 2 + 1);
-    // The same functions at runtime.
+    // The same functions at runtime, on inputs every evaluation order agrees on.
     assert_eq!(dot([1.0, 2.0, 3.0], [4.0, 5.0, 6.0]), 32.0);
     assert_eq!(count(7, 3), C);
 }

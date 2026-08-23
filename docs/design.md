@@ -81,9 +81,13 @@ file that is only compiled under the feature). `konst!` in `lib.rs` hands the
 two token groups to the impl-stamping macros, nothing at all otherwise; the
 macros keep their one-line invocations because rustc renders them in impl
 listings. `ops.rs` is written out rather than stamped for the same reason: the
-"required by a bound in `add`" note on every operand error quotes it. A
-rewritten `const fn` evaluates exactly at compile time (CTFE has no
-reassociation) and algebraically at runtime; `tests/const_fn.rs`. On kurbo it
+"required by a bound in `add`" note on every operand error quotes it. Const
+evaluation interprets a rewritten `const fn` as written (measured:
+`a.algebraic_mul(b).algebraic_add(c)` is the sequential IEEE value in a
+`const`, and the fused one from the same function at runtime in release) —
+an implementation property, not a promise; the docs allow algebraic results
+to differ between any two evaluations. So a `const` and the same call at
+runtime may differ in the last bits. `tests/const_fn.rs`. On kurbo it
 entered all 142 `const fn`s and rewrote the 84 operators in them
 (`scripts/adopt/README.md`).
 
