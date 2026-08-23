@@ -202,12 +202,20 @@ since such types are along for the ride in an algebraic scope rather than its
 point.
 
 **Zero cost is measured per construct, not assumed.** `tests/codegen_matrix.rs`
-compiles `examples/codegen_matrix.rs` at `-O3` to LLVM IR and requires each
+compiles `examples/codegen_matrix.rs` to LLVM IR at `-C opt-level=1,2,3,s,z`
+and requires each
 `sugar_`/`direct_` pair — every operator, every place shape, chains of binary
 operators and of `+=` steps, user and foreign and std types, `strict!`,
-closures, both `alg!` forms — to be identical after alpha-renaming of SSA
-values and labels and erasure of panic-location constants (or merged by
-LLVM, the same proof). That the chains match is what answers "do the call
+closures, both `alg!` forms, the dot and axpy loops — to be identical after
+alpha-renaming of SSA values and labels and erasure of metadata and
+panic-location constants at O2/O3 (or merged by LLVM, the same proof), and to
+hold the same instructions order-insensitively at O1/Os/Oz, where the
+pipelines schedule a block differently by the shape the code arrived in and
+annotate operands with what they happened to learn (`range(..)`, `nonnull`).
+O0 is the documented debug overhead, not a claim. It replaced the assembly
+guard (`scripts/codegen-check.sh`, two kernels, per-arch mnemonic regexes):
+the `f32` dot loop and its strict control moved in, with the vectorization
+check (`= fadd .. <N x float>` in the algebraic one, none in the strict one). That the chains match is what answers "do the call
 layers break reassociation": after inlining, a chain of `ops::add` and of
 `ops::unit(match ..)` steps is the same `fadd reassoc` DAG as the hand-written
 one, and the strict-IEEE controls prove the optimizer really did reassociate

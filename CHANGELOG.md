@@ -31,8 +31,11 @@ Notable changes per release. Dates are the publish date.
   through the tag, `Wrapping`/`Duration`/`NonZero` — must produce identical
   optimized LLVM IR (alpha-renamed; or be merged by LLVM), with strict-IEEE
   negative controls that must differ and carry no `reassoc` flag. Mutation
-  checked: routing float `*` to IEEE fails eight pairs. CI runs it beside the
-  assembly guard.
+  checked: routing float `*` to IEEE fails eight pairs. Runs at
+  `-C opt-level=1,2,3,s,z` — identical IR at 2/3, the same instructions
+  order-insensitively at 1/s/z — and replaces the assembly guard
+  (`scripts/codegen-check.sh`, `examples/dot_kernel.rs`): its two kernels
+  moved in, with the vectorization check. Not `#[ignore]`d.
 - `f16` and `f128` features (nightly only): each type dispatches to its
   `algebraic_*` methods like `f32`/`f64`, with the same literal inference,
   reference forms and `op=`. Each turns on its own `#![feature(..)]` gate,

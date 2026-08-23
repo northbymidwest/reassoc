@@ -311,7 +311,55 @@ pub fn direct_horner8(x: f64, c: &[f64; 9]) -> f64 {
         .algebraic_mul(x)
         .algebraic_add(c[0])
 }
-/// The loop form, f64 (the f32 one is `examples/dot_kernel.rs`).
+/// The loop forms: the dot product that is the crate's headline, `f32` and
+/// `f64`, and `axpy` (an index place in a loop). The `plain_` twin of the
+/// `f32` dot is the negative control for vectorization: strict IEEE addition
+/// may not be reassociated, so its reduction must stay a serial chain while
+/// the algebraic one is free to become a vector reduction.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_dot_loop_f32(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0;
+    for i in 0..a.len().min(b.len()) {
+        sum += a[i] * b[i];
+    }
+    sum
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_dot_loop_f32(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0f32;
+    for i in 0..a.len().min(b.len()) {
+        sum = sum.algebraic_add(a[i].algebraic_mul(b[i]));
+    }
+    sum
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn plain_dot_loop_f32(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0f32;
+    for i in 0..a.len().min(b.len()) {
+        sum += a[i] * b[i];
+    }
+    sum
+}
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_axpy_loop(a: f32, x: &[f32], y: &mut [f32]) {
+    for i in 0..x.len().min(y.len()) {
+        y[i] += a * x[i];
+    }
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_axpy_loop(a: f32, x: &[f32], y: &mut [f32]) {
+    for i in 0..x.len().min(y.len()) {
+        let r = a.algebraic_mul(x[i]);
+        y[i] = y[i].algebraic_add(r);
+    }
+}
 #[algebraic]
 #[unsafe(no_mangle)]
 #[inline(never)]

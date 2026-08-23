@@ -16,10 +16,6 @@ jobs:
       - run: cargo test --workspace
       - run: cargo test -p reassoc --no-default-features
       - run: cargo test -p reassoc --no-default-features --features alloc
-      # The guard that catches silent dispatch to plain operators.
-      - run: cargo test -p reassoc --test codegen -- --ignored
-      # Every construct against its hand-written twin, as optimized LLVM IR.
-      - run: cargo test -p reassoc --test codegen_matrix -- --ignored
       # A consumer that renames the dependency, with `resolve-crate-name` on.
       # Inside this repository the feature only ever takes the `Itself` path.
       - run: cargo test -p reassoc --test renamed -- --ignored

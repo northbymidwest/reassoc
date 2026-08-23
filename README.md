@@ -57,9 +57,9 @@ Measured on aarch64 at `-O`, the loop above:
 The generated code is byte-identical to hand-written algebraic calls; the
 dispatch layer compiles away entirely in release builds — checked in CI, for
 every construct the rewriter emits, as optimized LLVM IR against a
-hand-written twin (`examples/codegen_matrix.rs`), including long operator
-chains and chains of `+=` steps, which stay one reassociable expression
-across every layer.
+hand-written twin (`examples/codegen_matrix.rs`) at every optimization level
+from `-C opt-level=1` up, including long operator chains and chains of `+=`
+steps, which stay one reassociable expression across every layer.
 
 This is the optimization `-ffast-math` grants in C and C++ — reassociation,
 FMA contraction, division as reciprocal multiplication, sign of zero ignored
