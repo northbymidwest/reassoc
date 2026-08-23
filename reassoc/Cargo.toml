@@ -22,11 +22,12 @@ default = ["std"]
 resolve-crate-name = ["reassoc-macros/resolve-crate-name"]
 std = ["alloc"]
 alloc = []
-# `f16` and `f128` as algebraic floats. Nightly only: the types and their
-# `algebraic_*` methods are unstable (rust-lang/rust#116909), so this turns on
-# `#![feature(f16, f128)]` and fails to build on stable. One feature for both,
-# since they are tracked together; if they stabilise apart it splits.
-f16_and_f128 = []
+# `f16` / `f128` as algebraic floats. Nightly only: each type and its
+# `algebraic_*` methods are unstable (rust-lang/rust#116909), so each turns on
+# its own `#![feature(..)]` gate and fails to build on stable. Separate, since
+# rustc gates them separately and they may stabilise apart.
+f16 = []
+f128 = []
 
 [dependencies]
 reassoc-macros = { version = "=0.7.0", path = "../reassoc-macros" }

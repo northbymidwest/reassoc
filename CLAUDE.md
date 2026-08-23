@@ -31,11 +31,11 @@ cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
 
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
-cargo +nightly test -p reassoc --features f16_and_f128   # nightly-only: f16/f128 as algebraic floats
+cargo +nightly test -p reassoc --features f16,f128      # nightly-only: f16/f128 as algebraic floats
 ```
 
-`--all-features` is never used on stable: `f16_and_f128` turns on an unstable
-feature gate and only builds on nightly (its own CI job).
+`--all-features` is never used on stable: `f16` and `f128` turn on unstable
+feature gates and only build on nightly (their own CI job).
 
 `ui`, `codegen` and `renamed` are `#[ignore]`d because they shell out or
 depend on toolchain and host; CI runs them explicitly, `ui` on a pinned 1.98.0.
@@ -77,8 +77,8 @@ reverts to a worse result if undone.
 - Trait outputs are type parameters, never associated types (`E0271` on
   unannotated literals otherwise); the blanket's projected output in the impl
   header is fine because the primitives never go through it.
-- `f16`/`f128` are two more `float!`/`float_lefts!` lines behind `f16_and_f128`
-  (nightly); nothing else changes for them.
+- `f16`/`f128` are one more `float!`/`float_lefts!` line each behind the
+  `f16`/`f128` features (nightly); nothing else changes for them.
 - Floats and ints stay generic over sealed traits under private tags, and the
   marker blankets stay bounded on `OptInTag`: drop either and `{float} *
   {float}` loses its single candidate (`E0282` under `-`, fuzz corpus) or

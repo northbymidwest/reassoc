@@ -172,10 +172,11 @@
 //!
 //! # `f16` and `f128`
 //!
-//! On nightly, the `f16_and_f128` feature makes those two floats algebraic
-//! too — same literal inference, same reference forms, same `op=` — by
-//! turning on `#![feature(f16, f128)]`; it cannot build on stable while the
-//! types are unstable. One feature for both, since they are tracked together.
+//! On nightly, the `f16` and `f128` features make those floats algebraic too
+//! — same literal inference, same reference forms, same `op=` — each by
+//! turning on its own `#![feature(..)]` gate; neither can build on stable
+//! while the type is unstable. Separate features, as rustc gates them
+//! separately.
 //!
 //! # `no_std`
 //!
@@ -183,7 +184,8 @@
 //! `default-features = false` for core-only builds, which keep every
 //! primitive, every reference combination, and `Duration`.
 #![no_std]
-#![cfg_attr(feature = "f16_and_f128", feature(f16, f128))]
+#![cfg_attr(feature = "f16", feature(f16))]
+#![cfg_attr(feature = "f128", feature(f128))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

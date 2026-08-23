@@ -9,8 +9,8 @@ fn every_test_file_is_included_in_the_edition_2021_twin() {
     let excluded = [
         ("edition2024.rs", "edition-2024-only syntax"),
         (
-            "f16_and_f128.rs",
-            "nightly-only feature gate at crate level; a module cannot carry it",
+            "wide_floats.rs",
+            "nightly-only feature gates at crate level; a module cannot carry them",
         ),
         ("suite_layout.rs", "this file"),
         ("ui.rs", "trybuild, pinned toolchain"),

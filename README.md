@@ -268,10 +268,10 @@ same instructions as hand-written algebraic calls.
 
 ## `f16` and `f128`
 
-On nightly, the `f16_and_f128` feature makes those two floats algebraic as
-well — same literal inference, reference forms and `op=` as `f32`/`f64`. It
-turns on `#![feature(f16, f128)]` for you and cannot build on stable while
-the types are unstable ([rust-lang/rust#116909](https://github.com/rust-lang/rust/issues/116909)).
+On nightly, the `f16` and `f128` features make those floats algebraic as
+well — same literal inference, reference forms and `op=` as `f32`/`f64`. Each
+turns on its own `#![feature(..)]` gate for you and cannot build on stable
+while the type is unstable ([rust-lang/rust#116909](https://github.com/rust-lang/rust/issues/116909)).
 
 ## `no_std`
 
