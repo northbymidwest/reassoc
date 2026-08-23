@@ -159,25 +159,51 @@ fn emit_ir(level: &str) -> String {
         status.success(),
         "building the fixture at -C opt-level={level} failed"
     );
-    // Cargo versions differ on where an example's `--emit` output lands:
-    // `release/examples/` or `release/deps/`. Look in both.
-    let ir_path = ["examples", "deps"]
+    // Cargo versions differ on where an example's `--emit` output lands
+    // (`release/examples/`, `release/deps/`, ..): walk the whole profile dir.
+    let release = format!("{target}/release");
+    let mut found = Vec::new();
+    walk(std::path::Path::new(&release), &mut found);
+    let ir_path = found
         .iter()
-        .filter_map(|d| std::fs::read_dir(format!("{target}/release/{d}")).ok())
-        .flatten()
-        .filter_map(Result::ok)
-        .map(|e| e.path())
         .filter(|p| {
             p.extension().is_some_and(|e| e == "ll")
                 && p.file_name()
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    .starts_with("codegen_matrix-")
+                    .starts_with("codegen_matrix")
         })
         .max_by_key(|p| p.metadata().unwrap().modified().unwrap())
-        .expect("no .ll emitted");
+        .unwrap_or_else(|| {
+            panic!(
+                "no codegen_matrix*.ll under {release}; files there:\n{}",
+                found
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     std::fs::read_to_string(&ir_path).unwrap()
+}
+
+fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name()
+                    .is_some_and(|n| n == "build" || n == "incremental" || n == ".fingerprint")
+                {
+                    continue;
+                }
+                walk(&p, out);
+            } else {
+                out.push(p);
+            }
+        }
+    }
 }
 
 fn compare(
