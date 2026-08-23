@@ -61,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
       - run: cargo test -p reassoc --features f16
       - run: cargo test -p reassoc --features f128
       - run: cargo test -p reassoc --features f16,f128
