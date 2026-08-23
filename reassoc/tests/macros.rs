@@ -178,15 +178,16 @@ fn matches_enters_its_scrutinee_and_leaves_the_pattern_alone() {
 /// exactly this shape). The rewriter re-parenthesises a grouped
 /// low-precedence expression in the positions that bind tighter.
 macro_rules! apply_to {
-    ($call:expr, $x:expr, $range:expr, $neg:expr) => {{
+    ($call:expr, $x:expr, $range:expr, $neg:expr, $cond:expr) => {{
         #[reassoc::algebraic]
-        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, f32) {
-            let called = $call(a * b);
-            let len = $range.len();
-            let start = $range.start;
-            let idx = [1.0f32, 2.0][$range.start];
-            let cast = $neg as f32;
-            (called, len, start, idx, cast)
+        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, f32, bool) {
+            let called = $call(a * b); // callee
+            let len = $range.len(); // method receiver
+            let start = $range.start; // field base
+            let idx = [1.0f32, 2.0][$range.start]; // index
+            let cast = $neg as f32; // cast operand
+            let not = !$cond; // unary operand
+            (called, len, start, idx, cast, not)
         }
         go($x, 2.0)
     }};
@@ -194,10 +195,12 @@ macro_rules! apply_to {
 
 #[test]
 fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
-    let (called, len, start, idx, cast) = apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, -2.0 * 1.5);
+    let (called, len, start, idx, cast, not) =
+        apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, -2.0 * 1.5, 1.0 < 2.0);
     assert_eq!(called, 11.0);
     assert_eq!(len, 2);
     assert_eq!(start, 0);
     assert_eq!(idx, 1.0);
     assert_eq!(cast, -3.0);
+    assert!(!not);
 }
