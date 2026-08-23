@@ -17,6 +17,19 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   their tokens as something else (a `vec!`-named DSL that `stringify!`s its
   input) would see the rewritten tokens; `#[algebraic(macros = false)]` turns
   the entry off.
+- Arithmetic written as method calls — `a.mul(b)`, `x.add_assign(y)`, the
+  `core::ops` methods spelled out — is not rewritten; only the operator tokens
+  `+ - * / %` and their `op=` forms are. A method named `mul` can be anything,
+  and the rule that the rewriter changes only what it can see to be an
+  operator is part of what keeps `strict!` and everything else in a scope
+  safe. The cost is real for code written in that style: adopting the macros
+  across glam, whose operator bodies are `self.x.mul(rhs.x)`, reached almost
+  none of its float arithmetic until those calls were spelled as operators
+  (`scripts/adopt/` has an opt-in pass that does exactly that, for measuring).
+  A `methods` parameter that treats the `core::ops` method names as their
+  operators inside an algebraic scope is a potential to-do, not a decision:
+  covering them may be revisited.
+
 - User-defined types need a one-line opt-in: `passthrough!(Ty)` or
   `#[derive(Passthrough)]`. After it, every operator the type implements is
   dispatched — any right-hand type, any output, the `op=` forms, references
