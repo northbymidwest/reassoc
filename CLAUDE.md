@@ -18,8 +18,9 @@ cargo test -p reassoc --doc            # doctests (must stay at 0 ignored)
 cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 
 cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
-cargo test -p reassoc --test codegen -- --ignored   # assembly guard
+cargo test -p reassoc --test codegen -- --ignored   # assembly guard (dot kernel, vectorizes)
 ./scripts/codegen-check.sh                          # the guard, run directly
+cargo test -p reassoc --test codegen_matrix -- --ignored   # every construct == its hand-written twin, as optimized IR
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
@@ -37,9 +38,14 @@ cargo +nightly test -p reassoc --features f16,f128      # nightly-only: f16/f128
 `--all-features` is never used on stable: `f16` and `f128` turn on unstable
 feature gates and only build on nightly (their own CI job).
 
-`ui`, `codegen` and `renamed` are `#[ignore]`d because they shell out or
-depend on toolchain and host; CI runs them explicitly, `ui` on a pinned 1.98.0.
-Run all three with `--ignored` before calling a change green.
+`ui`, `codegen`, `codegen_matrix` and `renamed` are `#[ignore]`d because they
+shell out or depend on toolchain and host; CI runs them explicitly, `ui` on a
+pinned 1.98.0. Run all four with `--ignored` before calling a change green.
+`codegen_matrix` is the zero-cost proof: `examples/codegen_matrix.rs` holds a
+`sugar_`/`direct_` pair per construct (every operator, place shape, chain
+length, user/foreign/std type, `strict!`, `alg!` form ..) and the test
+requires identical optimized LLVM IR after alpha-renaming, with strict-IEEE
+negative controls. A new emission shape or dispatch path gets a pair there.
 `consumers/edition2021/` is a workspace member that includes every test file
 by `#[path]` and compiles it as edition 2021 (`tests/suite_layout.rs` keeps
 its list complete), so 2024-only syntax goes in `tests/edition2024.rs`,

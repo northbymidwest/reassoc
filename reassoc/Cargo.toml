@@ -34,5 +34,7 @@ reassoc-macros = { version = "=0.7.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"
+# For the codegen matrix's IR normalisation.
+regex-lite = "0.1"
 # Types from another crate, for the `passthrough!(foreign ..)` tests.
 foreign-types = { path = "../consumers/foreign-types" }

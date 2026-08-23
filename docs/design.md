@@ -201,6 +201,19 @@ popular crates behind features would avoid the tag for those types; not done,
 since such types are along for the ride in an algebraic scope rather than its
 point.
 
+**Zero cost is measured per construct, not assumed.** `tests/codegen_matrix.rs`
+compiles `examples/codegen_matrix.rs` at `-O3` to LLVM IR and requires each
+`sugar_`/`direct_` pair — every operator, every place shape, chains of binary
+operators and of `+=` steps, user and foreign and std types, `strict!`,
+closures, both `alg!` forms — to be identical after alpha-renaming of SSA
+values and labels and erasure of panic-location constants (or merged by
+LLVM, the same proof). That the chains match is what answers "do the call
+layers break reassociation": after inlining, a chain of `ops::add` and of
+`ops::unit(match ..)` steps is the same `fadd reassoc` DAG as the hand-written
+one, and the strict-IEEE controls prove the optimizer really did reassociate
+(they differ, and lack the flag). `#[track_caller]` and the wrappers leave
+nothing behind. Mutation-checked: float `*` routed to IEEE fails eight pairs.
+
 **The compound `match` is wrapped in `ops::unit(..)`, an identity on `()`.**
 Bare, the `match` is a block-like statement, and the user's `;` after it is
 what clippy's pedantic `unnecessary_semicolon` reported on every `+=` — the
