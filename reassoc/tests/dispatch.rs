@@ -101,3 +101,121 @@ fn integer_overflow_panics_at_the_users_operator() {
         expected_line.load(std::sync::atomic::Ordering::Relaxed)
     );
 }
+
+// ---- completeness of the macro-generated impl lists ----
+//
+// The float, integer and `NonZero` impls are stamped out by macros over a
+// list of types; a type dropped from a list fails here at compile time.
+// Mutation testing cannot see inside those macros, so these are the guard.
+
+macro_rules! every_int_shape {
+    ($($t:ty),* $(,)?) => {{
+        use reassoc::algebraic;
+        #[algebraic]
+        fn go<T: Copy + PartialEq + core::fmt::Debug>(_: T) {}
+        $({
+            #[algebraic]
+            #[allow(clippy::op_ref)]
+            fn shapes(a: $t, b: $t) -> [$t; 20] {
+                let (ra, rb) = (&a, &b);
+                let mut c = [a; 5];
+                c[0] += b;
+                c[1] -= b;
+                c[2] *= b;
+                c[3] /= b;
+                c[4] %= b;
+                let mut d = [a; 5];
+                d[0] += rb;
+                d[1] -= rb;
+                d[2] *= rb;
+                d[3] /= rb;
+                d[4] %= rb;
+                [
+                    a + b, a - b, a * b, a / b, a % b,
+                    ra + rb, ra - rb, ra * rb, ra / rb, ra % rb,
+                    c[0], c[1], c[2], c[3], c[4],
+                    d[0], d[1], d[2], d[3], d[4],
+                ]
+            }
+            let (a, b): ($t, $t) = (13, 4);
+            let native = [a + b, a - b, a * b, a / b, a % b];
+            let got = shapes(a, b);
+            assert_eq!(&got[0..5], &native, stringify!($t));
+            assert_eq!(&got[5..10], &native, stringify!($t));
+            assert_eq!(&got[10..15], &native, stringify!($t));
+            assert_eq!(&got[15..20], &native, stringify!($t));
+            go(a);
+        })*
+    }};
+}
+
+#[test]
+fn every_integer_type_dispatches_every_operator_in_every_shape() {
+    every_int_shape!(
+        i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
+    );
+}
+
+macro_rules! every_float_shape {
+    ($($t:ty),* $(,)?) => {{
+        $({
+            use reassoc::algebraic;
+            #[algebraic]
+            #[allow(clippy::op_ref)]
+            fn shapes(a: $t, b: $t) -> [$t; 30] {
+                let (ra, rb) = (&a, &b);
+                let mut c = [a; 5];
+                c[0] += b;
+                c[1] -= b;
+                c[2] *= b;
+                c[3] /= b;
+                c[4] %= b;
+                let mut d = [a; 5];
+                d[0] += rb;
+                d[1] -= rb;
+                d[2] *= rb;
+                d[3] /= rb;
+                d[4] %= rb;
+                [
+                    a + b, a - b, a * b, a / b, a % b,
+                    ra + b, ra - b, ra * b, ra / b, ra % b,
+                    a + rb, a - rb, a * rb, a / rb, a % rb,
+                    ra + rb, ra - rb, ra * rb, ra / rb, ra % rb,
+                    c[0], c[1], c[2], c[3], c[4],
+                    d[0], d[1], d[2], d[3], d[4],
+                ]
+            }
+            let (a, b): ($t, $t) = (13.0, 4.0);
+            let native = [a + b, a - b, a * b, a / b, a % b];
+            let got = shapes(a, b);
+            for k in 0..6 {
+                assert_eq!(&got[k * 5..k * 5 + 5], &native, "{} shape {k}", stringify!($t));
+            }
+        })*
+    }};
+}
+
+#[test]
+fn every_float_type_dispatches_every_operator_in_every_reference_shape() {
+    every_float_shape!(f32, f64);
+}
+
+#[test]
+fn every_unsigned_width_divides_by_its_nonzero() {
+    use core::num::NonZero;
+    use reassoc::algebraic;
+    macro_rules! widths {
+        ($($t:ty),* $(,)?) => {$({
+            #[algebraic]
+            fn go(mut x: $t, n: NonZero<$t>) -> [$t; 4] {
+                let q = x / n;
+                let r = x % n;
+                x /= n;
+                x %= n;
+                [q, r, x, 0]
+            }
+            assert_eq!(go(13, NonZero::new(4).unwrap()), [3, 1, 3, 0], stringify!($t));
+        })*};
+    }
+    widths!(u8, u16, u32, u64, u128, usize);
+}

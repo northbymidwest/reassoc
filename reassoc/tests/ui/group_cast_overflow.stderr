@@ -1,0 +1,11 @@
+error: this arithmetic operation will overflow
+  --> tests/ui/group_cast_overflow.rs:11:14
+   |
+11 |         alg!(($e as $t) + (1 as $t))
+   |              ^^^^^^^^^^^^^^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
+...
+16 |     let _ = succ!(255, u8);
+   |             -------------- in this macro invocation
+   |
+   = note: `#[deny(arithmetic_overflow)]` on by default
+   = note: this error originates in the macro `succ` (in Nightly builds, run with -Z macro-backtrace for more info)

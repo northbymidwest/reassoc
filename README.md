@@ -29,6 +29,7 @@ the compiler reassociate and contract float arithmetic, which unlocks
 vectorization and FMA — but writing them by hand is unreadable:
 
 ```rust
+# let (a, b, i, mut sum) = ([1.0f32], [2.0f32], 0, 0.0f32);
 sum = sum.algebraic_add(a[i].algebraic_mul(b[i]));
 ```
 

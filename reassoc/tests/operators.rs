@@ -429,6 +429,26 @@ fn float_cast_operand_is_rewritten(k: u32, d: Dispatched) -> Dispatched {
     (k as f32) * d
 }
 
+/// `2f32` has no decimal point and reaches the rewriter as an *integer*
+/// literal with a float suffix; the literal rule must read the suffix and
+/// treat it as the float it is. `Dispatched` has no `std::ops`, so this
+/// compiles only if `2f32 * d` was dispatched rather than left native as an
+/// "integer literal" operation.
+#[algebraic]
+fn float_suffixed_integer_literal_is_rewritten(d: Dispatched) -> Dispatched {
+    (1f32 + 2f32) * (2f32 * d)
+}
+
+#[test]
+fn a_float_suffixed_integer_literal_is_a_float() {
+    assert_eq!(
+        float_suffixed_integer_literal_is_rewritten(Dispatched(2.0)),
+        Dispatched(12.0)
+    );
+    let d = Dispatched(2.0);
+    assert_eq!(reassoc::alg!(3f32 * d), Dispatched(6.0));
+}
+
 #[test]
 fn a_cast_to_float_is_still_dispatched() {
     assert_eq!(

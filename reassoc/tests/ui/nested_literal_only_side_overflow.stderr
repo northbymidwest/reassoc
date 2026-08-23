@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/nested_literal_only_side_overflow.rs:8:5
+  |
+8 |     A + (5 + 1)
+  |     ^^^^^^^^^^^ attempt to compute `250_u8 + 6_u8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default

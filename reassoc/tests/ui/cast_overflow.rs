@@ -7,6 +7,14 @@ fn overflow() -> u8 {
     (255 as u8) + (1 as u8)
 }
 
+// The type may be parenthesised; it is still a cast to an integer type.
+#[reassoc::algebraic]
+#[allow(unused_parens)]
+fn overflow_paren_type() -> u8 {
+    (255 as (u8)) + (1 as (u8))
+}
+
 fn main() {
     let _ = overflow();
+    let _ = overflow_paren_type();
 }

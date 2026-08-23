@@ -5,3 +5,9 @@ error: this arithmetic operation will overflow
   |     ^^^^^^^^^^^^^^^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow
   |
   = note: `#[deny(arithmetic_overflow)]` on by default
+
+error: this arithmetic operation will overflow
+  --> tests/ui/cast_overflow.rs:14:5
+   |
+14 |     (255 as (u8)) + (1 as (u8))
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ attempt to compute `u8::MAX + 1_u8`, which would overflow

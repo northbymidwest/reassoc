@@ -1,0 +1,18 @@
+error[E0369]: cannot multiply `Dispatched` by `Dispatched`
+  --> tests/ui/nested_fn_own_attribute_wins.rs:21:36
+   |
+21 |         let sq = |v: Dispatched| v * v;
+   |                                  - ^ - Dispatched
+   |                                  |
+   |                                  Dispatched
+   |
+note: an implementation of `Mul` might be missing for `Dispatched`
+  --> tests/ui/nested_fn_own_attribute_wins.rs:10:1
+   |
+10 | struct Dispatched(f32);
+   | ^^^^^^^^^^^^^^^^^ must implement `Mul`
+note: the trait `Mul` must be implemented
+  --> $RUST/core/src/ops/arith.rs
+   |
+   | pub const trait Mul<Rhs = Self> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

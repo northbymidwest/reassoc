@@ -204,3 +204,12 @@ mod impls;
 mod macros;
 
 pub use reassoc_macros::{Passthrough, alg, algebraic};
+
+// The README's code blocks, compiled as doctests so that they cannot drift
+// from the crate (the README is not the crate docs, so nothing else would
+// compile them). `cfg(doctest)` only — never an item of the library, and the
+// path is resolved only under `cargo test --doc`, where the workspace layout
+// (README one level above the package) is the one that exists.
+#[cfg(doctest)]
+#[doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"))]
+struct ReadmeDoctests;

@@ -2,6 +2,28 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Tests
+
+- Mutation-tested the rewriter (`scripts/mutants.sh`, cargo-mutants over
+  `reassoc-macros` against the `reassoc` suite) and closed what survived:
+  const-position guards are pinned with named-constant operands (the literal
+  forms passed with the guards deleted); a nested `fn`, `mod` member or trait
+  default method carrying its own `#[algebraic(..)]` is governed by it alone
+  (`nested_fn_own_attribute_wins`, `mod_member_..`, `trait_member_..`) and
+  still rewritten by it; `skip` on a trait default method
+  (`trait_member_skip_has_teeth`) and on the remaining member kinds inside a
+  module that does not import the attribute; an associated `const` default in
+  an annotated trait stays const; `2f32 * d` is a float; `[d * d; 3]`'s
+  element is rewritten; `A + -1` and `A + (5 + 1)` stay visible to
+  `arithmetic_overflow`; `((x)) += k`; a parenthesised cast type; `#[algebraic]`
+  on a trait does not reach its impls (`trait_attribute_does_not_reach_impls`).
+- Completeness pins for the macro-generated impl lists (mutation testing
+  cannot see inside them): every integer type, every float reference shape
+  and every `NonZero` width through every operator and `op=` form.
+- The README's code blocks are doctests (`ReadmeDoctests` in `lib.rs`).
+
 ## 0.8.0 — 2026-08-22
 
 ### Removed

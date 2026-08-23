@@ -1,0 +1,7 @@
+error: this arithmetic operation will overflow
+ --> tests/ui/negated_literal_overflow.rs:8:5
+  |
+8 |     A + -1
+  |     ^^^^^^ attempt to compute `i8::MIN + -1_i8`, which would overflow
+  |
+  = note: `#[deny(arithmetic_overflow)]` on by default

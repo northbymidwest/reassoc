@@ -873,3 +873,19 @@ fn native_and_rewritten_compounds_side_by_side() {
     }
     assert_eq!(go(0, 0.5), (7, 1.5));
 }
+
+/// A place wrapped in more than one paren layer: the emitter strips exactly
+/// one, so the place check must see through the rest rather than report an
+/// invalid left-hand side (`tests/ui/invalid_place.rs` is the real E0067).
+#[test]
+#[allow(unused_parens)]
+#[rustfmt::skip] // rustfmt would fold the very parens under test
+fn a_doubly_parenthesised_place_is_still_a_place() {
+    use reassoc::alg;
+    let mut x = 1.0f64;
+    let mut v = [1.0f64; 2];
+    alg!(((x)) += 2.0);
+    alg!(((v[1])) *= 3.0);
+    alg! { (((x))) -= 0.5; }
+    assert_eq!((x, v), (2.5, [1.0, 3.0]));
+}

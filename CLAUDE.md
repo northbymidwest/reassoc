@@ -23,6 +23,7 @@ cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consume
 cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
+scripts/mutants.sh [--re REGEX]                     # cargo-mutants over the rewriter; a survivor is a line no test observes
 
 cargo test -p reassoc --no-default-features                    # core only
 cargo test -p reassoc --no-default-features --features alloc
@@ -157,6 +158,17 @@ directions across every construct the rewriter emits. The fuzz corpus carries
 a `D`-typed twin of every tree for the same reason as `Dispatched`: the f64
 forms pass with an operator left unrewritten; the twin fails to compile.
 Regenerate with `scripts/gen-fuzz-corpus.py` and run `rustfmt` on the output.
+
+A const-position guard (array-repeat length, array-type length, const generic
+argument, discriminant, associated const) must be pinned with *named
+constants* as operands — `[0.0; A * B]`, never `[0.0; 4 * 2]`: the literal
+rule leaves literal arithmetic native whether or not the guard exists, so the
+literal form passes with the guard deleted (four did, until
+`scripts/mutants.sh` said so). The same script is the check for any new
+rewriter branch: run it with `--re <fn name>` and make sure every non-equivalent
+mutant of the branch is caught. The README's code blocks are doctests too
+(`ReadmeDoctests` in `lib.rs`), so an example there that stops compiling fails
+`cargo test --doc`; the hidden `# ` lines in it are what keep that at 0 ignored.
 
 ## Releasing
 

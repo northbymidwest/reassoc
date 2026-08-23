@@ -155,12 +155,21 @@ fn compound_assignment_rhs_may_be_exactly_the_place() {
 // position fails with E0015 blamed on the attribute. These are const
 // contexts the rewriter must leave alone.
 
+// The operands in these const positions are named constants, never literals:
+// `4 * 2` is left native by the literal rule whether or not the const-position
+// guard exists, so a literal form would pin nothing (every one of these once
+// did exactly that, and survived the guard being deleted). `A * B` is
+// rewritten anywhere the guard does not reach, and a rewritten operator in a
+// const position is E0015.
+const A: usize = 4;
+const B: usize = 2;
+
 // The array-repeat *length* is a const context reachable from an ordinary
 // function body with no nested item at all. Only `buf[n % buf.len()]`'s
 // index expression is a normal runtime position.
 #[algebraic]
 fn array_repeat_length_is_not_rewritten(n: usize) -> f32 {
-    let buf = [0.0f32; 4 * 2];
+    let buf = [0.0f32; A * B];
     buf[n % buf.len()]
 }
 
@@ -211,7 +220,7 @@ fn inline_const_block_stays_const() {
 // only because `Expr::Repeat`'s length exclusion already covers it.
 #[algebraic]
 fn type_array_length_is_not_rewritten(n: usize) -> f32 {
-    let buf: [f32; 2 * 4] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let buf: [f32; A * B] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     buf[n % buf.len()]
 }
 
@@ -220,7 +229,7 @@ fn type_array_length_stays_const() {
     assert_eq!(type_array_length_is_not_rewritten(3), 0.0);
 }
 
-// A const-generic argument (`dim::<{ 1 + 2 }>()`) is evaluated at const
+// A const-generic argument (`dim::<{ A + B }>()`) is evaluated at const
 // time, reached through `GenericArgument::Const` rather than an ordinary
 // expression or item position.
 fn dim<const N: usize>() -> usize {
@@ -229,21 +238,23 @@ fn dim<const N: usize>() -> usize {
 
 #[algebraic]
 fn const_generic_argument_is_not_rewritten() -> usize {
-    dim::<{ 1 + 2 }>()
+    dim::<{ A + B }>()
 }
 
 #[test]
 fn const_generic_argument_stays_const() {
-    assert_eq!(const_generic_argument_is_not_rewritten(), 3);
+    assert_eq!(const_generic_argument_is_not_rewritten(), 6);
 }
 
-// A `Variant`'s explicit discriminant (`A = 1 + 1`) is a const context,
+// A `Variant`'s explicit discriminant (`A = X + Y`) is a const context,
 // reached through a nested item the same way as a nested `const`/`static`
 // item above.
 #[algebraic]
 fn enum_discriminant_is_not_rewritten() -> i32 {
+    const X: isize = 1;
+    const Y: isize = 1;
     enum E {
-        A = 1 + 1,
+        A = X + Y,
     }
     E::A as i32
 }
@@ -315,6 +326,98 @@ fn dispatch_only_nested_item(w: Dispatched) -> Dispatched {
 #[test]
 fn nested_fn_in_body_is_entered_dispatch_only() {
     assert_eq!(dispatch_only_nested_item(Dispatched(3.0)), Dispatched(9.0));
+}
+
+// The *element* of an array-repeat expression is an ordinary runtime
+// position, entered even though the length beside it is not: `Dispatched`
+// has no `std::ops::Mul`, so this compiles only if `d * d` was rewritten.
+#[algebraic]
+fn dispatch_only_array_repeat_element(d: Dispatched) -> [Dispatched; 3] {
+    [d * d; 3]
+}
+
+#[test]
+fn array_repeat_element_is_rewritten() {
+    assert_eq!(
+        dispatch_only_array_repeat_element(Dispatched(3.0)),
+        [Dispatched(9.0); 3]
+    );
+}
+
+// A nested item carrying its own `#[algebraic(..)]` is governed by that
+// attribute alone, inside a function body exactly as inside a container (the
+// must-fail direction — the outer scope must not reach in first, or an inner
+// `closures = false` would be silently overridden — is
+// `tests/ui/nested_fn_own_attribute_wins.rs` and its `mod`/`trait` twins).
+// The pass direction: the inner attribute is left in place and does its own
+// rewriting, so the nested body compiles on `Dispatched`.
+#[algebraic]
+fn dispatch_only_nested_item_with_own_attribute(w: Dispatched) -> Dispatched {
+    #[algebraic(macros = false)]
+    fn helper(v: Dispatched) -> Dispatched {
+        v * v
+    }
+    helper(w)
+}
+
+#[test]
+fn nested_fn_with_its_own_attribute_is_rewritten_by_that_attribute() {
+    assert_eq!(
+        dispatch_only_nested_item_with_own_attribute(Dispatched(3.0)),
+        Dispatched(9.0)
+    );
+}
+
+// The same, for a member of an annotated inline `mod` and a default method
+// of an annotated trait.
+#[algebraic]
+mod own_attribute_members {
+    use super::Dispatched;
+
+    #[reassoc::algebraic(macros = false)]
+    pub fn square(v: Dispatched) -> Dispatched {
+        v * v
+    }
+
+    #[reassoc::algebraic]
+    pub trait Sq {
+        fn sq(&self, v: Dispatched) -> Dispatched {
+            v * v
+        }
+        // A default method with its own attribute inside an annotated trait.
+        #[reassoc::algebraic(macros = false)]
+        fn sq_again(&self, v: Dispatched) -> Dispatched {
+            v * v
+        }
+    }
+    pub struct Unit;
+    impl Sq for Unit {}
+}
+
+#[test]
+fn mod_and_trait_members_with_their_own_attribute_are_rewritten() {
+    use own_attribute_members::{Sq, Unit, square};
+    assert_eq!(square(Dispatched(3.0)), Dispatched(9.0));
+    assert_eq!(Unit.sq(Dispatched(3.0)), Dispatched(9.0));
+    assert_eq!(Unit.sq_again(Dispatched(3.0)), Dispatched(9.0));
+}
+
+// An associated `const` with a default value in an annotated trait is a const
+// position like any other: `2.0 * 3.0` would be rewritten anywhere else, and
+// rewritten here it is E0015. The default body beside it is still entered.
+#[algebraic]
+trait HasScale {
+    const SCALE: f32 = 2.0 * 3.0;
+    fn scaled(&self, d: Dispatched) -> Dispatched {
+        d * Dispatched(Self::SCALE)
+    }
+}
+impl HasScale for Dispatched {}
+
+#[test]
+fn trait_associated_const_default_stays_const() {
+    assert_eq!(<Dispatched as HasScale>::SCALE.to_bits(), 6.0f32.to_bits());
+    assert_eq!(Dispatched(2.0).scaled(Dispatched(1.0)), Dispatched(6.0));
 }
 
 // An inline `const { .. }` block nested inside an expression that *is*
@@ -920,6 +1023,137 @@ mod skip_on_every_member_kind {
         #[algebraic(skip)]
         pub const TWO: f32 = 1.0 + 1.0;
     }
+}
+
+/// The member kinds the module above does not reach, with the same rule: no
+/// `use reassoc::algebraic` inside, so any `#[algebraic(skip)]` the rewriter
+/// leaves in place reaches rustc as an unresolved attribute. `skip` on a
+/// `union`, an `extern` block, an `extern crate`; on a trait impl's `type`
+/// and a macro invocation in impl position; on a trait's `const`, `type`,
+/// `fn` and macro members — each inside a skipped container *and* inside an
+/// entered one, since different code strips the two.
+#[algebraic]
+mod skip_on_the_remaining_member_kinds {
+    #[algebraic(skip)]
+    pub union U {
+        pub bits: u32,
+        pub f: f32,
+    }
+    #[algebraic(skip)]
+    unsafe extern "C" {
+        pub safe fn abs(x: i32) -> i32;
+    }
+    #[algebraic(skip)]
+    extern crate core as skipped_core;
+
+    pub struct Holder;
+    pub trait Conv {
+        type Out;
+        const K: f32;
+        fn conv(&self, a: f32) -> Self::Out;
+    }
+    macro_rules! two {
+        () => {
+            fn two() -> f32 {
+                1.0 + 1.0
+            }
+        };
+    }
+
+    // Entered impls and traits: the rewriter claims each member.
+    impl Conv for Holder {
+        #[algebraic(skip)]
+        type Out = f32;
+        #[algebraic(skip)]
+        const K: f32 = 1.0 + 2.0;
+        #[algebraic(skip)]
+        fn conv(&self, a: f32) -> f32 {
+            a * 2.0
+        }
+    }
+    impl Holder {
+        #[algebraic(skip)]
+        two!();
+    }
+    pub trait Entered {
+        #[algebraic(skip)]
+        const K: f32 = 1.0 + 2.0;
+        #[algebraic(skip)]
+        type A;
+        #[algebraic(skip)]
+        fn f(&self) -> f32 {
+            2.0 * 2.0
+        }
+        #[algebraic(skip)]
+        two!();
+    }
+
+    // Skipped impls and traits: the members' attributes are stripped by the
+    // walk over what the rewriter does not enter.
+    pub struct Skipped;
+    #[algebraic(skip)]
+    impl Conv for Skipped {
+        #[algebraic(skip)]
+        type Out = f32;
+        #[algebraic(skip)]
+        const K: f32 = 1.0 + 2.0;
+        #[algebraic(skip)]
+        fn conv(&self, a: f32) -> f32 {
+            a * 2.0
+        }
+    }
+    #[algebraic(skip)]
+    impl Skipped {
+        #[algebraic(skip)]
+        two!();
+    }
+    #[algebraic(skip)]
+    pub trait SkippedTrait {
+        #[algebraic(skip)]
+        const K: f32 = 1.0 + 2.0;
+        #[algebraic(skip)]
+        type A;
+        #[algebraic(skip)]
+        fn f(&self) -> f32 {
+            2.0 * 2.0
+        }
+        #[algebraic(skip)]
+        two!();
+    }
+    impl Entered for Holder {
+        type A = ();
+    }
+    impl SkippedTrait for Skipped {
+        type A = ();
+    }
+
+    pub fn user() -> f32 {
+        let u = U { bits: 0 };
+        // SAFETY: both fields are plain 32-bit numbers; reading either is fine.
+        let z = unsafe { u.f };
+        z + abs(-1) as f32
+            + <Holder as Conv>::K
+            + Holder.conv(1.0)
+            + Holder::two()
+            + <Holder as Entered>::K
+            + Holder.f()
+            + <Skipped as Conv>::K
+            + Skipped.conv(1.0)
+            + Skipped::two()
+            + <Skipped as SkippedTrait>::K
+            + Skipped.f()
+            + <Holder as Entered>::two()
+            + <Skipped as SkippedTrait>::two()
+            + skipped_core::f32::consts::PI.floor()
+    }
+}
+
+#[test]
+fn skip_is_stripped_from_the_remaining_member_kinds() {
+    assert_eq!(
+        skip_on_the_remaining_member_kinds::user(),
+        0.0 + 1.0 + 3.0 + 2.0 + 2.0 + 3.0 + 4.0 + 3.0 + 2.0 + 2.0 + 3.0 + 4.0 + 2.0 + 2.0 + 3.0
+    );
 }
 
 #[test]
