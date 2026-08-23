@@ -108,7 +108,11 @@ reverts to a worse result if undone.
 - Compound assignment: RHS first, bound by `match` on a one-tuple (a struct
   literal is not a legal scrutinee); every place, bare paths included, goes
   through `ops::*_assign(&mut place, rhs)` with `static_mut_refs` allowed on
-  that statement. The binding is call-site with a suffix — mixed-site hygiene
+  that statement, and the whole `match` inside `ops::unit(..)` so the
+  statement is a call, not block-like (bare, the user's `;` trips pedantic
+  `unnecessary_semicolon`; dropping the `;` trips
+  `semicolon_if_nothing_returned` on a block's last statement). The user's
+  tokens are never touched. `consumers/lints/` pins both directions. The binding is call-site with a suffix — mixed-site hygiene
   moves the error caret to the attribute. `String`'s in-place impls are
   concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected.

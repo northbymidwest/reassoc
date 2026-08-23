@@ -103,11 +103,13 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   `identity_op`, `erasing_op`, `op_ref` and the like — do not fire inside an
   algebraic scope, because by the time clippy runs the operator is a call.
   `unused_parens` is the exception the rewriter takes care to keep. In the
-  other direction, `clippy::pedantic`'s `unnecessary_semicolon` fires on every
-  rewritten `x += y;`: the generated `match` sits at the operator's span (so
-  errors point there), and the statement's own `;` then follows a block-like
-  expression. Default clippy is clean; allow that one lint in pedantic
-  builds.
+  other direction, the rewriter keeps its own output out of clippy's way: a
+  rewritten `x += y;` is a call (`ops::unit(match ..)`), not a bare `match`,
+  so it is clean under clippy's pedantic `unnecessary_semicolon` and
+  `semicolon_if_nothing_returned` in every position, and the user's tokens —
+  their `;`, a `;;`, a `;` after an `if`, redundant parens, a `+=` tail
+  without `;` — are untouched and keep every warning they deserve
+  (`consumers/lints/` pins both directions under `cargo clippy`).
 - A generic function needs a bound the plain operators do not: `fn g<T:
   Mul<Output = T>>(a: T, b: T) -> T { a * b }` fails with `E0277` inside
   `#[algebraic]`, and `fn g<T: reassoc::Passthrough + Mul<Output = T>>`

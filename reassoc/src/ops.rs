@@ -52,6 +52,14 @@ pub fn rem<A, B: RemRhs<A, O, T>, O, T>(a: A, b: B) -> O {
 // path as much as a field, an index or a deref — so a non-`Copy` local
 // captured by a closure stays borrowed, not moved (`docs/design.md`).
 
+/// The identity on `()`. A rewritten `place op= rhs` is a `match` (RHS first,
+/// then the place), wrapped in this so that the statement is a call rather
+/// than a block-like expression — which is what keeps the user's `;` after
+/// it, and its absence in tail position, out of clippy's pedantic
+/// `unnecessary_semicolon` / `semicolon_if_nothing_returned`.
+#[inline(always)]
+pub const fn unit(_: ()) {}
+
 #[inline(always)]
 #[track_caller]
 pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {

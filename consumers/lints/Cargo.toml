@@ -1,0 +1,13 @@
+# Algebraic code compiled with the lints the rewriter's output must not
+# trip set to `deny`, and `#[expect]` on the warnings it must not swallow.
+# A workspace member, so `cargo clippy --workspace --all-targets -- -D
+# warnings` (CI's lint job) checks it: the pedantic `unnecessary_semicolon`
+# on every rewritten `+=` used to be the one lint algebraic code tripped.
+[package]
+name = "lints"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+reassoc = { path = "../../reassoc" }

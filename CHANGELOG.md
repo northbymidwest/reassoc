@@ -4,6 +4,20 @@ Notable changes per release. Dates are the publish date.
 
 ## Unreleased
 
+### Changed
+
+- A rewritten compound assignment is a call, `ops::unit(match ..)`, rather
+  than a bare `match`: the trailing `;` after a block-like statement was the
+  one thing algebraic code tripped under `clippy::pedantic`
+  (`unnecessary_semicolon`), and dropping that `;` instead would trip
+  `semicolon_if_nothing_returned` wherever the `+=` ends a block. The wrapper
+  is clean under both, in every position, including `alg!(x += y);`; the
+  user's tokens are untouched, so their `;;`, `if .. { } ;`, redundant parens
+  and `+=`-tail-without-`;` keep their warnings. Codegen is unchanged (the
+  identity is `#[inline(always)]`; the guard still passes).
+  `consumers/lints/` is a workspace member CI's clippy lane compiles with
+  those lints denied and `#[expect]` on the user's.
+
 ### Added
 
 - `f16` and `f128` features (nightly only): each type dispatches to its

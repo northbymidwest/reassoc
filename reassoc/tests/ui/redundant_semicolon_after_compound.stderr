@@ -1,0 +1,11 @@
+error: unnecessary trailing semicolon
+ --> tests/ui/redundant_semicolon_after_compound.rs:9:12
+  |
+9 |     x += y;;
+  |            ^ help: remove this semicolon
+  |
+note: the lint level is defined here
+ --> tests/ui/redundant_semicolon_after_compound.rs:4:9
+  |
+4 | #![deny(redundant_semicolons)]
+  |         ^^^^^^^^^^^^^^^^^^^^

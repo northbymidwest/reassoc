@@ -4,7 +4,7 @@
 # renamed` is not: it turns on `resolve-crate-name`, and feature unification
 # would then turn it on for every workspace build, so the default path would
 # stop being what the main suite tests. It is built by `reassoc/tests/renamed.rs`.
-members = ["reassoc", "reassoc-macros", "consumers/edition2021", "consumers/foreign-types"]
+members = ["reassoc", "reassoc-macros", "consumers/edition2021", "consumers/foreign-types", "consumers/lints"]
 exclude = ["consumers/renamed"]
 resolver = "3"
 

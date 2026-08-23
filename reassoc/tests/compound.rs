@@ -725,3 +725,151 @@ fn nested_index_and_tuple_field_places() {
     assert_eq!(m, [[1.0, 10.0], [5.0, 4.0]]);
     assert_eq!(t, (3.0, (4.0, -1.0)));
 }
+
+/// A rewritten compound statement is a call (`ops::unit(match ..)`), not a
+/// bare `match`, so the user's `;` stays exactly where it was. Every
+/// following-token class a statement can start with, tail position, and every
+/// enclosing shape, with the values checked against plain `f64` — so neither
+/// order nor what executes can drift.
+#[test]
+fn compound_statements_keep_their_meaning_in_every_position() {
+    use reassoc::{alg, algebraic};
+    #[allow(unused_must_use, clippy::no_effect, clippy::unnecessary_operation)]
+    #[algebraic]
+    fn go(
+        mut x: f64,
+        p: &mut f64,
+        v: &mut [f64; 2],
+        mut d: Dispatched,
+    ) -> (f64, f64, [f64; 2], Dispatched, f64) {
+        let k = 2.0;
+        x += k; // followed by a deref-assignment statement
+        *p = x;
+        x += k; // a unary-minus expression statement
+        -x;
+        x += k; // destructuring assignment, tuple
+        (x, *p) = (*p, x);
+        x += k; // destructuring assignment, slice
+        [v[0], v[1]] = [x, *p];
+        x += k; // a reference expression statement
+        &x;
+        x += k; // a `!` expression statement
+        !true;
+        x += k; // a plain assignment
+        x = x * 1.0;
+        x += k; // a `let`
+        let y = x;
+        x += k; // a block
+        {
+            let _ = y;
+        }
+        x += k; // a literal
+        1.0;
+        x += k; // a macro statement (entered)
+        assert!(x > 0.0);
+        x += k; // an `if`
+        if x > 0.0 {
+            x -= 1.0
+        } else {
+            x += 1.0
+        }
+        x += k; // a `match` with arm-body compounds (not statements)
+        match y as i64 % 2 {
+            0 => x += 0.5,
+            _ => x -= 0.5,
+        }
+        x += k; // a loop whose last statement is a compound
+        for _ in 0..2 {
+            x *= 1.5;
+        }
+        x += k; // a block ending in a compound
+        {
+            x /= 2.0;
+        }
+        x += k; // a closure whose body is a compound statement
+        let mut bump = |z: f64| {
+            x += z;
+        };
+        bump(k);
+        x += k; // another compound, consecutive
+        x *= 1.0;
+        x -= k; // `alg!` block form inside an algebraic scope
+        alg! { x += k; x += k; }
+        d += Dispatched(1.0); // the dispatch-only type, through an index too
+        let mut arr = [d];
+        arr[0] += Dispatched(1.0);
+        let tail = {
+            let mut t = x;
+            t += k; // last statement of a block expression
+            t
+        };
+        x += k; // tail position of the function body after this: fine as `()`
+        (x, *p, *v, arr[0], tail)
+    }
+    let mut p = 0.0;
+    let mut v = [0.0; 2];
+    let (x, pp, vv, d, tail) = go(1.0, &mut p, &mut v, Dispatched(1.0));
+    // Recomputed by hand with plain `f64`: the values are exact, so any change
+    // in order or in what executes shows up.
+    let mut ex = 1.0f64;
+    let mut ep: f64;
+    let k = 2.0;
+    ex += k;
+    ep = ex;
+    ex += k;
+    ex += k;
+    (ex, ep) = (ep, ex);
+    ex += k;
+    let ev = [ex, ep];
+    ex += k;
+    ex += k;
+    ex += k;
+    ex += k;
+    let ey = ex;
+    ex += k;
+    ex += k;
+    ex += k;
+    ex += k;
+    if ex > 0.0 {
+        ex -= 1.0
+    } else {
+        ex += 1.0
+    }
+    ex += k;
+    match ey as i64 % 2 {
+        0 => ex += 0.5,
+        _ => ex -= 0.5,
+    }
+    ex += k;
+    for _ in 0..2 {
+        ex *= 1.5;
+    }
+    ex += k;
+    ex /= 2.0;
+    ex += k;
+    ex += k;
+    ex += k;
+    ex *= 1.0;
+    ex -= k;
+    ex += k;
+    ex += k;
+    let et = ex + k;
+    ex += k;
+    assert_eq!((x, pp, vv, d, tail), (ex, ep, ev, Dispatched(3.0), et));
+}
+
+/// A compound left native by the literal rule is untouched, tokens and all,
+/// beside a rewritten one; a user's `;;` after a rewritten compound is still
+/// a redundant semicolon for rustc (`tests/ui/redundant_semicolon_after_compound.rs`).
+#[test]
+fn native_and_rewritten_compounds_side_by_side() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(mut i: usize, mut x: f64) -> (usize, f64) {
+        i += 1; // native: `{integer}` literal on the right
+        i += 2 * 3;
+        x += 1.0; // rewritten: no `;` emitted, same value
+        (i, x)
+    }
+    assert_eq!(go(0, 0.5), (7, 1.5));
+}

@@ -201,6 +201,23 @@ popular crates behind features would avoid the tag for those types; not done,
 since such types are along for the ride in an algebraic scope rather than its
 point.
 
+**The compound `match` is wrapped in `ops::unit(..)`, an identity on `()`.**
+Bare, the `match` is a block-like statement, and the user's `;` after it is
+what clippy's pedantic `unnecessary_semicolon` reported on every `+=` — the
+generated tokens sit at the operator's span (so errors point there), which
+is also why clippy does not treat them as expansion output. Dropping the `;`
+was built and measured first: it parses cleanly whatever the next statement
+starts with, but a rewritten `+=` that ends a block then trips
+`semicolon_if_nothing_returned` (clippy reads the snippet at the span, `+=`,
+and sees no block), so one pedantic lint or the other fired on every loop
+body — and it silently turned a user's `;;` into a single valid `;`. The
+wrapper makes the statement a call: clean under both lints in every
+position, `alg!(x += y);` included, with the user's tokens untouched. Zero
+cost (`#[inline(always)] const fn unit(_: ())`; the codegen guard is
+unchanged). The flipped call `add_assign(rhs, &mut place)` would also have
+been clean and was rejected because it turns the `+=` error into a bare
+`E0308`. `consumers/lints/` pins both directions under clippy.
+
 **The RHS binding resolves at the call site** and carries a nonsense suffix.
 `Span::mixed_site()` would make it properly hygienic, and was tried: rustc
 re-anchors a span that comes from an external macro's context at the

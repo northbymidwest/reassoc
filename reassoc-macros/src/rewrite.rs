@@ -315,6 +315,15 @@ impl VisitMut for Rewriter {
         // and a temporary behind a deref lives through the call. Native `+=`
         // on a primitive `static mut` takes no reference, and edition 2024
         // denies `&mut` on one; the allow keeps that case compiling.
+        //
+        // The whole `match` is then passed to `ops::unit`, an identity on
+        // `()`, so that the statement is a *call*, not a block-like
+        // expression. Left bare, the user's `;` after it trips clippy's
+        // pedantic `unnecessary_semicolon`, and dropping that `;` instead
+        // trips `semicolon_if_nothing_returned` whenever the statement is the
+        // last of a block (the tokens sit at the operator's span, so clippy
+        // reads the snippet `+=` and does not see a block); the wrapper is
+        // clean under both and leaves every token of the user's alone.
         let rhs = syn::Ident::new("__reassoc_rhs_9f2c1a", span);
         let assign = build::call(
             span,
@@ -322,12 +331,13 @@ impl VisitMut for Rewriter {
             [build::ref_mut(span, left), build::ident(rhs.clone())],
             vec![build::allow(span, "static_mut_refs")],
         );
-        *expr = build::match1(
+        let matched = build::match1(
             span,
             build::tuple1(span, right),
             build::pat_tuple1(span, build::bind(rhs)),
             build::block1(span, assign),
         );
+        *expr = build::call(span, self.ops_fn(span, "unit"), [matched], Vec::new());
     }
 }
 
