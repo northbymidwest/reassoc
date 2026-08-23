@@ -57,13 +57,18 @@ output through the blanket would see `{integer}` fall back to `i32` first and
 fail with `E0271` — the hazard that once argued against associated-type
 outputs, in a new place.
 
-**A float on the left of an opted-in type is a separate blanket, per
-concrete float, under the default tag.** `2.0 * v` is `MulRhs<f32, ..> for
-V`, and `f32: Passthrough<()>` being knowably false is what keeps it apart
-from the general blanket; under a foreign tag that is not knowable, so `2.0 *
-glam_vec` is the one pair a foreign opt-in names: `passthrough!(foreign mul:
-f32, Vec3 => Vec3)`. The explicit-pair form survives for that alone; on an
-opted-in left type it now overlaps the blanket and is `E0119`.
+**A float or integer on the left of an opted-in type is a separate blanket,
+per concrete primitive, under the default tag.** `2.0 * v` is `MulRhs<f32, ..>
+for V` and `n * v` is `MulRhs<u32, ..> for V`, and `f32: Passthrough<()>`
+being knowably false is what keeps each apart from the general blanket; under
+a foreign tag that is not knowable, so `2.0 * glam_vec` is the one pair a
+foreign opt-in names: `passthrough!(foreign mul: f32, Vec3 => Vec3)`. The
+explicit-pair form survives for that alone; on an opted-in left type it now
+overlaps the blanket and is `E0119`. The integer half arrived with the
+wholesale adoption of glam (`scripts/adopt/`): `i8 / I8Vec2` in an algebraic
+scope had no impl, the only compile error left once glam's `.mul()`-style
+bodies were turned into operators. `u32 * Duration`, once a named pair, goes
+through it.
 
 **Outputs are type parameters, never associated types.** With `type Out`,
 rustc cannot invert the projection, so `let s = 0.0;` in a function returning

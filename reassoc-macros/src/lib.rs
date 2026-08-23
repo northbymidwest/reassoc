@@ -3,6 +3,7 @@ mod krate;
 mod passthrough;
 mod rewrite;
 mod scope;
+mod trace;
 
 use proc_macro::TokenStream;
 use quote::ToTokens;
@@ -15,7 +16,9 @@ pub fn alg(input: TokenStream) -> TokenStream {
     // An expression first, so the single-expression form behaves exactly as it
     // always has and never picks up braces it did not ask for.
     if let Ok(mut expr) = syn::parse::<syn::Expr>(input.clone()) {
-        rewrite::Rewriter::expression_scope().visit_expr_mut(&mut expr);
+        let mut rewriter = rewrite::Rewriter::expression_scope();
+        rewriter.visit_expr_mut(&mut expr);
+        trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
         return expr.to_token_stream().into();
     }
 
@@ -29,7 +32,9 @@ pub fn alg(input: TokenStream) -> TokenStream {
                 brace_token: syn::token::Brace::default(),
                 stmts,
             };
-            rewrite::Rewriter::expression_scope().visit_block_mut(&mut block);
+            let mut rewriter = rewrite::Rewriter::expression_scope();
+            rewriter.visit_block_mut(&mut block);
+            trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
             block.to_token_stream().into()
         }
         Err(err) => err.to_compile_error().into(),

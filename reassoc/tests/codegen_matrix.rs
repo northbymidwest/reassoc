@@ -50,7 +50,7 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
             .map(String::as_str)
             .collect();
         assert!(
-            sugar.len() >= 36,
+            sugar.len() >= 37,
             "-C opt-level={level}: fixture lost functions: found {} sugar_* ({sugar:?})",
             sugar.len()
         );

@@ -16,6 +16,7 @@ fn every_test_file_is_included_in_the_edition_2021_twin() {
         ("ui.rs", "trybuild, pinned toolchain"),
         ("codegen_matrix.rs", "shells out to the IR comparison"),
         ("renamed.rs", "shells out to the renamed consumer"),
+        ("trace.rs", "shells out to a build with REASSOC_TRACE set"),
         (
             "fuzz_corpus.rs",
             "the f64 corpus: compile time; the f32 twin covers the same shapes",

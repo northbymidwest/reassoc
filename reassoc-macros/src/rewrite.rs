@@ -23,6 +23,8 @@ pub struct Rewriter {
     /// expansion: with `resolve-crate-name` the lookup reads the manifest,
     /// and it used to run once per operator.
     krate: String,
+    /// Operators rewritten so far (binary and compound), for `REASSOC_TRACE`.
+    pub ops: usize,
 }
 
 impl Rewriter {
@@ -34,6 +36,7 @@ impl Rewriter {
             macros: true,
             errors: Vec::new(),
             krate: crate::krate::name(),
+            ops: 0,
         }
     }
 
@@ -43,6 +46,7 @@ impl Rewriter {
             macros: scope.macros,
             errors: Vec::new(),
             krate: crate::krate::name(),
+            ops: 0,
         }
     }
 
@@ -66,12 +70,19 @@ impl Rewriter {
     /// rewriting a clone of the body under the same scope and comparing, so
     /// the literal rule, `strict!` and const positions all count exactly as
     /// they do elsewhere.
-    fn const_fn(&mut self, const_token: syn::token::Const, body: &mut syn::Block) {
+    fn const_fn(
+        &mut self,
+        const_token: syn::token::Const,
+        name: &syn::Ident,
+        body: &mut syn::Block,
+    ) {
+        crate::trace::record("const fn", name.span(), &name.to_string(), 0);
         let mut probe = Rewriter {
             closures: self.closures,
             macros: self.macros,
             errors: Vec::new(),
             krate: self.krate.clone(),
+            ops: 0,
         };
         let mut clone = body.clone();
         probe.visit_block_mut(&mut clone);
@@ -95,6 +106,43 @@ impl Rewriter {
 }
 
 impl VisitMut for Rewriter {
+    // Every function body entered is one `REASSOC_TRACE` line, with the
+    // number of operators rewritten inside it (nested items included).
+    fn visit_item_fn_mut(&mut self, f: &mut syn::ItemFn) {
+        let before = self.ops;
+        visit_mut::visit_item_fn_mut(self, f);
+        crate::trace::record(
+            "fn",
+            f.sig.ident.span(),
+            &f.sig.ident.to_string(),
+            self.ops - before,
+        );
+    }
+
+    fn visit_impl_item_fn_mut(&mut self, f: &mut syn::ImplItemFn) {
+        let before = self.ops;
+        visit_mut::visit_impl_item_fn_mut(self, f);
+        crate::trace::record(
+            "fn",
+            f.sig.ident.span(),
+            &f.sig.ident.to_string(),
+            self.ops - before,
+        );
+    }
+
+    fn visit_trait_item_fn_mut(&mut self, f: &mut syn::TraitItemFn) {
+        let before = self.ops;
+        visit_mut::visit_trait_item_fn_mut(self, f);
+        if f.default.is_some() {
+            crate::trace::record(
+                "fn",
+                f.sig.ident.span(),
+                &f.sig.ident.to_string(),
+                self.ops - before,
+            );
+        }
+    }
+
     fn visit_expr_closure_mut(&mut self, closure: &mut syn::ExprClosure) {
         if self.closures {
             visit_mut::visit_expr_closure_mut(self, closure);
@@ -142,7 +190,7 @@ impl VisitMut for Rewriter {
         match item {
             syn::Item::Const(_) | syn::Item::Static(_) => {}
             syn::Item::Fn(f) if f.sig.constness.is_some() => {
-                self.const_fn(f.sig.constness.unwrap(), &mut f.block);
+                self.const_fn(f.sig.constness.unwrap(), &f.sig.ident, &mut f.block);
             }
             _ => visit_mut::visit_item_mut(self, item),
         }
@@ -157,7 +205,7 @@ impl VisitMut for Rewriter {
         match item {
             syn::ImplItem::Const(_) => {}
             syn::ImplItem::Fn(f) => match f.sig.constness {
-                Some(c) => self.const_fn(c, &mut f.block),
+                Some(c) => self.const_fn(c, &f.sig.ident, &mut f.block),
                 None => self.visit_impl_item_fn_mut(f),
             },
             _ => visit_mut::visit_impl_item_mut(self, item),
@@ -176,7 +224,7 @@ impl VisitMut for Rewriter {
                 // A required method has no body: nothing to rewrite, and
                 // nothing to warn about.
                 match (f.sig.constness, &mut f.default) {
-                    (Some(c), Some(body)) => self.const_fn(c, body),
+                    (Some(c), Some(body)) => self.const_fn(c, &f.sig.ident, body),
                     _ => self.visit_trait_item_fn_mut(f),
                 }
             }
@@ -235,6 +283,7 @@ impl VisitMut for Rewriter {
         let left = unparen(*binary.left);
         let right = unparen(*binary.right);
 
+        self.ops += 1;
         let assign = match func {
             Dispatch::Binary(name) => {
                 *expr = build::call(span, self.ops_fn(span, name), [left, right], Vec::new());

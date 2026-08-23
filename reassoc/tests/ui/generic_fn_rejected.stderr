@@ -18,7 +18,7 @@ error[E0277]: cannot multiply `T` by `T`
             `B` implements `MulRhs<A, <A as Mul<B>>::Output, Tag>`
             `B` implements `MulRhs<f32, <f32 as Mul<B>>::Output>`
             `B` implements `MulRhs<f64, <f64 as Mul<B>>::Output>`
-            `F` implements `MulRhs<&F, F, FloatTag>`
+            `B` implements `MulRhs<i128, <i128 as Mul<B>>::Output>`
           and $N others
 note: required by a bound in `reassoc::ops::mul`
  --> src/ops.rs

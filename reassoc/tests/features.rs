@@ -7,6 +7,10 @@ fn duration_heterogeneous_pairs_work_in_core() {
     assert_eq!(mul(d, 3u32), Duration::from_secs(6));
     assert_eq!(div(d, 2u32), Duration::from_secs(1));
     assert_eq!(add(d, d), Duration::from_secs(4));
+    // `u32 * Duration`: the integer-left blanket, with a non-literal left.
+    let n = 3u32;
+    assert_eq!(mul(n, d), Duration::from_secs(6));
+    assert_eq!(reassoc::alg!(n * d), Duration::from_secs(6));
 }
 
 #[cfg(feature = "alloc")]

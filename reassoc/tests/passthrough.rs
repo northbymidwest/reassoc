@@ -552,3 +552,48 @@ fn generic_functions_work_with_a_passthrough_bound() {
     assert_eq!(twice(Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
     assert_eq!(twice(RefOps(4.0)), RefOps(8.0));
 }
+
+// An integer on the left of an opted-in type, the way a float already was:
+// `k * v` with `impl Mul<IVec> for i32`. Found adopting glam, whose integer
+// vectors have exactly this (`i8 / I8Vec2`): with only the float-left
+// blanket the operator had no impl. A literal on the left (`2 * v`) was
+// always fine — the literal rule leaves it native.
+#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+struct IVec(i32, i32);
+impl core::ops::Mul<IVec> for i32 {
+    type Output = IVec;
+    fn mul(self, v: IVec) -> IVec {
+        IVec(self * v.0, self * v.1)
+    }
+}
+impl core::ops::Div<IVec> for i32 {
+    type Output = IVec;
+    fn div(self, v: IVec) -> IVec {
+        IVec(self / v.0, self / v.1)
+    }
+}
+impl core::ops::Add<IVec> for u8 {
+    type Output = IVec;
+    fn add(self, v: IVec) -> IVec {
+        IVec(self as i32 + v.0, self as i32 + v.1)
+    }
+}
+impl core::ops::Add for IVec {
+    type Output = IVec;
+    fn add(self, o: IVec) -> IVec {
+        IVec(self.0 + o.0, self.1 + o.1)
+    }
+}
+
+#[test]
+fn integer_scalars_on_the_left_of_a_user_type() {
+    use reassoc::algebraic;
+    #[algebraic]
+    fn go(k: i32, b: u8, v: IVec) -> (IVec, IVec, IVec, IVec) {
+        (k * v, k / v + v, b + v, 2 * v)
+    }
+    assert_eq!(
+        go(12, 1, IVec(3, 4)),
+        (IVec(36, 48), IVec(7, 7), IVec(4, 5), IVec(6, 8))
+    );
+}

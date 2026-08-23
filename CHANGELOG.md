@@ -4,6 +4,25 @@ Notable changes per release. Dates are the publish date.
 
 ## Unreleased
 
+### Added
+
+- An integer on the left of an opted-in type dispatches: `n * v` with
+  `impl Mul<V> for u32`, `k / ivec` — a blanket per integer type bounded on
+  the right type's marker, as a float on the left already had. Found by
+  adopting glam wholesale (`i8 / I8Vec2` was the only error left);
+  `u32 * Duration` goes through it now instead of a named pair.
+- `REASSOC_TRACE=<file>`: set for a build, the macros append one line per
+  function entered and per `alg!` — `file:line  kind  name  operators
+  rewritten` — with no change to the generated code. For tooling that asks
+  which functions the macros reached and where they found nothing to rewrite.
+- `scripts/adopt/`: adopt `reassoc` across an arbitrary crate (every type
+  opted in, `#[algebraic]` on every item, tests left native as the oracle),
+  report what fails to compile and which tests move, and see which functions
+  still carry strict float ops. glam 0.33 was the first subject: every
+  operator-written body rewrote cleanly and its 3417 tests pass in debug and
+  release on both backends; its `.mul()`-spelled bodies need the tool's
+  `--method-calls` pass, which is what surfaced the integer-left gap.
+
 ### Tests
 
 - Mutation-tested the rewriter (`scripts/mutants.sh`, cargo-mutants over

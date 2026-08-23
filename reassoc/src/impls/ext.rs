@@ -17,11 +17,9 @@ impl Passthrough for Duration {}
 impl<T> Passthrough for Wrapping<T> {}
 impl<T> Passthrough for Saturating<T> {}
 
-// Integers are spelled out per type (`int.rs`), not marked, so the std pairs
-// with an integer on the *left* are spelled out here: `u32 * Duration`, and
-// `uN / NonZero<uN>` with `%`, `/=`, `%=`.
-passthrough!(mul: u32, Duration => Duration);
-
+// `u32 * Duration` goes through the integer-left blanket (`int.rs`), since
+// `Duration` is marked. `NonZero` is not — it has no operators of its own —
+// so `uN / NonZero<uN>` with `%`, `/=`, `%=` are spelled out.
 macro_rules! nonzero_divisor {
     ($($t:ty)*) => {$(
         passthrough!(div: $t, NonZero<$t> => $t);

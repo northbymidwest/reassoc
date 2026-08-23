@@ -33,8 +33,8 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 | --- | --- | --- |
 | `f32 + f64` (fn returns `f64`) | `E0308` ×2 "expected `f32`, found `f64`" with a **`.into()` hint**, then `E0277` cannot add `f64` to `f32` | `E0277` cannot add `f64` to `f32` — *operands never converted; cast one, or `strict!`*. **No `.into()` hint.** |
 | `&f64 * &f32` | `E0308`, then `E0277` no implementation for `&f64 * &f32` | `E0277` no implementation for `&f64 * &f32` (rustc's own), **plus** `E0277` "no `reassoc` dispatch for `f64` with this operand" whose note says a primitive needs no opt-in: cast one |
-| `u8 + u32` | `E0308` ×2 with `.into()`, then `E0277` cannot add `u32` to `u8` | `E0277` "no dispatch for `u8`" (same note) **plus** `E0277` cannot add `u32` to `u8` (rustc's own) |
-| `u32 + f64` | `E0277` cannot add `f64` to `u32` | `E0277` "no dispatch for `u32`" plus `E0277` cannot add `f64` to `u32` |
+| `u8 + u32` | `E0308` ×2 with `.into()`, then `E0277` cannot add `u32` to `u8` | `E0277` cannot add `u32` to `u8` — *operands never converted; cast one, or `strict!`* (one error; the integer-left blanket made the earlier "no dispatch for `u8`" companion go away) |
+| `u32 + f64` | `E0277` cannot add `f64` to `u32` | `E0277` cannot add `f64` to `u32` — same note |
 | `Wrapping<u8> + Wrapping<u32>` | `E0277` no implementation for … | **identical** |
 | `Duration * u64` | `E0308` expected `u32`, found `u64` | `E0277` cannot multiply `Duration` by `u64` |
 | opted-in `Metres + f64` | `E0308` expected `Metres`, found `f64` | `E0277` cannot add `f64` to `Metres` |

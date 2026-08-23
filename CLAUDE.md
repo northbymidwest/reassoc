@@ -24,6 +24,8 @@ cargo test -p reassoc --test foreign                # passthrough!(foreign ..) a
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 scripts/mutants.sh [--re REGEX]                     # cargo-mutants over the rewriter; a survivor is a line no test observes
+scripts/adopt/adopt.py apply|report|ir|revert DIR  # adopt reassoc across a whole foreign crate and see what breaks (scripts/adopt/README.md)
+REASSOC_TRACE=/tmp/t.log cargo build                # one line per function the macros entered, with operators rewritten (tests/trace.rs)
 
 cargo test -p reassoc --no-default-features                    # core only
 cargo test -p reassoc --no-default-features --features alloc
@@ -75,8 +77,10 @@ compound form through a `&mut`) — blanket impls of those for every
 and integers are not marked: their impls are generic over sealed `Float` /
 `Int` under `traits::FloatTag` / `IntTag`, so `{float}`/`{integer}` meet one
 candidate; the blankets are bounded on `OptInTag`, which those tags never
-implement — that is what makes coherence accept both. `String` and the
-int-left std pairs (`u32 * Duration`, `uN / NonZero<uN>`) are concrete.
+implement — that is what makes coherence accept both. A float or integer on
+the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per primitive
+bounded on the right type's marker (`float_left!`, `int_left!`). `String` and
+`uN / NonZero<uN>` are concrete.
 
 ## Invariants — one line each; the evidence is in `docs/design.md`
 

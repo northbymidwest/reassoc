@@ -479,6 +479,26 @@ pub fn direct_ints(
 
 // ---- user types through the marker blanket (native operators) ----
 
+// An integer on the left of an opted-in type: the per-integer blanket.
+impl core::ops::Mul<V> for u32 {
+    type Output = V;
+    #[inline]
+    fn mul(self, v: V) -> V {
+        V(v.0 * self as f32, v.1 * self as f32)
+    }
+}
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_int_left(n: u32, v: V, w: V) -> V {
+    n * v + n * w
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_int_left(n: u32, v: V, w: V) -> V {
+    n * v + n * w
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
 pub struct V(pub f32, pub f32);
 impl core::ops::Add for V {

@@ -167,13 +167,20 @@ reassoc = "0.8"
   orphan rule forbids the plain form there; the prefix carries a private
   marker type of yours in the impl, which is what the rule asks for. Opt a
   foreign type in once, in the binary or one shared crate (two crates opting
-  in the same type give a third an ambiguity error). A float on the *left* of
-  a foreign type is the one pair that is named: `passthrough!(foreign mul:
-  f32, glam::Vec3 => glam::Vec3)`.
+  in the same type give a third an ambiguity error). A primitive on the *left*
+  of a foreign type (`2.0 * v`, `n * v`) is the one pair that is named:
+  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`.
 
 Primitives, references to them, `Duration`, `String`, the std time types,
 `uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
 and need no opt-in.
+
+Adopting the macros across a codebase: with `REASSOC_TRACE=<file>` set for a
+build, the macros append one line per function they entered — `file:line`,
+the name, and how many operators were rewritten there — so the functions they
+never reached, or reached and found only method-call arithmetic in, are a
+diff away. `scripts/adopt/` in the repository automates the whole experiment
+for a crate.
 
 What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements

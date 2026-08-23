@@ -45,8 +45,8 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   annotations needed` at the operator (`tests/ui/foreign_diamond.rs`). So opt
   a foreign type in **once**, in the binary or in one shared crate — never in
   a leaf library, which would export its opt-in to every dependant — and
-  never for a type this crate already covers. A float on the *left* of a
-  foreign type (`2.0 * v`) is the one pair that is named,
+  never for a type this crate already covers. A primitive on the *left* of a
+  foreign type (`2.0 * v`, `n * v`) is the one pair that is named,
   `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`: for a type of
   your own it is automatic, but the impl that makes it so is only provably
   distinct from the general one under the default tag.
