@@ -2,6 +2,23 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Changed
+
+- Generic code is out of scope, and the notes say so: a function whose
+  arithmetic is on a type parameter is left to `#[algebraic(skip)]`. The
+  `T: reassoc::Passthrough` bound the README suggested is withdrawn — the
+  marker is not a contract to write into signatures (none of seven adopted
+  crates used it; the generic ones are generic over floats, which it could
+  never cover). The trait itself is unchanged.
+- A `$e:expr` fragment's invisible grouping is restored with parentheses in
+  the positions that bind tighter (callee, receiver, field/index/`?`/`.await`
+  base, cast and unary operand): rustc does not honour the group once a proc
+  macro re-emits the tokens, so `$call(x)` with a closure read as
+  `|..| body(x)` (found in libm). Authored errors now keep the item they
+  refuse, so one error does not cascade.
+
 ## 0.9.0 — 2026-08-22
 
 ### Added

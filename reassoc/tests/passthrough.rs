@@ -537,22 +537,6 @@ fn operators_on_references_only() {
     assert_eq!(dot, 11.0);
 }
 
-// ---- generic functions ----
-
-/// A generic function over an opted-in bound: dispatch is no longer per
-/// concrete type only. (`tests/ui/generic_fn_rejected.rs` pins the error
-/// without the bound.)
-#[test]
-fn generic_functions_work_with_a_passthrough_bound() {
-    use reassoc::algebraic;
-    #[algebraic]
-    fn twice<T: reassoc::traits::Passthrough + core::ops::Add<Output = T> + Copy>(x: T) -> T {
-        x + x
-    }
-    assert_eq!(twice(Vec3(1.0, 2.0, 3.0)), Vec3(2.0, 4.0, 6.0));
-    assert_eq!(twice(RefOps(4.0)), RefOps(8.0));
-}
-
 // An integer on the left of an opted-in type, the way a float already was:
 // `k * v` with `impl Mul<IVec> for i32`. Found adopting glam, whose integer
 // vectors have exactly this (`i8 / I8Vec2`): with only the float-left

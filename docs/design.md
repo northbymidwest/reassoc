@@ -32,8 +32,10 @@ impl. The previous shape enumerated impls per operator and per reference
 combination, and the macro had nine forms to say which. It also synthesised
 `+=` from `+` for `Copy` types and dereferenced reference operands for them,
 both of which accepted code plain Rust refuses; now `v += w` needs the type's
-`AddAssign` and `&v + w` needs `Add<W> for &V`, and a generic function works
-with `T: Passthrough` in its bounds, which it could not before. Why this was
+`AddAssign` and `&v + w` needs `Add<W> for &V`. (A generic function *could*
+work with `T: Passthrough` in its bounds; that is deliberately not offered —
+the marker is not a contract to write into signatures, so generic code is
+skipped instead.) Why this was
 not the first design: a blanket over *every* type with `std::ops` overlaps the
 float impls, and there is no specialization; the marker is the gate that
 makes the blanket and the float impls disjoint in coherence's eyes — `f32:

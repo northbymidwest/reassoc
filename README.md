@@ -179,8 +179,10 @@ What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements
 `AddAssign<W>`, a dot product yields whatever its `Mul::Output` is. Nothing is
 synthesised and nothing is dereferenced for you — which is also why the
-errors read like Rust's own ([Diagnostics](#diagnostics)). A generic function
-works with a bound: `fn f<T: reassoc::Passthrough + Mul<Output = T>>(..)`.
+errors read like Rust's own ([Diagnostics](#diagnostics)). Generic code —
+arithmetic on a type parameter — is out of scope: leave such a function out
+of the annotated scope (`#[algebraic(skip)]`), and use `alg!` on its concrete
+float parts if you want them.
 
 ### Scope
 
@@ -228,8 +230,8 @@ strict! {
 The short version: arithmetic inside a macro other than the std expression
 macros is left alone (which is also why `strict!` works); user types need a
 one-line opt-in, and types from other crates the `foreign` form of it, once
-per dependency tree; const positions are out, and a generic function needs a
-`Passthrough` bound; `+=` on a `#[repr(packed)]` field is rejected; debug
+per dependency tree; const positions and arithmetic on a generic type
+parameter are out; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 
 Almost all of the above is about code that is *not* float arithmetic but sits

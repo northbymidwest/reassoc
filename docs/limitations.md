@@ -136,11 +136,15 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   their `;`, a `;;`, a `;` after an `if`, redundant parens, a `+=` tail
   without `;` — are untouched and keep every warning they deserve
   (`consumers/lints/` pins both directions under `cargo clippy`).
-- A generic function needs a bound the plain operators do not: `fn g<T:
+- Arithmetic on a generic type parameter is out of scope: `fn g<T:
   Mul<Output = T>>(a: T, b: T) -> T { a * b }` fails with `E0277` inside
-  `#[algebraic]`, and `fn g<T: reassoc::Passthrough + Mul<Output = T>>`
-  works. Dispatch is a trait, and a type parameter has only the bounds it is
-  given.
+  `#[algebraic]`. Dispatch is a trait, a type parameter has only the bounds
+  it is given, and the bound that would satisfy it is this crate's internals —
+  not a contract to write into a signature. Leave such a function out of the
+  scope (`#[algebraic(skip)]`): its type-parameter operators go to the type's
+  own impls, which are rewritten where they are defined, and its concrete
+  float parts can use `alg!`. Measured on cgmath/libm/statrs
+  (`scripts/adopt/README.md`), this is what generic numeric crates run into.
 - Operands of different types are rejected, exactly as they are in plain Rust:
   the language has no implicit numeric coercion, and dispatch does not add one.
   This covers float widths, integer widths, signedness, and int-against-float

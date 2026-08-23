@@ -31,7 +31,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, 
     label = "no dispatch for `{Self}`",
     note = "a type of yours is opted in with `reassoc::passthrough!({Self});` where it is \
             defined, or `reassoc::passthrough!(foreign {Self});` if it comes from another crate; \
-            a generic type parameter is bounded `T: reassoc::Passthrough`",
+            a generic type parameter is out of scope — mark the function `#[algebraic(skip)]`",
     note = "a primitive number needs no opt-in: if `{Self}` is one, the two operands have \
             different types — cast one of them — or wrap the expression in `strict!(..)` to \
             use ordinary operators"
@@ -80,7 +80,8 @@ macro_rules! declare_op_trait_k {
                     that is not opted in yet, add `reassoc::passthrough!({Lhs});` where it is \
                     defined (`passthrough!(foreign {Lhs});` for a type from another crate), or wrap \
                     the expression in `strict!(..)` to use ordinary operators",
-            note = "if `{Lhs}` is a generic type parameter, bound it: `T: reassoc::Passthrough`"
+            note = "if `{Lhs}` is a generic type parameter, the function is out of scope: mark \
+                    it `#[algebraic(skip)]`"
         )]
         pub $($c)* trait $rhs_trait<Lhs, O, Tag = ()> {
             fn $rhs_method(self, lhs: Lhs) -> O;

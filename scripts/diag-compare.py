@@ -70,10 +70,6 @@ def to_native(src: str) -> str:
         line = re.sub(r",\s*reassoc::Passthrough\b", "", line)
         line = re.sub(r"\breassoc::Passthrough\s*,\s*", "", line)
         line = line.replace("#[derive(reassoc::Passthrough)]", "")
-        # A `Passthrough` bound on a generic parameter: plain Rust has none.
-        line = re.sub(r"\s*\+\s*reassoc::traits::Passthrough\b", "", line)
-        line = re.sub(r"\breassoc::traits::Passthrough\s*\+\s*", "", line)
-        line = re.sub(r":\s*reassoc::traits::Passthrough\b(?=\s*[,>])", "", line)
         lines.append(line)
     return strip_alg("\n".join(lines)) + "\n"
 

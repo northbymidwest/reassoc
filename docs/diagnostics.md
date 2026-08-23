@@ -43,7 +43,7 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 | `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C` — *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
 | `&c + d`, `C: Add<C>` only | `E0369` cannot add `C` to `&C` | `E0277` cannot add `C` to `&C` |
 | `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |
-| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277` until the bound is `T: reassoc::Passthrough + Mul<Output = T>` — then compiles |
+| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277` — *a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`* |
 | `f64 + f64` in a fn returning `f32` | `E0308` expected `f32`, found `f64` | **identical** |
 
 ## What to read off it
@@ -99,7 +99,7 @@ macros; the tool derives the plain-Rust twin by stripping them. Add a case
 there rather than in a scratch crate. The ones pinned as tests live in
 `reassoc/tests/ui/` (`mismatched_operands.rs`, `unsupported_type.rs`,
 `compound_without_assign_impl.rs`, `reference_operand_needs_impl.rs`,
-`generic_fn_rejected.rs`, `ambiguous_receiver.rs`); their `.stderr` files are
+`generic_fn_out_of_scope.rs`, `ambiguous_receiver.rs`); their `.stderr` files are
 the current expected output, regenerated with:
 
 ```bash

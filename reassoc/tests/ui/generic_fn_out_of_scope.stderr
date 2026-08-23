@@ -1,15 +1,15 @@
 error[E0277]: cannot multiply `T` by `T`
- --> tests/ui/generic_fn_rejected.rs:8:9
+ --> tests/ui/generic_fn_out_of_scope.rs:9:9
   |
-6 | #[algebraic]
+7 | #[algebraic]
   | ------------ required by a bound introduced by this call
-7 | fn scale<T: core::ops::Mul<Output = T> + Copy>(a: T, k: T) -> T {
-8 |     a * k
+8 | fn scale<T: core::ops::Mul<Output = T> + Copy>(a: T, k: T) -> T {
+9 |     a * k
   |         ^ cannot multiply `T` by `T`
   |
   = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
   = note: if these are numeric types, cast one of them; if `T` is a type of yours that is not opted in yet, add `reassoc::passthrough!(T);` where it is defined (`passthrough!(foreign T);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
-  = note: if `T` is a generic type parameter, bound it: `T: reassoc::Passthrough`
+  = note: if `T` is a generic type parameter, the function is out of scope: mark it `#[algebraic(skip)]`
   = help: the following other types implement trait `MulRhs<Lhs, O, Tag>`:
             `&F` implements `MulRhs<&F, F, FloatTag>`
             `&F` implements `MulRhs<F, F, FloatTag>`
