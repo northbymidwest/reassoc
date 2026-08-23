@@ -107,9 +107,11 @@ reverts to a worse result if undone.
 - The operand bound hangs off `B` (caret on the right operand). Nothing is
   synthesised for `Copy` types and references follow the type's own impls:
   native parity over convenience.
-- `passthrough!(OP: A, B => O)` is only for a left type that is not
-  `Passthrough` — a float on the left of a foreign type; on an opted-in left
-  it overlaps the blanket (`E0119`).
+- `passthrough!(OP: A, B => O)` and `OP_assign: A, B` are only for a
+  *foreign* right operand — a primitive on the left of another crate's type,
+  under the `foreign` tag. With a plain tag and an opted-in `B` both forms
+  overlap the primitive-left blankets (`E0119`); the assign form joined them
+  in 0.11.0, when those blankets grew their in-place twin.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
 - Macros are opaque — `strict!` depends on it — except the std expression
   macros (`LISTED_MACROS` in `rewrite.rs`), entered by last path segment and

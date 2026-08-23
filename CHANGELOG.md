@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.11.0 — 2026-08-23
 
 ### Fixed
 
@@ -17,6 +17,14 @@ Notable changes per release. Dates are the publish date.
   used as a method receiver, needs an annotation (`E0282`) — the price of
   outputs being type parameters (`tests/ui/inferred_operand_under_method_call.rs`,
   found adopting tiny-skia).
+
+### Breaking
+
+- A plain `passthrough!(OP_assign: A, B)` with a primitive `A` and an
+  opted-in `B` now overlaps the blanket above and is `E0119` — the same way
+  the binary `OP: A, B => O` form already did. If you wrote one to work
+  around the gap, delete it: the blanket covers it. The `foreign` forms are
+  unaffected; they carry their own tag.
 
 ## 0.10.0 — 2026-08-22
 
