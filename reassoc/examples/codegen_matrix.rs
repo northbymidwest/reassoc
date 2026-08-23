@@ -498,6 +498,59 @@ pub fn direct_derive_generic(p: Pair<f64>, q: Pair<f64>) -> Pair<f64> {
     p * q
 }
 
+/// A non-`Copy` type with its operators on references and a heterogeneous
+/// output — the heavy-numeric shape. `&Heavy + &Heavy`, `&Heavy * f64`,
+/// `&Heavy * &Heavy => f64`, `Heavy += Heavy` (a move in, as natively).
+#[derive(Clone, Debug, PartialEq, reassoc::Passthrough)]
+pub struct Heavy(pub Vec<f64>);
+impl core::ops::Add<&Heavy> for &Heavy {
+    type Output = Heavy;
+    #[inline]
+    fn add(self, o: &Heavy) -> Heavy {
+        Heavy(self.0.iter().zip(&o.0).map(|(a, b)| a + b).collect())
+    }
+}
+impl core::ops::Mul<f64> for &Heavy {
+    type Output = Heavy;
+    #[inline]
+    fn mul(self, k: f64) -> Heavy {
+        Heavy(self.0.iter().map(|a| a * k).collect())
+    }
+}
+impl core::ops::Mul<&Heavy> for &Heavy {
+    type Output = f64;
+    #[inline]
+    fn mul(self, o: &Heavy) -> f64 {
+        self.0.iter().zip(&o.0).map(|(a, b)| a * b).sum()
+    }
+}
+impl core::ops::AddAssign for Heavy {
+    #[inline]
+    fn add_assign(&mut self, o: Heavy) {
+        for (a, b) in self.0.iter_mut().zip(o.0) {
+            *a += b;
+        }
+    }
+}
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_non_copy(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, f64) {
+    let mut s = a + b;
+    s += &s * k;
+    let dot = a * b;
+    (s, dot)
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_non_copy(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, f64) {
+    let mut s = a + b;
+    let r = &s * k;
+    s += r;
+    let dot = a * b;
+    (s, dot)
+}
+
 // ---- a type from another crate, through the foreign tag ----
 
 use foreign_types::Vec3;

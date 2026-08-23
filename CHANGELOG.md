@@ -21,12 +21,13 @@ Notable changes per release. Dates are the publish date.
 ### Added
 
 - `tests/codegen_matrix.rs` + `examples/codegen_matrix.rs`: the zero-cost
-  claim, measured per construct. Thirty-three `sugar_`/`direct_` pairs —
+  claim, measured per construct. Thirty-four `sugar_`/`direct_` pairs —
   the five operators on `f32`/`f64`, reference operands, `+=` through bare,
   index, field and deref places and in tail position, 16-term and 8-term
   chains, eight chained `+=` steps, Horner, the `f64` dot loop, `strict!` in
   the middle, unary minus, literal subtrees, closures, both `alg!` forms,
-  integers, a marker-opted user type, a generic derive, a foreign type
+  integers, a marker-opted user type, a generic derive, a non-`Copy` type
+  with operators on references and a heterogeneous output, a foreign type
   through the tag, `Wrapping`/`Duration`/`NonZero` — must produce identical
   optimized LLVM IR (alpha-renamed; or be merged by LLVM), with strict-IEEE
   negative controls that must differ and carry no `reassoc` flag. Mutation
