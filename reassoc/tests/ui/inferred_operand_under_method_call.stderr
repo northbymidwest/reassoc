@@ -1,0 +1,7 @@
+error[E0282]: type annotations needed
+  --> tests/ui/inferred_operand_under_method_call.rs:24:1
+   |
+24 | #[algebraic]
+   | ^^^^^^^^^^^^ cannot infer type
+   |
+   = note: this error originates in the attribute macro `algebraic` (in Nightly builds, run with -Z macro-backtrace for more info)

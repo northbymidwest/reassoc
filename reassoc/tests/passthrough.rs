@@ -609,10 +609,7 @@ fn primitive_scalars_on_the_left_of_a_user_type_in_place() {
         b += v;
         (x, y, k, b)
     }
-    assert_eq!(
-        go(3.0, 4, 1, Scale(2.0), IVec(3, 0)),
-        (6.0, 1.0, 12, 4)
-    );
+    assert_eq!(go(3.0, 4, 1, Scale(2.0), IVec(3, 0)), (6.0, 1.0, 12, 4));
 }
 
 #[test]

@@ -2,6 +2,22 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Fixed
+
+- A primitive on the left of an opted-in type dispatches **in place** too:
+  `x *= v` with `impl MulAssign<V> for f32` is native Rust and was rejected
+  inside an algebraic scope (micromath's `f32 *= F32`). The binary form was
+  already covered; this is its compound twin, for floats and integers.
+
+### Documented
+
+- An operand whose type is only knowable from the operator, with the result
+  used as a method receiver, needs an annotation (`E0282`) — the price of
+  outputs being type parameters (`tests/ui/inferred_operand_under_method_call.rs`,
+  found adopting tiny-skia).
+
 ## 0.10.0 — 2026-08-22
 
 ### Changed

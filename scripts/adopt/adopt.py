@@ -757,19 +757,59 @@ FOREIGN_LHS = re.compile(
 )
 
 
-def foreign_types(log: str) -> list[str]:
+def imported_paths(src: Path) -> dict[str, str]:
+    """`use a::b::T;` / `pub use a::b::{T, U};` -> {"T": "a::b::T"}. A type
+    re-exported from another crate reads bare in diagnostics, but
+    `passthrough!(foreign ..)` at the crate root needs the full path."""
+    out: dict[str, str] = {}
+    single = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([\w:]+)::(\w+)\s*;")
+    group = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([\w:]+)::\{([^}]*)\}\s*;")
+    for p in src.rglob("*.rs"):
+        for line in p.read_text(errors="ignore").split("\n"):
+            m = single.match(line)
+            if m and m.group(2)[0].islower() or (m and m.group(2)[0].isupper()):
+                out.setdefault(m.group(2), f"{m.group(1)}::{m.group(2)}")
+                continue
+            m = group.match(line)
+            if m:
+                for item in m.group(2).split(","):
+                    item = item.strip().split(" as ")[0].strip()
+                    if item and item != "self":
+                        out.setdefault(item, f"{m.group(1)}::{item}")
+    return out
+
+
+def local_types(src: Path) -> set[str]:
+    """Every type this crate declares — what the derive already covers."""
+    rx = re.compile(r"^\s*(?:(?:pub(?:\([^)]*\))?|\$\w+)\s+)?(?:struct|enum|union)\s+(\$?\w+)")
+    out = set()
+    for p in src.rglob("*.rs"):
+        for line in p.read_text(errors="ignore").split("\n"):
+            m = rx.match(line)
+            if m:
+                out.add(m.group(1))
+    return out
+
+
+def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
     """Types named as the left operand of a failed dispatch that look like
     they come from another crate: a path with `::`, no generic arguments and
     no reference — exactly what `passthrough!(foreign T)` takes. A generic
     foreign type (`Complex<T>`) has no form yet and is reported, not emitted."""
+    local = local or set()
     seen, out, generic = set(), [], set()
     for lhs in FOREIGN_LHS.findall(log):
         ty = lhs.removeprefix("&mut ").removeprefix("&").strip()
-        if "::" not in ty:
-            continue
         if "<" in ty:
-            generic.add(ty)
+            if "::" in ty or ty.split("<")[0] not in local:
+                generic.add(ty)
             continue
+        if "::" not in ty:
+            # A bare name: foreign only if this crate does not declare it —
+            # a re-export (`pub use tiny_skia_path::f32x2;`) reads bare in
+            # diagnostics. A type parameter (`T`, `Self`) is neither.
+            if ty in local or ty == "Self" or (len(ty) <= 2 and ty.isupper()):
+                continue
         if ty in seen:
             continue
         seen.add(ty)
@@ -789,7 +829,21 @@ def cmd_opt_in(a: argparse.Namespace) -> int:
     log = target_dir(crate) / "reassoc-adopt" / "cargo-test.log"
     if not log.exists():
         sys.exit(f"no {log}: run `report` first")
-    types = foreign_types(log.read_text(errors="ignore"))
+    src = crate / "src"
+    types = foreign_types(log.read_text(errors="ignore"), local_types(src))
+    # A bare name must be spelled as a path at the crate root.
+    paths = imported_paths(src)
+    resolved, unresolved = [], []
+    for t in types:
+        if "::" in t:
+            resolved.append(t)
+        elif t in paths:
+            resolved.append(paths[t])
+        else:
+            unresolved.append(t)
+    if unresolved:
+        print(f"  (not emitted — no `use` names them, so no path to write: {', '.join(unresolved)})")
+    types = resolved
     if not types:
         print("no foreign types named in the log")
         return 0

@@ -145,6 +145,19 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   own impls, which are rewritten where they are defined, and its concrete
   float parts can use `alg!`. Measured on cgmath/libm/statrs
   (`scripts/adopt/README.md`), this is what generic numeric crates run into.
+- An operand whose type is only knowable from the operator, where the
+  result is then a method receiver, needs an annotation: `|s: U, d| (s + d).min(..)`
+  is `E0282 type annotations needed` inside an algebraic scope and compiles
+  outside it. Native `s + d` yields the projection `<U as Add<U>>::Output`,
+  which normalizes as soon as the operands are known; dispatch's output is a
+  type parameter that only impl selection determines, so the method cannot be
+  resolved (`tests/ui/inferred_operand_under_method_call.rs`). That output is
+  a type parameter deliberately — as an associated type it would break
+  unannotated float literals (`docs/design.md`) — so this is the price, and
+  the fix is one annotation: `|s: U, d: U|`. Found adopting tiny-skia, whose
+  `blend_fn!` closures have exactly this shape (it already annotates one of
+  them for native inference reasons of its own).
+
 - Operands of different types are rejected, exactly as they are in plain Rust:
   the language has no implicit numeric coercion, and dispatch does not add one.
   This covers float widths, integer widths, signedness, and int-against-float
