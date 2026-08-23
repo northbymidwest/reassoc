@@ -49,6 +49,10 @@ RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_
 # `fn f(..) -> T;` — a required trait method, no body to rewrite (ndarray's
 # sealed `__private__` inside a `macro_rules!` template). The attribute is an
 # authored error there.
+# Macro invocations whose body is ordinary items, not a custom grammar:
+# descending into them is safe and necessary (tiny-skia declares `f32x8`
+# inside `cfg_if!`). Everything else is opaque.
+RE_ITEM_PASSING_MACRO = re.compile(r"^(?:cfg_if::)?cfg_if!\s*[\({]")
 RE_BODILESS_FN = re.compile(rf"^\s*{VIS}{QUAL}fn\s[^{{;]*;\s*$")
 RE_MACRO_ITEM = re.compile(r"^[A-Za-z_][\w:]*!\s*[\(\[\{]")
 RE_CFG_TEST = re.compile(r"^\s*#\[cfg\((?:test|all\(\s*test\b.*)\)\]\s*$")
@@ -237,11 +241,31 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
     # where ..\n{`): its cover starts at the line that opens the block; a `;`
     # first (a required trait method) means there is no body to cover.
     pending: str | None = None
+    # Inside a `macro_rules!` body: the brace depth of the body, and whether
+    # the current rule has passed its `=>` (matcher before, transcriber after).
+    macro_rule: int | None = None
+    in_transcriber = False
     # depth at which the innermost `fn (&self ..)` / `fn (&mut self ..)` opened
     ref_self_fn: list[int] = []
     for i, line in enumerate(lines):
         while cover and depth <= cover[-1][0]:
             cover.pop()
+        if macro_rule is not None:
+            if depth <= macro_rule:
+                macro_rule, in_transcriber = None, False
+            else:
+                if depth == macro_rule + 1 and in_transcriber and "=>" not in strip_comments_and_strings(line):
+                    # A rule closed on the previous line; the next matcher starts.
+                    in_transcriber = False
+                if not in_transcriber:
+                    # Matcher, at any nesting depth: never annotated.
+                    if "=>" in strip_comments_and_strings(line):
+                        in_transcriber = True
+                    stats["macro_rules! matcher line (left alone)"] += 1
+                    out.append(line)
+                    code = strip_comments_and_strings(line)
+                    depth += code.count("{") - code.count("}")
+                    continue
         if pending is not None:
             code_now = strip_comments_and_strings(line)
             if code_now.count("{") - code_now.count("}") > 0:
@@ -258,6 +282,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
         stripped = line.lstrip()
         pad = " " * indent
         covered = bool(cover)
+        # Idempotent: `apply` on an already-annotated tree is a no-op.
+        already = i > 0 and lines[i - 1].strip() in (ATTR, SKIP, DERIVE)
         opens = code.count("{") - code.count("}") > 0
 
         if method_calls and not (cover and cover[-1][1] == "native") and not stripped.startswith("//"):
@@ -268,6 +294,12 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
         if RE_MACRO_RULES.match(line):
             if not macro_bodies:
                 cover.append((depth, "native"))
+            else:
+                # Only the transcriber of each rule is annotatable: an
+                # attribute inserted into the *matcher* changes what the
+                # macro accepts ("no rules expected keyword `unsafe`" —
+                # ndarray's `impl_ndproducer!`, fixed's `shift_all!`).
+                macro_rule = depth
             stats["macro_rules! (entered)" if macro_bodies else "macro_rules! (left)"] += 1
         elif not covered and RE_MOD.match(stripped):
             if preceding_attrs_have_cfg_test(lines, i):
@@ -276,13 +308,19 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             elif mod_has_file_submodules(lines, i):
                 stats["mod: has `mod x;` members (not annotatable, E0658; its items are)"] += 1
             elif items:
-                out.append(pad + ATTR)
+                if not already:
+                    out.append(pad + ATTR)
                 if opens:
                     cover.append((depth, "alg"))
                 else:
                     pending = "alg"
                 stats["mod"] += 1
-        elif not covered and RE_MACRO_ITEM.match(stripped) and not RE_MACRO_RULES.match(stripped):
+        elif (
+            not covered
+            and RE_MACRO_ITEM.match(stripped)
+            and not RE_MACRO_RULES.match(stripped)
+            and not RE_ITEM_PASSING_MACRO.match(stripped)
+        ):
             # A macro *invocation* is opaque — annotating lines inside its
             # braces corrupts the call (num-bigint's `impl_binop! { .. }`:
             # "no rules expected `#`"). Only `macro_rules!` *definitions*
@@ -293,7 +331,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             elif stripped.rstrip().endswith(("{", "(", "[")) or code.count("{") > code.count("}"):
                 pending = "native"
         elif not covered and items and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
-            out.append(pad + ATTR)
+            if not already:
+                out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
             else:
@@ -305,7 +344,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             # gets `skip` (or is left, to count them). With `enter` (reassoc's
             # nightly `const-fn` feature) a const fn is annotated like any fn.
             if const_fn == "skip":
-                out.append(pad + SKIP)
+                if not already:
+                    out.append(pad + SKIP)
                 stats["const fn (skipped)"] += 1
             else:
                 stats["const fn (left; errors if it has arithmetic)"] += 1
@@ -314,7 +354,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "native"
         elif not covered and items and RE_FN.match(line) and not RE_BODILESS_FN.match(code):
-            out.append(pad + ATTR)
+            if not already:
+                out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
             else:
@@ -323,7 +364,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
         elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "native" and RE_MACRO_RULES.match(lines[cover[-1][0]] if False else "")):
             # A derive is fine anywhere a type is declared, covered or not —
             # the attribute on an enclosing item does not opt the type in.
-            out.append(pad + DERIVE)
+            if not already:
+                out.append(pad + DERIVE)
             stats["type (derive Passthrough)"] += 1
         out.append(line)
         depth += code.count("{") - code.count("}")
@@ -346,25 +388,37 @@ def crate_edition(cargo_toml: Path) -> str:
 
 
 def head_end(lines: list[str]) -> int:
-    """Index of the first line after the crate root's head: inner attributes,
-    inner docs, plain comments (license headers), block comments, blanks.
-    An item inserted before a later `//!` would make it an error (E0753)."""
+    """Index of the first line after the crate root's head: inner attributes
+    (which may span lines — `#![deny(\n .. \n)]`), inner docs, plain and
+    block comments (license headers), blanks. An item inserted before a later
+    `//!` is an error (E0753); one inserted inside an attribute is worse."""
     i = 0
     in_block = False
     while i < len(lines):
-        l = lines[i].strip()
+        raw = lines[i]
+        l = raw.strip()
         if in_block:
             if "*/" in l:
                 in_block = False
             i += 1
             continue
-        if l == "" or l.startswith("//") or l.startswith("#!["):
+        if l == "" or l.startswith("//"):
             i += 1
             continue
         if l.startswith("/*"):
             if "*/" not in l:
                 in_block = True
             i += 1
+            continue
+        if l.startswith("#!"):
+            # Consume the whole attribute, however many lines it spans.
+            depth = 0
+            while i < len(lines):
+                code = strip_comments_and_strings(lines[i])
+                depth += sum(code.count(c) for c in "([{") - sum(code.count(c) for c in ")]}")
+                i += 1
+                if depth <= 0:
+                    break
             continue
         break
     return i
@@ -695,6 +749,69 @@ def cmd_ir(a: argparse.Namespace) -> int:
     return 0
 
 
+FOREIGN_LHS = re.compile(
+    r"^error\[E0277\]: (?:cannot \w+(?: the remainder of)? |"
+    r"binary assignment operation `[^`]+` cannot be applied to type |"
+    r"no `reassoc` dispatch for )`([^`]+)`",
+    re.M,
+)
+
+
+def foreign_types(log: str) -> list[str]:
+    """Types named as the left operand of a failed dispatch that look like
+    they come from another crate: a path with `::`, no generic arguments and
+    no reference — exactly what `passthrough!(foreign T)` takes. A generic
+    foreign type (`Complex<T>`) has no form yet and is reported, not emitted."""
+    seen, out, generic = set(), [], set()
+    for lhs in FOREIGN_LHS.findall(log):
+        ty = lhs.removeprefix("&mut ").removeprefix("&").strip()
+        if "::" not in ty:
+            continue
+        if "<" in ty:
+            generic.add(ty)
+            continue
+        if ty in seen:
+            continue
+        seen.add(ty)
+        out.append(ty)
+    if generic:
+        print(f"  (not emitted — generic foreign types have no `passthrough!` form: "
+              f"{', '.join(sorted(generic)[:4])})")
+    return out
+
+
+def cmd_opt_in(a: argparse.Namespace) -> int:
+    """Second pass: read the last report's log and opt every foreign type it
+    named into the crate root. Foreign types cannot be derived, so a crate
+    that computes with another crate's types needs one line each; this writes
+    them so the experiment can carry on to the interesting part."""
+    crate = Path(a.crate).resolve()
+    log = target_dir(crate) / "reassoc-adopt" / "cargo-test.log"
+    if not log.exists():
+        sys.exit(f"no {log}: run `report` first")
+    types = foreign_types(log.read_text(errors="ignore"))
+    if not types:
+        print("no foreign types named in the log")
+        return 0
+    root = next(p for p in (crate / "src" / "lib.rs", crate / "src" / "main.rs") if p.exists())
+    text = root.read_text()
+    lines = text.split("\n")
+    block = ["// reassoc: foreign types this crate computes with (scripts/adopt)."]
+    # No leading `::`: a macro invocation in item position may not start with
+    # one. `reassoc` resolves as a dependency (2018+) or via the `extern
+    # crate` this tool adds for edition 2015.
+    block += [f"reassoc::passthrough!(foreign {t});" for t in types if f"foreign {t});" not in text]
+    if len(block) == 1:
+        print("already opted in")
+        return 0
+    lines[head_end(lines):head_end(lines)] = block
+    root.write_text("\n".join(lines))
+    print(f"opted in {len(block) - 1} foreign types at {root.name}:")
+    for t in types:
+        print(f"    {t}")
+    return 0
+
+
 def cmd_revert(a: argparse.Namespace) -> int:
     crate = Path(a.crate).resolve()
     return subprocess.call(["git", "-C", str(crate), "checkout", "--", "Cargo.toml", "src"])
@@ -731,6 +848,9 @@ def main() -> int:
     p.add_argument("crate")
     p.add_argument("cargo_args", nargs="*", help="extra `cargo rustc` arguments, e.g. --features scalar-math (after --)")
     p.set_defaults(fn=cmd_ir)
+    p = sub.add_parser("opt-in", help="emit passthrough!(foreign ..) for every foreign type the last report's errors named")
+    p.add_argument("crate")
+    p.set_defaults(fn=cmd_opt_in)
     p = sub.add_parser("revert", help="git checkout -- Cargo.toml src")
     p.add_argument("crate")
     p.set_defaults(fn=cmd_revert)
