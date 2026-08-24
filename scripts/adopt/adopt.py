@@ -749,6 +749,9 @@ def cmd_ir(a: argparse.Namespace) -> int:
     return 0
 
 
+# A type argument nobody can write in an impl header: a parameter, an
+# inference variable, or a literal's placeholder.
+TYPE_PARAM = re.compile(r"^(?:[A-Z][A-Z0-9]?|_|\{\w+\}|Self)$")
 FOREIGN_LHS = re.compile(
     r"^error\[E0277\]: (?:cannot \w+(?: the remainder of)? |"
     r"binary assignment operation `[^`]+` cannot be applied to type |"
@@ -801,9 +804,17 @@ def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
     for lhs in FOREIGN_LHS.findall(log):
         ty = lhs.removeprefix("&mut ").removeprefix("&").strip()
         if "<" in ty:
-            if "::" in ty or ty.split("<")[0] not in local:
+            # A generic type is opted in per instantiation, so emit the ones
+            # whose arguments are all concrete and skip the rest: `T`, `_`
+            # and `{float}` are not types anyone can write in an impl.
+            args = [a.strip() for a in re.split(r",(?![^<]*>)", ty[ty.index("<") + 1 : ty.rindex(">")])]
+            if all(a and not TYPE_PARAM.match(a) for a in args) and (
+                "::" in ty or ty.split("<")[0] not in local
+            ):
+                pass  # emit below
+            else:
                 generic.add(ty)
-            continue
+                continue
         if "::" not in ty:
             # A bare name: foreign only if this crate does not declare it —
             # a re-export (`pub use tiny_skia_path::f32x2;`) reads bare in
@@ -815,7 +826,8 @@ def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
         seen.add(ty)
         out.append(ty)
     if generic:
-        print(f"  (not emitted — generic foreign types have no `passthrough!` form: "
+        print(f"  (not emitted — a type argument that is a parameter, `_` or an "
+              f"associated type cannot be written in an impl: "
               f"{', '.join(sorted(generic)[:4])})")
     return out
 
@@ -835,10 +847,12 @@ def cmd_opt_in(a: argparse.Namespace) -> int:
     paths = imported_paths(src)
     resolved, unresolved = [], []
     for t in types:
-        if "::" in t:
+        # `Angle<f32>` resolves through its head, keeping the arguments.
+        head, _, args = t.partition("<")
+        if "::" in head:
             resolved.append(t)
-        elif t in paths:
-            resolved.append(paths[t])
+        elif head in paths:
+            resolved.append(paths[head] + ("<" + args if args else ""))
         else:
             unresolved.append(t)
     if unresolved:

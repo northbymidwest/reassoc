@@ -183,6 +183,14 @@ crate computes with another crate's types. Ordered by what remains.
 | lyon_geom, nalgebra, euclid, palette | 474–957 | generic parameters and associated types (`<T as ComplexField>::RealField`, `<C as Mix>::Scalar`) |
 | rustfft | 626 | **all** of it `num_complex::Complex<T>` with `T` a type parameter. A concrete instantiation opts in fine (`passthrough!(foreign Complex<f64>)`); rustfft is generic throughout, so this is the generic-code gap wearing a foreign type's clothes |
 
+**Would a per-instantiation foreign opt-in clear any of this?** Measured, no.
+`opt-in` now emits instantiations whose arguments are all concrete
+(`passthrough!(foreign euclid::Angle<f32>)`), and across the twenty crates
+only lyon_geom names any: 474 → 463. rustfft, nalgebra and palette name
+`Complex<T>`, `Point2D<S, _>` and `<C as Mix>::Scalar` — a type parameter or
+an associated type as the argument, inside functions that are themselves
+generic. That is the generic-code gap, not a missing macro form.
+
 Everything that remains is one of three known shapes: arithmetic on a
 generic type parameter or associated type (out of scope by design), a
 generic foreign type (no `passthrough!` form exists), or the documented
