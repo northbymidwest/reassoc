@@ -75,6 +75,12 @@ def rs_files(src: Path, excludes: list[str]) -> list[Path]:
         rel = p.relative_to(src).as_posix()
         if any(fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(p.name, g) for g in excludes):
             continue
+        # Never write through a symlink: it belongs to another package, which
+        # has no `reassoc` dependency, so the annotation lands as `E0433
+        # cannot find reassoc in the crate root` over there (eko symlinks
+        # `crates/eko/src/bib.rs` to `crates/ekore/src/bib.rs`).
+        if p.is_symlink() or not p.resolve().is_relative_to(src.resolve()):
+            continue
         out.append(p)
     return out
 
