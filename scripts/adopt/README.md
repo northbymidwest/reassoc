@@ -183,6 +183,18 @@ crate computes with another crate's types. Ordered by what remains.
 | lyon_geom, nalgebra, euclid, palette | 474–957 | generic parameters and associated types (`<T as ComplexField>::RealField`, `<C as Mix>::Scalar`) |
 | rustfft | 626 | **all** of it `num_complex::Complex<T>` with `T` a type parameter. A concrete instantiation opts in fine (`passthrough!(foreign Complex<f64>)`); rustfft is generic throughout, so this is the generic-code gap wearing a foreign type's clothes |
 
+**Would a *generic* foreign opt-in clear any of this?** Measured, no — and the
+measurement is worth keeping. Hand-writing what
+`passthrough!(foreign impl[T] Complex<T>)` would expand to (a marker impl
+under a local tag) into rustfft does dispatch every `Complex<T>` operator:
+those errors go away. Compilation then gets far enough to surface what was
+behind them — **3054** `cannot multiply `T` by `T`` on the raw scalar
+(`self.twiddle.re * xp.re`, `re: T`). 626 errors became 3069. The crate is
+generic all the way down, so a form for its foreign types would buy nothing;
+the same holds for nalgebra, palette and euclid, which already show large
+generic-parameter counts above. That is why the form was dropped rather than
+deferred.
+
 **Would a per-instantiation foreign opt-in clear any of this?** Measured, no.
 `opt-in` now emits instantiations whose arguments are all concrete
 (`passthrough!(foreign euclid::Angle<f32>)`), and across the twenty crates
