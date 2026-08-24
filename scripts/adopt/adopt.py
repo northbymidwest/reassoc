@@ -239,6 +239,23 @@ def rewrite_method_calls(line: str, stats: collections.Counter, self_is_ref: boo
     return out.replace("\0", ".")
 
 
+def is_bodiless_fn(lines: list[str], i: int) -> bool:
+    """A required method has no body — `fn f(..) -> T\nwhere ..;` counts, so
+    the signature is followed until a `;` or `{` decides it."""
+    depth = 0
+    for j in range(i, min(i + 8, len(lines))):
+        for ch in strip_comments_and_strings(lines[j]):
+            if ch in "([<":
+                depth += 1
+            elif ch in ")]>":
+                depth -= 1
+            elif depth <= 0 and ch == "{":
+                return False
+            elif depth <= 0 and ch == ";":
+                return True
+    return False
+
+
 def declares_type_params(lines: list[str], i: int) -> bool:
     """Whether the item starting at line `i` declares a type parameter, looking
     at its head (which may wrap before the `(`/`{`)."""
@@ -378,6 +395,16 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "alg"
             stats["impl/trait"] += 1
+        elif not covered and items and skip_generic and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
+            # Left native, and so is everything in it: a member of a generic
+            # `impl`/`trait` computes with the same type parameter, and
+            # annotating members individually only moves the error (it also
+            # lands on required methods, which is an authored error).
+            stats["generic impl/trait (left native)"] += 1
+            if opens:
+                cover.append((depth, "native"))
+            else:
+                pending = "native"
         elif items and const_fn != "enter" and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
             # Inside an annotated impl too: the rewriter refuses a `const fn`
             # member whose arithmetic it would have rewritten, so every one
@@ -397,7 +424,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             not covered
             and items
             and RE_FN.match(line)
-            and not RE_BODILESS_FN.match(code)
+            and not is_bodiless_fn(lines, i)
             and not (skip_generic and declares_type_params(lines, i))
         ):
             if not already:
@@ -407,6 +434,12 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "alg"
             stats["fn"] += 1
+        elif not covered and items and skip_generic and RE_FN.match(line) and not is_bodiless_fn(lines, i):
+            stats["generic fn (left native)"] += 1
+            if opens:
+                cover.append((depth, "native"))
+            else:
+                pending = "native"
         elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "opaque"):
             # A derive is fine anywhere a type is *declared* — an enclosing
             # `#[algebraic]` does not opt the type in — but never inside a
