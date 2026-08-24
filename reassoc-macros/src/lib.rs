@@ -142,6 +142,59 @@ fn with_errors(
     tokens
 }
 
+/// Mark a user's own float trait so that generic code over it is rewritten.
+///
+/// A crate that is generic over "some float" defines a trait implemented for
+/// `f32` and `f64` only and writes every function against it. Dispatch is by
+/// trait, so a type parameter has only the bounds it is given, and none of
+/// them says "a float the macros can rewrite". This attribute adds that
+/// bound to the trait — one line, in one place, and every generic function
+/// in the crate is rewritable without touching a signature.
+///
+/// ```ignore
+/// #[reassoc::algebraic_float]
+/// pub trait Float: num_traits::Float + AddAssign + Copy {}
+/// impl Float for f32 {}
+/// impl Float for f64 {}
+///
+/// #[reassoc::algebraic]
+/// fn dot<T: Float>(a: &[T], b: &[T]) -> T { .. }   // rewritten
+/// ```
+///
+/// The bound is sealed: a trait carrying it can only be implemented for the
+/// primitive floats, which is what such a trait is for.
+#[proc_macro_attribute]
+pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new(
+            proc_macro2::TokenStream::from(attr)
+                .into_iter()
+                .next()
+                .map(|t| t.span())
+                .unwrap_or_else(proc_macro2::Span::call_site),
+            "`#[algebraic_float]` takes no parameters",
+        )
+        .to_compile_error()
+        .into();
+    }
+    let mut item_trait = match syn::parse::<syn::ItemTrait>(item.clone()) {
+        Ok(t) => t,
+        Err(_) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "`#[algebraic_float]` applies to a trait: put it on the trait your \
+                 generic code is written against, the one implemented for `f32` and `f64`",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+    let krate = syn::Ident::new(&krate::name(), proc_macro2::Span::call_site());
+    let bound: syn::TypeParamBound = syn::parse_quote!(::#krate::AlgebraicFloat);
+    item_trait.supertraits.push(bound);
+    item_trait.to_token_stream().into()
+}
+
 /// Opt a type into `reassoc`'s dispatch layer at its definition.
 ///
 /// Equivalent to `passthrough!(Ty)`, but written where the type is declared:

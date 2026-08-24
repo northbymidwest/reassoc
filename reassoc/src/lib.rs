@@ -231,10 +231,10 @@ pub mod ops;
 // than `reassoc::traits::AddRhs<..>` in every error this crate produces.
 pub mod traits;
 
-mod impls;
+pub(crate) mod impls;
 mod macros;
 
-pub use reassoc_macros::{Passthrough, alg, algebraic};
+pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
 
 // The README's code blocks, compiled as doctests so that they cannot drift
 // from the crate (the README is not the crate docs, so nothing else would
@@ -244,3 +244,19 @@ pub use reassoc_macros::{Passthrough, alg, algebraic};
 #[cfg(doctest)]
 #[doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"))]
 struct ReadmeDoctests;
+
+// The bound `#[algebraic_float]` writes into a user's trait. Hidden: it is
+// not a name anyone should type — the attribute is the surface. Sealed
+// through `Float`'s private supertrait, so no crate can implement it, and it
+// carries no methods, so nothing can be called through it.
+#[doc(hidden)]
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a primitive float, so it cannot be an algebraic one",
+    label = "not `f32` or `f64`",
+    note = "a trait marked `#[algebraic_float]` stands for \"some float\" and can only be \
+            implemented for `f32` and `f64` (and `f16`/`f128` under their features)",
+    note = "for a type of your own, opt it in with `reassoc::passthrough!({Self});` and drop \
+            `#[algebraic_float]` from the trait"
+)]
+pub trait AlgebraicFloat: impls::float::Float {}
+impl<F: impls::float::Float> AlgebraicFloat for F {}

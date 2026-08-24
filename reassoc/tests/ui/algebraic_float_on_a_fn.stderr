@@ -1,0 +1,7 @@
+error: `#[algebraic_float]` applies to a trait: put it on the trait your generic code is written against, the one implemented for `f32` and `f64`
+ --> tests/ui/algebraic_float_on_a_fn.rs:6:1
+  |
+6 | #[algebraic_float]
+  | ^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
