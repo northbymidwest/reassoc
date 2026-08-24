@@ -726,7 +726,11 @@ def cmd_report(a: argparse.Namespace) -> int:
         baseline = baseline_failures(crate, a.cargo_args, out_dir)
         if baseline is None:
             print("  could not stash the tree; no baseline")
-    cmd = ["cargo", "test", "--no-fail-fast", *a.cargo_args]
+    # `--check` answers only "does it still compile", which is the question
+    # when sweeping for new compile errors; it skips building and running the
+    # test harnesses, several times faster and far less disk.
+    cmd = (["cargo", "check", "--all-targets", *a.cargo_args] if a.check
+           else ["cargo", "test", "--no-fail-fast", *a.cargo_args])
     print("$", " ".join(cmd), f"  (in {crate}, REASSOC_TRACE={trace})")
     env = dict(os.environ, REASSOC_TRACE=str(trace))
     # A cached expansion writes no trace; touching the crate root forces the
@@ -993,6 +997,8 @@ def main() -> int:
     p.set_defaults(fn=cmd_apply)
     p = sub.add_parser("report", help="run the crate's tests and summarise")
     p.add_argument("crate")
+    p.add_argument("--check", action="store_true",
+                   help="run `cargo check --all-targets` instead of `cargo test`: compile errors only, much faster")
     p.add_argument("--baseline", action="store_true",
                    help="also run the tests on the pristine tree (tool edits stashed) and mark failures that happen there too")
     p.add_argument("cargo_args", nargs="*", help="extra `cargo test` arguments (after --)")
