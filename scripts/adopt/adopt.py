@@ -54,7 +54,9 @@ RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_
 # inside `cfg_if!`). Everything else is opaque.
 RE_ITEM_PASSING_MACRO = re.compile(r"^(?:cfg_if::)?cfg_if!\s*[\({]")
 RE_BODILESS_FN = re.compile(rf"^\s*{VIS}{QUAL}fn\s[^{{;]*;\s*$")
-RE_MACRO_ITEM = re.compile(r"^[A-Za-z_][\w:]*!\s*[\(\[\{]")
+# A macro invocation in item position, including one written inside a
+# `macro_rules!` transcriber behind repetition (`$($crate::funcs!(..);)*`).
+RE_MACRO_ITEM = re.compile(r"^(?:\$\(\s*)*(?:\$crate::)?[A-Za-z_][\w:]*!\s*[\(\[\{]")
 RE_CFG_TEST = re.compile(r"^\s*#\[cfg\((?:test|all\(\s*test\b.*)\)\]\s*$")
 RE_ATTR_LINE = re.compile(r"^\s*#!?\[")
 RE_MACRO_RULES = re.compile(r"^\s*macro_rules!\s")
@@ -78,6 +80,11 @@ def preceding_attrs_have_cfg_test(lines: list[str], i: int) -> bool:
             return True
         j -= 1
     return False
+
+
+def brackets(code: str) -> int:
+    """Net unclosed brackets of every kind on one line of code."""
+    return sum(code.count(c) for c in "([{") - sum(code.count(c) for c in ")]}")
 
 
 def strip_comments_and_strings(line: str) -> str:
@@ -245,11 +252,19 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
     # the current rule has passed its `=>` (matcher before, transcriber after).
     macro_rule: int | None = None
     in_transcriber = False
+    # Unclosed brackets of a macro invocation whose arguments we are inside.
+    macro_open = 0
     # depth at which the innermost `fn (&self ..)` / `fn (&mut self ..)` opened
     ref_self_fn: list[int] = []
     for i, line in enumerate(lines):
         while cover and depth <= cover[-1][0]:
             cover.pop()
+        if macro_open > 0:
+            # Inside a macro invocation's arguments: emit verbatim.
+            macro_open += brackets(code)
+            out.append(line)
+            depth += code.count("{") - code.count("}")
+            continue
         if macro_rule is not None:
             if depth <= macro_rule:
                 macro_rule, in_transcriber = None, False
@@ -316,8 +331,10 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                     pending = "alg"
                 stats["mod"] += 1
         elif (
-            not covered
-            and RE_MACRO_ITEM.match(stripped)
+            # Not guarded by `covered`: a macro invocation's body is opaque
+            # whatever encloses it, and an annotated `mod` around it must not
+            # stop the cover being pushed (faer-ffi's `mod linalg { cerr!{..} }`).
+            RE_MACRO_ITEM.match(stripped)
             and not RE_MACRO_RULES.match(stripped)
             and not RE_ITEM_PASSING_MACRO.match(stripped)
         ):
@@ -326,10 +343,9 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             # "no rules expected `#`"). Only `macro_rules!` *definitions*
             # take attributes in their templates.
             stats["macro-invocation item (not annotatable)"] += 1
-            if opens:
-                cover.append((depth, "native"))
-            elif stripped.rstrip().endswith(("{", "(", "[")) or code.count("{") > code.count("}"):
-                pending = "native"
+            # Count every bracket kind, not just braces: an invocation may be
+            # `(`-delimited and span lines (`$crate::funcs!(\n impl .. \n);`).
+            macro_open = brackets(code)
         elif not covered and items and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
             if not already:
                 out.append(pad + ATTR)
@@ -361,9 +377,11 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "alg"
             stats["fn"] += 1
-        elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "native" and RE_MACRO_RULES.match(lines[cover[-1][0]] if False else "")):
-            # A derive is fine anywhere a type is declared, covered or not —
-            # the attribute on an enclosing item does not opt the type in.
+        elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "opaque"):
+            # A derive is fine anywhere a type is *declared* — an enclosing
+            # `#[algebraic]` does not opt the type in — but never inside a
+            # macro invocation, where the declaration is the macro's argument
+            # and a derive breaks the call (faer-ffi's `cerr! { pub enum .. }`).
             if not already:
                 out.append(pad + DERIVE)
             stats["type (derive Passthrough)"] += 1
