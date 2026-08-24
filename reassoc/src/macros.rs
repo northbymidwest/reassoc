@@ -29,9 +29,12 @@
 ///   one privately and carries it in the traits' tag parameter. Opt a foreign
 ///   type in **once**, in the binary or one shared crate: two crates opting
 ///   in the same type give every crate that depends on both an ambiguity
-///   error at each use (`docs/limitations.md`). One thing the foreign form
-///   cannot do automatically is a *float on the left* of the type (`2.0 *
-///   v`); that pair is named explicitly, see the next form.
+///   error at each use (`docs/limitations.md`). A *generic* foreign type is
+///   opted in one instantiation at a time — `passthrough!(foreign
+///   num_complex::Complex<f64>);` — which is what a crate with concrete
+///   operands needs; there is no form for "every `T`". One thing the foreign
+///   form cannot do automatically is a *float on the left* of the type (`2.0
+///   * v`); that pair is named explicitly, see the next form.
 /// - `passthrough!(mul: f32, glam::Vec3 => glam::Vec3)` and the `foreign`
 ///   prefix of it — one operator for one pair, written out. Needed only for a
 ///   float on the left of a foreign type; everything else the first two forms

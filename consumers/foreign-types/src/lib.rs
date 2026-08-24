@@ -65,3 +65,28 @@ impl Mul<&Vector> for &Matrix {
         )
     }
 }
+
+/// A *generic* foreign type, the shape `num_complex::Complex<T>` has: opted
+/// in one instantiation at a time (`passthrough!(foreign Pair<f64>)`), which
+/// is all a crate with concrete operands needs.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pair<T>(pub T, pub T);
+
+impl<T: Add<Output = T>> Add for Pair<T> {
+    type Output = Pair<T>;
+    fn add(self, o: Pair<T>) -> Pair<T> {
+        Pair(self.0 + o.0, self.1 + o.1)
+    }
+}
+impl<T: Mul<Output = T> + Copy> Mul<T> for Pair<T> {
+    type Output = Pair<T>;
+    fn mul(self, k: T) -> Pair<T> {
+        Pair(self.0 * k, self.1 * k)
+    }
+}
+impl<T: core::ops::AddAssign> core::ops::AddAssign for Pair<T> {
+    fn add_assign(&mut self, o: Pair<T>) {
+        self.0 += o.0;
+        self.1 += o.1;
+    }
+}

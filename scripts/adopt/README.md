@@ -181,7 +181,7 @@ crate computes with another crate's types. Ordered by what remains.
 | tiny-skia | 25 → 14 | after opting in `tiny_skia_path::{Point, f32x2, NormalizedF32}`; 4 are the inference limitation now documented |
 | ndarray, noise, num-complex, num-rational, rand_distr, vek | 61–291 | generic type parameters, wholesale |
 | lyon_geom, nalgebra, euclid, palette | 474–957 | generic parameters and associated types (`<T as ComplexField>::RealField`, `<C as Mix>::Scalar`) |
-| rustfft | 626 | **all** of it `num_complex::Complex<T>` — a *generic* foreign type, which `passthrough!` has no form for; the opt-in pass reports and skips them |
+| rustfft | 626 | **all** of it `num_complex::Complex<T>` with `T` a type parameter. A concrete instantiation opts in fine (`passthrough!(foreign Complex<f64>)`); rustfft is generic throughout, so this is the generic-code gap wearing a foreign type's clothes |
 
 Everything that remains is one of three known shapes: arithmetic on a
 generic type parameter or associated type (out of scope by design), a

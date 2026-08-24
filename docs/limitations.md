@@ -145,6 +145,15 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   own impls, which are rewritten where they are defined, and its concrete
   float parts can use `alg!`. Measured on cgmath/libm/statrs
   (`scripts/adopt/README.md`), this is what generic numeric crates run into.
+- A *generic* type from another crate is opted in one instantiation at a
+  time: `passthrough!(foreign num_complex::Complex<f64>);` works, and there
+  is no form meaning "every `T`". That only bites inside code which is itself
+  generic — `fn f<T: FftNum>(a: Complex<T>, ..)` — and arithmetic there is
+  out of scope for the reason above. A crate whose operands are concrete
+  needs one line per instantiation and nothing else
+  (`tests/foreign.rs::instantiations_of_a_generic_foreign_type_dispatch`).
+  Measured on rustfft, which is generic throughout (`scripts/adopt/README.md`).
+
 - An operand whose type is only knowable from the operator, where the
   result is then a method receiver, needs an annotation: `|s: U, d| (s + d).min(..)`
   is `E0282 type annotations needed` inside an algebraic scope and compiles

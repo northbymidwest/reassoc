@@ -2,6 +2,15 @@
 
 Notable changes per release. Dates are the publish date.
 
+## Unreleased
+
+### Documented
+
+- A generic foreign type is opted in per instantiation
+  (`passthrough!(foreign num_complex::Complex<f64>)`), which nothing said
+  before; no new macro form is needed for it, and "every `T`" only matters
+  inside generic code, which is out of scope. Pinned in `tests/foreign.rs`.
+
 ## 0.11.0 — 2026-08-23
 
 ### Fixed

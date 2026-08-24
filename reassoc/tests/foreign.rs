@@ -6,7 +6,7 @@
 //! One line per type; a float on the *left* of a foreign type is the one pair
 //! that has to be named. The one new hazard, two crates opting in the same
 //! type, is pinned in `tests/ui/foreign_diamond.rs`.
-use foreign_types::{Matrix, Vec3, Vector};
+use foreign_types::{Matrix, Pair, Vec3, Vector};
 use reassoc::{algebraic, passthrough};
 
 passthrough!(foreign Vec3);
@@ -84,4 +84,35 @@ fn local_and_foreign_opt_ins_coexist() {
         k * v + v * 0.5
     }
     assert_eq!(go(Local(2.0), Vec3(2.0, 0.0, 0.0)), Vec3(5.0, 0.0, 0.0));
+}
+
+// ---- a generic foreign type, per instantiation ----
+
+// `passthrough!(foreign Pair<f64>)` — a generic type from another crate is
+// opted in one instantiation at a time, which is what a crate with concrete
+// operands needs (`num_complex::Complex<f64>` is the real-world shape). There
+// is no form for "every `T`", and inside code generic over `T` the arithmetic
+// is out of scope anyway (`docs/limitations.md`).
+reassoc::passthrough!(foreign foreign_types::Pair<f64>);
+reassoc::passthrough!(foreign foreign_types::Pair<f32>);
+
+#[reassoc::algebraic]
+fn combine(a: Pair<f64>, b: Pair<f64>, k: f64) -> Pair<f64> {
+    let mut acc = a + b * k;
+    acc += a;
+    acc
+}
+
+#[reassoc::algebraic]
+fn combine_f32(a: Pair<f32>, k: f32) -> Pair<f32> {
+    a + a * k
+}
+
+#[test]
+fn instantiations_of_a_generic_foreign_type_dispatch() {
+    assert_eq!(
+        combine(Pair(1.0, 2.0), Pair(3.0, 4.0), 2.0),
+        Pair(1.0 + 6.0 + 1.0, 2.0 + 8.0 + 2.0)
+    );
+    assert_eq!(combine_f32(Pair(1.0, 2.0), 3.0), Pair(4.0, 8.0));
 }

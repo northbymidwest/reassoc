@@ -169,7 +169,9 @@ reassoc = "0.11"
   foreign type in once, in the binary or one shared crate (two crates opting
   in the same type give a third an ambiguity error). A primitive on the *left*
   of a foreign type (`2.0 * v`, `n * v`) is the one pair that is named:
-  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`.
+  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`. A generic
+  foreign type takes one line per instantiation:
+  `passthrough!(foreign num_complex::Complex<f64>)`.
 
 Primitives, references to them, `Duration`, `String`, the std time types,
 `uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
