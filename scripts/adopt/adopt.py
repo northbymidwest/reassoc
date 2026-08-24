@@ -250,10 +250,13 @@ def is_bodiless_fn(lines: list[str], i: int) -> bool:
     the signature is followed until a `;` or `{` decides it."""
     depth = 0
     for j in range(i, min(i + 8, len(lines))):
-        for ch in strip_comments_and_strings(lines[j]):
-            if ch in "([<":
+        # `<`/`>` are not tracked: the `>` of a `->` return type would
+        # unbalance them, and a function whose `{` sits on the next line
+        # would read as bodiless and never be annotated at all.
+        for ch in strip_comments_and_strings(lines[j]).replace("->", "  "):
+            if ch in "([":
                 depth += 1
-            elif ch in ")]>":
+            elif ch in ")]":
                 depth -= 1
             elif depth <= 0 and ch == "{":
                 return False
@@ -401,7 +404,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "alg"
             stats["impl/trait"] += 1
-        elif not covered and items and skip_generic and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
+        elif items and skip_generic and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)) and declares_type_params(lines, i) and not covered:
             # Left native, and so is everything in it: a member of a generic
             # `impl`/`trait` computes with the same type parameter, and
             # annotating members individually only moves the error (it also
@@ -440,8 +443,17 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "alg"
             stats["fn"] += 1
-        elif not covered and items and skip_generic and RE_FN.match(line) and not is_bodiless_fn(lines, i):
-            stats["generic fn (left native)"] += 1
+        elif items and skip_generic and RE_FN.match(line) and not is_bodiless_fn(lines, i) and declares_type_params(lines, i):
+            # A generic member of an annotated container is covered by it, so
+            # leaving it out is not enough — it must say `skip` (sgrust's
+            # `impl Basis for LinearBasis` declares nothing, and its
+            # `fn eval_t<T: Float>` inside was rewritten and failed).
+            if covered and cover[-1][1] == "alg":
+                if not already:
+                    out.append(pad + SKIP)
+                stats["generic member (skipped inside an annotated container)"] += 1
+            else:
+                stats["generic fn (left native)"] += 1
             if opens:
                 cover.append((depth, "native"))
             else:
