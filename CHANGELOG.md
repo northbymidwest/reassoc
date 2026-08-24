@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## Unreleased
+## 0.11.1 — 2026-08-24
 
 ### Documented
 
@@ -10,6 +10,17 @@ Notable changes per release. Dates are the publish date.
   (`passthrough!(foreign num_complex::Complex<f64>)`), which nothing said
   before; no new macro form is needed for it, and "every `T`" only matters
   inside generic code, which is out of scope. Pinned in `tests/foreign.rs`.
+
+### Tools
+
+- `scripts/adopt`: `opt-in` writes `passthrough!(foreign ..)` for every
+  foreign type an adoption's errors named, concrete instantiations included,
+  resolving bare re-exports and generic heads through the crate's own `use`
+  statements; `apply` never annotates inside a `macro_rules!` matcher or a
+  macro invocation (except `cfg_if!`), skips bodiless `fn f();` templates,
+  derives on template types, is idempotent, and clears a multi-line
+  `#![deny(..)]` when inserting at the crate root. No library behaviour
+  changes; `scripts/adopt/README.md` has the 20-crate sweep these came from.
 
 ## 0.11.0 — 2026-08-23
 
