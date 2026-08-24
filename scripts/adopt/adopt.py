@@ -949,7 +949,10 @@ def cmd_opt_in(a: argparse.Namespace) -> int:
             unresolved.append(t)
     if unresolved:
         print(f"  (not emitted — no `use` names them, so no path to write: {', '.join(unresolved)})")
-    types = resolved
+    # Dedupe *after* resolution: a bare `Complex<f32>` and a qualified
+    # `num_complex::Complex<f32>` in the same log are one impl, and emitting
+    # both is `E0119 conflicting implementations` — worse than the gap.
+    types = list(dict.fromkeys(resolved))
     if not types:
         print("no foreign types named in the log")
         return 0
