@@ -53,6 +53,13 @@ RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_
 # descending into them is safe and necessary (tiny-skia declares `f32x8`
 # inside `cfg_if!`). Everything else is opaque.
 RE_ITEM_PASSING_MACRO = re.compile(r"^(?:cfg_if::)?cfg_if!\s*[\({]")
+# An item that declares type parameters: `fn f<T>`, `impl<T> Tr for X<T>`,
+# `trait T<U>`. Arithmetic on a type parameter cannot be dispatched, so with
+# `--skip-generic-items` such items are left native rather than annotated —
+# the difference between "the adoption compiles" and a wall of E0277.
+# Lifetimes and const parameters alone do not count: `fn f<'a>` and
+# `fn f<const N: usize>(a: [f32; N])` still do float arithmetic.
+RE_GENERIC_ITEM = re.compile(r"^[^(){}]*?<\s*(?:'\w+\s*,\s*|const\s+\w+\s*:[^,>]+,\s*)*(?!const\b)[A-Za-z_]\w*\s*[,:>=]")
 RE_BODILESS_FN = re.compile(rf"^\s*{VIS}{QUAL}fn\s[^{{;]*;\s*$")
 # A macro invocation in item position, including one written inside a
 # `macro_rules!` transcriber behind repetition (`$($crate::funcs!(..);)*`).
@@ -232,7 +239,19 @@ def rewrite_method_calls(line: str, stats: collections.Counter, self_is_ref: boo
     return out.replace("\0", ".")
 
 
-def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: collections.Counter, method_calls: bool = False, macro_bodies: bool = True) -> str:
+def declares_type_params(lines: list[str], i: int) -> bool:
+    """Whether the item starting at line `i` declares a type parameter, looking
+    at its head (which may wrap before the `(`/`{`)."""
+    head = ""
+    for j in range(i, min(i + 6, len(lines))):
+        head += strip_comments_and_strings(lines[j])
+        if "(" in head or "{" in head or ";" in head:
+            break
+    head = head.split("(")[0].split("{")[0]
+    return bool(RE_GENERIC_ITEM.match(head))
+
+
+def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: collections.Counter, method_calls: bool = False, macro_bodies: bool = True, skip_generic: bool = False) -> str:
     """Insert the attributes. A crude brace counter tracks nesting; an item
     is annotated when no enclosing item or module already carries the
     attribute (or was deliberately left native), so items inside a module
@@ -346,7 +365,12 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             # Count every bracket kind, not just braces: an invocation may be
             # `(`-delimited and span lines (`$crate::funcs!(\n impl .. \n);`).
             macro_open = brackets(code)
-        elif not covered and items and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)):
+        elif (
+            not covered
+            and items
+            and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped))
+            and not (skip_generic and declares_type_params(lines, i))
+        ):
             if not already:
                 out.append(pad + ATTR)
             if opens:
@@ -369,7 +393,13 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 cover.append((depth, "native"))
             else:
                 pending = "native"
-        elif not covered and items and RE_FN.match(line) and not RE_BODILESS_FN.match(code):
+        elif (
+            not covered
+            and items
+            and RE_FN.match(line)
+            and not RE_BODILESS_FN.match(code)
+            and not (skip_generic and declares_type_params(lines, i))
+        ):
             if not already:
                 out.append(pad + ATTR)
             if opens:
@@ -497,7 +527,8 @@ def cmd_apply(a: argparse.Namespace) -> int:
     for p in files:
         before = p.read_text()
         after = annotate(before, items=not a.no_items, types=not a.no_types, const_fn=a.const_fn, stats=stats,
-                         method_calls=a.method_calls, macro_bodies=not a.no_macro_bodies)
+                         method_calls=a.method_calls, macro_bodies=not a.no_macro_bodies,
+                         skip_generic=a.skip_generic_items)
         if after != before:
             stats["files changed"] += 1
             if not a.dry_run:
@@ -922,6 +953,9 @@ def main() -> int:
                         "so operator-method style arithmetic enters the experiment; the rewriter itself never touches method calls")
     p.add_argument("--no-macro-bodies", action="store_true",
                    help="leave macro_rules! bodies alone (by default impl/fn templates inside them are annotated too)")
+    p.add_argument("--skip-generic-items", action="store_true",
+                   help="leave items that declare a type parameter native: arithmetic on a type parameter cannot be "
+                        "dispatched, so annotating them is the largest source of new compile errors in a wholesale adoption")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(fn=cmd_apply)
     p = sub.add_parser("report", help="run the crate's tests and summarise")
