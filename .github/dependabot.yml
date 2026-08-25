@@ -1,0 +1,22 @@
+# Only the GitHub Actions this workflow pins, and only monthly.
+#
+# In practice that is `actions/checkout`: the `dtolnay/rust-toolchain` refs
+# are branches (`stable`, `nightly`, `1.98.0`), not versions, so there is
+# nothing for Dependabot to bump and `@stable` already follows each Rust
+# release. The point is not freshness but the upgrades that arrive as
+# deadlines — a runner's Node version reaching end of life takes unattended
+# workflows down with it.
+#
+# Deliberately not the `cargo` ecosystem: the dependency versions in
+# `Cargo.toml` are floors, the minimum each package actually needs
+# (`RELEASING.md`), and this crate ships no lockfile. Raising a floor because
+# a newer version exists is the opposite of what those numbers mean.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+    labels: []
