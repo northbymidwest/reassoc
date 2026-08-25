@@ -183,37 +183,24 @@ mutant of the branch is caught. The README's code blocks are doctests too
 
 ## Releasing
 
-`.github/workflows/release.yml`, dispatched by hand with the version. By hand
-first: bump both `Cargo.toml`s, write the CHANGELOG section, commit, push, and
-*wait for CI to go green*. Then Actions -> release -> the version, untick
-`dry_run`, approve when it pauses (the `release` environment requires a
-reviewer).
+`.github/workflows/release.yml`, dispatched by hand; `RELEASING.md` has the
+rest. Bump both `Cargo.toml`s, write the CHANGELOG section, push, wait for CI,
+then dispatch with the version and untick `dry_run` (on by default; it stops
+before the first upload). The `release` environment requires an approval.
 
-It publishes nothing until the version matches both manifests, the tag does
-not already exist, neither crate is on crates.io at that version, CI is green
-on that exact commit, the CHANGELOG has a section for it, and both archives
-assemble. Then `reassoc-macros`, then `reassoc`, then the tag, then the
-release. A failed preflight costs nothing: no tag, no burnt version.
+Nothing uploads unless the version matches both manifests, the tag is free,
+neither crate has that version, CI is green on that commit, the CHANGELOG has
+a section, and both archives assemble. A failed preflight leaves no tag.
 
-Two orderings are forced. The facade pins `reassoc-macros = "=<version>"` and
-resolves it against the registry rather than the workspace, so the macros
-crate must be live first. And the tag comes last because `v*` tags are
-protected with no bypass actors: a tag is permanent for everyone the moment it
-lands, so a release triggered *by* a tag would burn a version number for good
-whenever anything downstream failed.
+`reassoc-macros` publishes first: the facade's `=<version>` pin resolves
+against the registry, not the workspace. The tag is last: `v*` tags have no
+bypass actors and are permanent for everyone, so a tag-triggered release would
+burn a version whenever anything downstream failed.
 
-`dry_run` defaults to true and stops before the first upload, the crates.io
-token exchange included -- that exchange is the one part with no offline test.
-Rehearsing on a version that already shipped is the point, so on a dry run the
-"tag exists" and "already published" checks warn rather than stop; every other
-check still stops.
-
-Trusted publishing (OIDC), so the repository holds no token that could
-publish. Both packages carry a crates.io trusted-publisher entry naming this
-repo, `release.yml` and the `release` environment; all three must match the
-workflow or the token exchange is refused. See `RELEASING.md`. Dependency
-floors are the minimum actually required, and the `minimal_versions` CI job is
-what keeps that true.
+Trusted publishing, so no token lives in the repo; each package needs a
+crates.io entry naming this repo, `release.yml` and the `release` environment.
+Dependency floors are the minimum actually required; `minimal_versions` keeps
+that true.
 
 README links into `docs/` must be absolute GitHub URLs: crates.io resolves a
 README's relative links against the package directory, and the README lives one
