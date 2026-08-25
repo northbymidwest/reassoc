@@ -38,111 +38,87 @@ cargo +nightly test -p reassoc --features f16,f128      # nightly-only: f16/f128
 cargo +nightly test -p reassoc --features const-fn      # nightly-only: #[algebraic] enters const fn (const dispatch layer)
 ```
 
-`--all-features` is never used on stable: `f16` and `f128` turn on unstable
-feature gates and only build on nightly (their own CI job).
+`--all-features` is never used on stable: `f16`/`f128` need nightly gates.
 
-`ui` and `renamed` are `#[ignore]`d because they depend on toolchain and host;
-CI runs them explicitly, `ui` on a pinned 1.98.0. Run both with `--ignored`
-before calling a change green. `codegen_matrix` is the zero-cost proof and is
-*not* ignored (it shells out to `cargo rustc` for IR, into its own target
-dir): `examples/codegen_matrix.rs` holds a `sugar_`/`direct_` pair per
-construct (every operator, place shape, chain length, loop, user/foreign/std
-type, `strict!`, `alg!` form ..) and the test requires identical optimized
-LLVM IR after alpha-renaming at `-C opt-level=2,3` and the same instructions
-order-insensitively at `1,s,z`, with strict-IEEE negative controls and a
-vectorization check on the `f32` dot. A new emission shape or dispatch path
-gets a pair there. Hand-written twins of `op=` through memory must be
-RHS-first, as native `op=` is.
-`consumers/edition2021/` is a workspace member that includes every test file
-by `#[path]` and compiles it as edition 2021 (`tests/suite_layout.rs` keeps
-its list complete), so 2024-only syntax goes in `tests/edition2024.rs`,
-nowhere else. `consumers/renamed/` is deliberately not a member: it turns on
-`resolve-crate-name`, which feature unification would spread to every
-workspace build. Regenerating `.stderr` files needs
-the `rust-src` component (five of them quote a line of `core`); regenerate with
-`TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored` and read each
-diff back before committing.
+`ui` and `renamed` are `#[ignore]`d (toolchain- and host-dependent); run both
+with `--ignored` before calling a change green. Regenerating a `.stderr` needs
+`rust-src` (five quote a line of `core`): `TRYBUILD=overwrite`, then read every
+diff back. `codegen_matrix` is the zero-cost proof and is *not* ignored; a new
+emission shape or dispatch path gets a `sugar_`/`direct_` pair in
+`examples/codegen_matrix.rs`, whose header says what is compared. Twins of
+`op=` through memory must be RHS-first, as native `op=` is.
+
+`consumers/edition2021/` includes every test file by `#[path]` as edition 2021
+(`tests/suite_layout.rs` keeps the list complete), so 2024-only syntax goes in
+`tests/edition2024.rs` alone. `consumers/renamed/` is deliberately not a
+member: `resolve-crate-name` would spread through feature unification.
 
 ## Architecture
 
 Two crates, and the split is forced: a `proc-macro = true` crate can export
-nothing but proc macros. `reassoc-macros` holds the rewriter
-(`rewrite.rs`, one `VisitMut` behind both `alg!` and `#[algebraic]`; `scope.rs`
-parses the attribute's parameters); `reassoc` holds the traits, impls, and
-`passthrough!`, and re-exports the macros. Users depend only on `reassoc`.
+nothing but proc macros. `reassoc-macros` holds the rewriter (`rewrite.rs`,
+one `VisitMut` behind both `alg!` and `#[algebraic]`; `scope.rs` parses the
+attribute's parameters); `reassoc` holds the traits, impls and `passthrough!`,
+and re-exports the macros. Users depend only on `reassoc`.
 
 The dispatch layer is one marker, `Passthrough<Tag = ()>`, two traits per
-operator, `MulRhs<Lhs, O, Tag>` (binary) and `MulAssignRhs<Lhs, Tag>` (the
-compound form through a `&mut`), blanket impls of those for every
-`Passthrough` left type through its own `std::ops` (output = the type's
-`Output`, `op=` = its `MulAssign`), and free functions in `ops.rs`. Floats
-and integers are not marked: their impls are generic over sealed `Float` /
-`Int` under `traits::FloatTag` / `IntTag`, so `{float}`/`{integer}` meet one
-candidate; the blankets are bounded on `OptInTag`, which those tags never
-implement, and that is what makes coherence accept both. A float or integer on
-the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per primitive
-bounded on the right type's marker (`float_left!`, `int_left!`). `String` and
-`uN / NonZero<uN>` are concrete.
+operator (`MulRhs<Lhs, O, Tag>` and `MulAssignRhs<Lhs, Tag>`), blanket impls
+of those for every `Passthrough` left type through its own `std::ops`, and
+free functions in `ops.rs`. Floats and integers are not marked: their impls
+are generic over sealed `Float`/`Int` under private tags, so `{float}` and
+`{integer}` meet one candidate, while the blankets are bounded on `OptInTag`,
+which those tags never implement. That is what makes coherence accept both. A
+primitive on the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per
+primitive bounded on the right type's marker (`float_left!`, `int_left!`).
+`String` and `uN / NonZero<uN>` are concrete.
 
 ## Invariants, one line each; the evidence is in `docs/design.md`
 
 Read `docs/design.md` before changing any of these. Each was measured and
 reverts to a worse result if undone.
 
-- Trait outputs are type parameters, never associated types (`E0271` on
-  unannotated literals otherwise); the blanket's projected output in the impl
-  header is fine because the primitives never go through it.
-- `f16`/`f128` are one more `float!`/`float_lefts!` line each behind the
-  `f16`/`f128` features (nightly); nothing else changes for them.
+- Trait outputs are type parameters, never associated types: `E0271` on
+  unannotated literals otherwise.
+- `f16`/`f128` are one more `float!`/`float_lefts!` line each behind their
+  features (nightly); nothing else changes.
 - Floats and ints stay generic over sealed traits under private tags, and the
-  marker blankets stay bounded on `OptInTag`: drop either and `{float} *
-  {float}` loses its single candidate (`E0282` under `-`, fuzz corpus) or
-  coherence rejects the float impls (`E0119`). Primitives are never
-  `Passthrough` (the blanket would route `f32 + f32` to IEEE `Add`).
-- Every dispatch trait has a trailing `Tag = ()` parameter that `ops::*` leave
-  free; `passthrough!(foreign ..)` passes a per-expansion local type (also an
-  `OptInTag`) so the orphan rule admits impls for types from other crates,
-  plain forms pass `()`. `traits` must not be `#[doc(hidden)]` (rustc stops
-  trimming its paths in diagnostics). `consumers/foreign-types/` is the
-  foreign crate the tests use.
-- The operand bound hangs off `B` (caret on the right operand). Nothing is
-  synthesised for `Copy` types and references follow the type's own impls:
-  native parity over convenience.
-- `passthrough!(OP: A, B => O)` and `OP_assign: A, B` are only for a
-  *foreign* right operand: a primitive on the left of another crate's type,
-  under the `foreign` tag. With a plain tag and an opted-in `B` both forms
-  overlap the primitive-left blankets (`E0119`); the assign form joined them
-  in 0.11.0, when those blankets grew their in-place twin.
+  marker blankets stay bounded on `OptInTag`. Drop either and `{float} *
+  {float}` loses its single candidate (`E0282`) or coherence rejects the float
+  impls (`E0119`). Primitives are never `Passthrough`: the blanket would route
+  `f32 + f32` to IEEE `Add`.
+- Every dispatch trait has a trailing `Tag = ()` that `ops::*` leave free;
+  `passthrough!(foreign ..)` passes a per-expansion local type so the orphan
+  rule admits other crates' types. `traits` must not be `#[doc(hidden)]`:
+  rustc then stops trimming its paths in diagnostics.
+  `consumers/foreign-types/` is the foreign crate the tests use.
+- The operand bound hangs off `B`. Nothing is synthesised for `Copy` types and
+  references follow the type's own impls: native parity over convenience.
+- `passthrough!(OP: A, B => O)` and `OP_assign: A, B` are only for a *foreign*
+  right operand; with a plain tag and an opted-in `B` they overlap the
+  primitive-left blankets (`E0119`).
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
-- Macros are opaque (`strict!` depends on it) except the std expression
-  macros (`LISTED_MACROS` in `rewrite.rs`), entered by last path segment and
-  only when the arguments parse as expressions; `macros = false` turns it off.
+- Macros are opaque (`strict!` depends on it) except the std expression macros
+  (`LISTED_MACROS` in `rewrite.rs`), matched on the last path segment and only
+  when the arguments parse as expressions; `macros = false` turns it off.
 - `unparen` strips groups, then exactly one paren layer.
 - A non-float literal, or a cast to an integer type, on either side leaves the
-  operation native. Do not widen to all literals (silently drops algebraic on
-  float constants) or narrow to both sides (hides `arithmetic_overflow`).
+  operation native. Do not widen to all literals (drops algebraic on float
+  constants) or narrow to both sides (hides `arithmetic_overflow`).
 - Unary minus is not rewritten; constant method receivers are not special-cased.
-- Compound assignment: RHS first, bound by `match` on a one-tuple (a struct
-  literal is not a legal scrutinee); every place, bare paths included, goes
-  through `ops::*_assign(&mut place, rhs)` with `static_mut_refs` allowed on
-  that statement, and the whole `match` inside `ops::unit(..)` so the
-  statement is a call, not block-like (bare, the user's `;` trips pedantic
-  `unnecessary_semicolon`; dropping the `;` trips
-  `semicolon_if_nothing_returned` on a block's last statement). The user's
-  tokens are never touched. `consumers/lints/` pins both directions. The binding is call-site with a suffix; mixed-site hygiene
-  moves the error caret to the attribute. `String`'s in-place impls are
-  concrete, not `&T: AsRef<str>`.
-- Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected
-  except under the nightly `const-fn` feature, where the whole dispatch
-  layer is `const` (`konst!` in `lib.rs` pastes `const`/`[const]` into the
-  impl-stamping macros) and a `const fn` is entered like any other.
+- Compound assignment: RHS first, bound by `match` on a one-tuple, every place
+  through `ops::*_assign(&mut place, rhs)`, the `match` inside `ops::unit(..)`
+  so the statement is a call rather than block-like. `consumers/lints/` pins
+  both semicolon directions. The binding is call-site with a suffix: mixed-site
+  hygiene moves the error caret to the attribute. The user's tokens are never
+  touched.
+- Const positions are never rewritten; `#[algebraic]` on a `const fn` is
+  rejected, except under the nightly `const-fn` feature where the dispatch
+  layer is `const` and a `const fn` is entered like any other.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Everything lexically inside an annotated scope is entered: closures, nested
-  items, and (on an `impl`/inline `mod`/`trait`) every member and nested
-  container. The `items` parameter is gone (0.8.0; an authored error names
-  `skip`). A `const fn` in an algebraic scope is
-  skipped if the rewrite would not change it (probed on a clone), an error
-  otherwise. `mod foo;` and other item kinds are refused by name.
+  items, and on a container every member and nested container. A `const fn` in
+  scope is skipped if the rewrite would not change it, an error otherwise.
+  `mod foo;` and other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.
 
@@ -151,35 +127,33 @@ Gaps against plain Rust are documented in `docs/diagnostics.md` and
 
 ## Writing tests that can actually fail
 
-Native `f32` operators produce values identical to dispatched ones, so a test
-using `f32` passes even if the rewriter is a no-op. Use the `Dispatched` type
-in `tests/alg.rs` / `tests/attribute.rs`: it implements only the `*Rhs` traits,
-so rewriting is observable at compile time. The scope UI cases
-(`closures_false_*`, `skip_excludes_*`, `items_false_*`, `container_*`) are
-must-fail tests for this reason. Before trusting a new guard, neuter the thing it guards
-and watch it fail, and read every `.stderr` you bless: five must-fail cases
-once named a removed trait and passed for several releases on "cannot find
-trait", pinning nothing. `tests/ui.rs::must_fail_cases_fail_for_the_stated_reason`
-now rejects any snapshot whose error is an unresolved name.
+Native `f32` operators give values identical to dispatched ones, so an `f32`
+test passes even if the rewriter is a no-op. Use `Dispatched` (`tests/alg.rs`,
+`tests/attribute.rs`): it implements only the `*Rhs` traits, so rewriting is
+observable at compile time. The scope UI cases (`closures_false_*`,
+`skip_excludes_*`, `container_*`) are must-fail for the same reason, and the
+fuzz corpus carries a `D`-typed twin of every tree. Regenerate
+it with `scripts/gen-fuzz-corpus.py`, then `rustfmt`.
 
-`tests/ui/pass/` exists partly to force trybuild to use `cargo build`: lints
-that fire during codegen, `arithmetic_overflow` among them, are invisible under
+Before trusting a new guard, neuter what it guards and watch a test fail. Read
+every `.stderr` you bless: five must-fail cases once named a removed trait and
+passed for releases on "cannot find trait", pinning nothing;
+`must_fail_cases_fail_for_the_stated_reason` now rejects any snapshot failing
+on an unresolved name.
+
+A const-position guard must be pinned with *named constants*: `[0.0; A * B]`,
+never `[0.0; 4 * 2]`. The literal rule leaves literal arithmetic native
+whether or not the guard exists, so the literal form passes with the guard
+deleted -- four did, until `scripts/mutants.sh` said so. That script is the
+check for any new rewriter branch: `--re <fn name>`, and every non-equivalent
+mutant must be caught.
+
+`tests/ui/pass/` exists partly to force trybuild onto `cargo build`: lints
+firing during codegen, `arithmetic_overflow` among them, are invisible under
 `cargo check`. `tests/ui/redundant_parens.rs` pins `unused_parens` in both
-directions across every construct the rewriter emits. The fuzz corpus carries
-a `D`-typed twin of every tree for the same reason as `Dispatched`: the f64
-forms pass with an operator left unrewritten; the twin fails to compile.
-Regenerate with `scripts/gen-fuzz-corpus.py` and run `rustfmt` on the output.
-
-A const-position guard (array-repeat length, array-type length, const generic
-argument, discriminant, associated const) must be pinned with *named
-constants* as operands, `[0.0; A * B]`, never `[0.0; 4 * 2]`: the literal
-rule leaves literal arithmetic native whether or not the guard exists, so the
-literal form passes with the guard deleted (four did, until
-`scripts/mutants.sh` said so). The same script is the check for any new
-rewriter branch: run it with `--re <fn name>` and make sure every non-equivalent
-mutant of the branch is caught. The README's code blocks are doctests too
-(`ReadmeDoctests` in `lib.rs`), so an example there that stops compiling fails
-`cargo test --doc`; the hidden `# ` lines in it are what keep that at 0 ignored.
+directions. The README's code blocks are doctests (`ReadmeDoctests`), so an
+example that stops compiling fails `cargo test --doc`; its hidden `# ` lines
+keep that at 0 ignored.
 
 ## Releasing
 
