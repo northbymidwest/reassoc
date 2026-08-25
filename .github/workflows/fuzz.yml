@@ -18,8 +18,12 @@ on:
         required: false
         type: string
 
+# `issues: write` is what the reporting step below needs. A seed that fails is
+# a bug report with a reproducer attached, and nobody reads a weekly cron's
+# logs on the off chance.
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: fuzz
@@ -57,7 +61,8 @@ jobs:
             > reassoc/tests/fuzz_corpus_f32.rs
           rustfmt --edition 2024 reassoc/tests/fuzz_corpus.rs reassoc/tests/fuzz_corpus_f32.rs
 
-      - run: cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32
+      - id: test
+        run: cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32
 
       # The corpus is not committed, so a failure is otherwise unreproducible:
       # without these files the log says only that something went wrong.
@@ -66,6 +71,45 @@ jobs:
         with:
           name: fuzz-corpus-${{ steps.gen.outputs.seed }}
           path: reassoc/tests/fuzz_corpus*.rs
+
+      # Only for a corpus that actually failed. A broken runner, or a
+      # generator that would not run, is not a finding about this crate, and
+      # filing it as one would train the label to be ignored.
+      - name: File the failing seed
+        if: failure() && steps.test.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEED: ${{ steps.gen.outputs.seed }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="fuzz: the corpus from seed $SEED does not pass"
+          export TITLE
+          NEXT=$((SEED + 1))
+          {
+            printf '%s\n\n' "A generated expression tree disagreed with the value computed offline in rational arithmetic. That number comes from neither the macro nor Rust's evaluator, so a disagreement is a defect in one of them rather than a tolerance to widen."
+            printf 'Run: %s\n' "$RUN"
+            printf '%s\n\n' "The corpus that failed is attached to that run as an artifact."
+            printf '%s\n' 'Reproduce:'
+            printf '%s\n' '```sh'
+            printf 'python3 scripts/gen-fuzz-corpus.py --seed %s \\\n' "$SEED"
+            printf '%s\n' '    --count 200 --chains 80 --nodes 40 --width 64 > reassoc/tests/fuzz_corpus.rs'
+            printf 'python3 scripts/gen-fuzz-corpus.py --seed %s \\\n' "$NEXT"
+            printf '%s\n' '    --count 100 --chains 40 --nodes 24 --width 32 > reassoc/tests/fuzz_corpus_f32.rs'
+            printf '%s\n' 'cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32'
+            printf '%s\n\n' '```'
+            printf '%s\n' 'Restore the committed corpora with `git checkout reassoc/tests/fuzz_corpus*.rs`.'
+          } > /tmp/fuzz-issue.md
+
+          # One issue per seed: two failing seeds are two different trees and
+          # almost certainly two different bugs. A re-run of the same seed
+          # comments rather than filing a duplicate.
+          existing=$(gh issue list --state open --label ci-failure --limit 100 \
+            --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Seen again: $RUN"
+          else
+            gh issue create --title "$TITLE" --label ci-failure --label bug --body-file /tmp/fuzz-issue.md
+          fi
 
       - name: Summarise
         if: always()

@@ -11,9 +11,17 @@ on:
   schedule:
     - cron: '43 7 * * 1'
   workflow_dispatch:
+    inputs:
+      baseline:
+        description: 'Override the survivor baseline (to exercise the reporting path)'
+        required: false
+        type: string
 
+# `issues: write` is for the reporting step: a survivor that appears on a
+# Monday and is never read about is the same as no job at all.
 permissions:
   contents: read
+  issues: write
 
 # Nobody is waiting on a weekly run; let one finish rather than cancelling it
 # for the next.
@@ -25,6 +33,13 @@ jobs:
   mutants:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # Survivors that cannot be killed rather than gaps in the suite. Nine
+      # are the `REASSOC_TRACE` machinery, invisible here because its test
+      # shells out to cargo and the script excludes the shell-outs; the rest
+      # are equivalent mutants, each documented at its site. Lowering this is
+      # the point. Raising it needs a reason in the commit message.
+      BASELINE: ${{ inputs.baseline || '18' }}
     steps:
       - uses: actions/checkout@v7
       # The pinned toolchain with `rust-src`, for the same reason the `ui` job
@@ -43,14 +58,8 @@ jobs:
           tool: cargo-mutants@27.1.0
 
       - name: Mutate the rewriter
+        id: mutate
         env:
-          # Survivors that cannot be killed rather than gaps in the suite.
-          # Nine are the `REASSOC_TRACE` machinery, invisible here because its
-          # test shells out to cargo and the script excludes the shell-outs;
-          # the rest are equivalent mutants, each documented at its site.
-          # Lowering this is the point. Raising it needs a reason in the
-          # commit message.
-          BASELINE: 18
           NO_COLOR: 1
         run: |
           set -o pipefail
@@ -63,6 +72,7 @@ jobs:
           fi
 
           missed=$(grep -c '^MISSED' mutants.log || true)
+          echo "missed=$missed" >> "$GITHUB_OUTPUT"
           {
             echo "## $missed surviving mutants (baseline $BASELINE)"
             echo
@@ -72,6 +82,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$missed" -gt "$BASELINE" ]; then
+            echo "regression=true" >> "$GITHUB_OUTPUT"
             echo "::error::$missed surviving mutants against a baseline of $BASELINE — a line of the rewriter has lost the test that observed it"
             exit 1
           fi
@@ -79,6 +90,38 @@ jobs:
             echo "::notice::$missed surviving mutants, below the baseline of $BASELINE — lower BASELINE in this workflow to hold the ground"
           fi
           echo "$missed surviving mutants, at or below the baseline of $BASELINE"
+
+      # Only for a genuine regression in the count. An install that failed or
+      # a runner that died is not a finding about the suite.
+      - name: File a survivor regression
+        if: always() && steps.mutate.outputs.regression == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MISSED: ${{ steps.mutate.outputs.missed }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="mutants: surviving mutants above the baseline"
+          export TITLE
+          {
+            printf '%s\n\n' "\`scripts/mutants.sh\` found $MISSED surviving mutants against a baseline of $BASELINE. A survivor is a line of the rewriter that no test observes, so the gap is in the suite rather than in the code: something changed that nothing was watching."
+            printf 'Run: %s\n\n' "$RUN"
+            printf '%s\n' 'Every survivor in this run:'
+            printf '%s\n' '```'
+            grep '^MISSED' mutants.log | sed -E 's/ in [0-9]+s build.*//' | sed -E 's|reassoc-macros/src/||'
+            printf '%s\n\n' '```'
+            printf '%s\n' "The baseline covers $BASELINE that cannot be killed — the \`REASSOC_TRACE\` machinery this run cannot observe, and equivalent mutants documented at each site. Anything beyond that is new."
+          } > /tmp/mutants-issue.md
+
+          # One rolling issue: a count above the baseline is a single ongoing
+          # condition, not a fresh bug each week. Fifty-two identical tickets
+          # a year would be worse than none.
+          existing=$(gh issue list --state open --label ci-failure --limit 100 \
+            --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file /tmp/mutants-issue.md
+          else
+            gh issue create --title "$TITLE" --label ci-failure --body-file /tmp/mutants-issue.md
+          fi
 
       - uses: actions/upload-artifact@v7
         if: always()
