@@ -34,7 +34,7 @@ f128 = []
 const-fn = ["reassoc-macros/const-fn"]
 
 [dependencies]
-reassoc-macros = { version = "=0.11.1", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.11.2", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"

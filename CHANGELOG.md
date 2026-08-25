@@ -2,6 +2,47 @@
 
 Notable changes per release. Dates are the publish date.
 
+## 0.11.2 - 2026-08-25
+
+### Fixed
+
+- **Dependency floors that could not resolve.** `quote = "1.0"` and
+  `proc-macro2 = "1.0"` claimed to build against versions that cannot build
+  this crate: syn 3.0.0, the floor this crate declares for it, requires
+  `quote ^1.0.35` and `proc-macro2 ^1.0.91`. Resolving every direct
+  dependency to its floor failed outright on the conflict. They now say
+  `1.0.35` and `1.0.91`. These are still caret requirements, so newer
+  versions are picked exactly as before; only the lower bound moved, and only
+  to something that was already mandatory. A `minimal_versions` CI job now
+  builds and tests at every declared floor, which nothing did: `Cargo.lock`
+  is not committed, so every other job resolves to the newest release and the
+  floors are the only statement about what this crate supports.
+
+### Changed
+
+- Both crates are `#![forbid(unsafe_code)]`. Neither ever contained an
+  `unsafe` block; the compiler now says so.
+- The `on_unimplemented` notes, which are what a user meets when a type is
+  not opted in, are reworded slightly: the repository is ASCII only now, and
+  those notes are pinned character for character in the UI snapshots.
+
+### Tested
+
+- A `const fn` in an annotated **trait** is refused rather than entered. The
+  rule had cases for a free function and for an `impl` member and none for a
+  trait's default body, so deleting the arm that handles it changed nothing
+  any test could see.
+- The four tight positions that `reparen_tight_positions` handles but nothing
+  pinned: `Index`, `Try`, `Await` and `Cast`. The existing test named six
+  positions and exercised four, because its fragments were no longer
+  low-precedence by the time the re-parenthesising ran.
+- A subtree that proves nothing is not treated as a constant: `2u8 << 1` is
+  arithmetic over two integer literals, but `<<` is not dispatched, so it
+  says nothing about the operation containing it.
+- `scripts/mutants.sh` now runs weekly in CI against a baseline of 18
+  survivors, all of which are documented as unkillable rather than untested.
+  The nine genuine gaps the first run found are the three groups above.
+
 ## 0.11.1 - 2026-08-24
 
 ### Documented
