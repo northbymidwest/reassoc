@@ -18,6 +18,11 @@ on:
         description: 'Version to release, without the leading v (e.g. 0.11.3)'
         required: true
         type: string
+      dry_run:
+        description: 'Stop before publishing anything'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write   # create the tag and the release
@@ -42,9 +47,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          DRY: ${{ inputs.dry_run }}
         run: |
           set -eu
           fail() { echo "::error::$1"; exit 1; }
+          # A dry run is meant to be usable on a version that already shipped,
+          # which is the only way to exercise this before trusting it. The two
+          # "already exists" checks would refuse that by design, so on a dry
+          # run they report instead of stopping. Everything else still stops.
+          soft() { if [ "$DRY" = "true" ]; then echo "::warning::(dry run) $1"; else fail "$1"; fi; }
+          echo "mode: $([ "$DRY" = true ] && echo 'DRY RUN, nothing will be published' || echo 'REAL, this publishes')"
 
           case "$VERSION" in
             v*) fail "give the version without the leading v: 0.11.3, not $VERSION" ;;
@@ -62,7 +74,7 @@ jobs:
 
           # The tag must not already exist: it could not be replaced if it did.
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-            fail "tag v$VERSION already exists, and protected tags cannot be moved"
+            soft "tag v$VERSION already exists, and protected tags cannot be moved"
           fi
 
           # Neither version may already be on crates.io. A publish there is
@@ -71,7 +83,7 @@ jobs:
             code=$(curl -sS -o /dev/null -w '%{http_code}' \
               -H 'User-Agent: reassoc-release-workflow' \
               "https://crates.io/api/v1/crates/$crate/$VERSION")
-            [ "$code" = "404" ] || fail "$crate $VERSION already exists on crates.io (HTTP $code)"
+            [ "$code" = "404" ] || soft "$crate $VERSION already exists on crates.io (HTTP $code)"
           done
 
           # CI must already be green on this exact commit. Queried rather than
@@ -94,7 +106,10 @@ jobs:
       - run: cargo package -p reassoc --no-verify --exclude-lockfile
 
       # Trusted publishing: a short-lived token from OIDC, so the repository
-      # holds no standing credential that could publish.
+      # holds no standing credential that could publish. This runs on a dry
+      # run too: the token exchange is the one part with no offline test, so
+      # exercising it is most of why the dry run exists. Getting a token
+      # publishes nothing.
       - id: auth
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
 
@@ -102,11 +117,13 @@ jobs:
       # against the registry, not the workspace, so the macros crate must be
       # live first.
       - name: Publish reassoc-macros
+        if: ${{ !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish -p reassoc-macros
 
       - name: Publish reassoc
+        if: ${{ !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish -p reassoc
@@ -114,6 +131,7 @@ jobs:
       # Only now. Everything above can fail without leaving a mark; from here
       # on the tag is permanent, and so is what it points at.
       - name: Tag and release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
@@ -129,3 +147,27 @@ jobs:
           gh release create "v$VERSION" --title "v$VERSION" \
             --notes-file /tmp/notes.md --prerelease --verify-tag
           echo "::notice::published $VERSION and tagged v$VERSION at $sha"
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "### Dry run for \`$VERSION\`"
+            echo
+            echo "Everything up to the first upload ran, the crates.io token"
+            echo "exchange included. Nothing was published and nothing tagged."
+            echo
+            echo "A real run additionally would have:"
+            echo
+            echo "1. \`cargo publish -p reassoc-macros\`"
+            echo "2. \`cargo publish -p reassoc\`"
+            echo "3. created tag \`v$VERSION\` at this commit, permanently"
+            echo "4. cut the GitHub release from the CHANGELOG section"
+            echo
+            echo "Any warnings above about the version or tag already existing"
+            echo "are expected when rehearsing on a version that has shipped;"
+            echo "on a real run each of them stops the release."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::dry run complete: nothing published, nothing tagged"
