@@ -1,5 +1,9 @@
 # reassoc
 
+[![CI](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml/badge.svg)](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/reassoc.svg)](https://crates.io/crates/reassoc)
+[![docs.rs](https://docs.rs/reassoc/badge.svg)](https://docs.rs/reassoc)
+
 Ordinary arithmetic syntax for Rust's algebraic float operators.
 
 > [!WARNING]
