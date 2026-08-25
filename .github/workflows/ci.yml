@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: dtolnay/rust-toolchain@1.100.0
       - run: cargo test --workspace
 
   # Compiler-diagnostic tests are pinned: rustc renders the expected .stderr,
@@ -47,7 +47,7 @@ jobs:
       # line out of `core`. rustc can only render that line when it can read
       # core's source, so without this component those five tests mismatch on
       # exactly the quoted-source lines.
-      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rust-src
       - run: cargo test -p reassoc --test ui -- --ignored
