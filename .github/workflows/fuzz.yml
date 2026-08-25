@@ -1,0 +1,87 @@
+name: fuzz
+
+# `tests/fuzz_corpus.rs` is generated offline and committed, which makes it
+# reproducible and completely static: it has asserted the same 200 trees since
+# the day it was written, and no amount of re-running finds anything new. This
+# job generates a corpus nobody has seen before and runs that instead.
+#
+# What makes the corpus worth fuzzing is that each case carries the value
+# computed offline in rational arithmetic, so a wrong answer is caught by a
+# number derived independently of both the macro and Rust's evaluator.
+on:
+  schedule:
+    - cron: '19 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Generator seed (default: today, as YYYYMMDD)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Generate a corpus nobody has run
+        id: gen
+        run: |
+          # The date, so a failure is reproducible from the log alone and a
+          # re-run on the same day tests the same trees rather than quietly
+          # moving on from the one that failed.
+          seed="${{ inputs.seed }}"
+          [ -n "$seed" ] || seed=$(date -u +%Y%m%d)
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+          echo "::notice::fuzzing with seed $seed"
+
+          # Two seeds, as the committed pair uses: the f32 corpus explores
+          # different trees rather than the same ones at half the width.
+          python3 scripts/gen-fuzz-corpus.py --seed "$seed" \
+            --count 200 --chains 80 --nodes 40 --width 64 \
+            > reassoc/tests/fuzz_corpus.rs
+          python3 scripts/gen-fuzz-corpus.py --seed "$((seed + 1))" \
+            --count 100 --chains 40 --nodes 24 --width 32 \
+            > reassoc/tests/fuzz_corpus_f32.rs
+          rustfmt --edition 2024 reassoc/tests/fuzz_corpus.rs reassoc/tests/fuzz_corpus_f32.rs
+
+      - run: cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32
+
+      # The corpus is not committed, so a failure is otherwise unreproducible:
+      # without these files the log says only that something went wrong.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: fuzz-corpus-${{ steps.gen.outputs.seed }}
+          path: reassoc/tests/fuzz_corpus*.rs
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Seed \`${{ steps.gen.outputs.seed }}\`"
+            echo
+            echo 'Reproduce locally:'
+            echo
+            echo '```sh'
+            echo "python3 scripts/gen-fuzz-corpus.py --seed ${{ steps.gen.outputs.seed }} \\"
+            echo "    --count 200 --chains 80 --nodes 40 --width 64 > reassoc/tests/fuzz_corpus.rs"
+            echo "python3 scripts/gen-fuzz-corpus.py --seed $(( ${{ steps.gen.outputs.seed }} + 1 )) \\"
+            echo "    --count 100 --chains 40 --nodes 24 --width 32 > reassoc/tests/fuzz_corpus_f32.rs"
+            echo "cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32"
+            echo '```'
+            echo
+            echo 'Restore the committed corpora with `git checkout reassoc/tests/fuzz_corpus*.rs`.'
+          } >> "$GITHUB_STEP_SUMMARY"
