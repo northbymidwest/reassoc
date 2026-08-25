@@ -6,7 +6,7 @@ on:
   # Nothing here is pinned to this repository's own activity: `stable` moves
   # every six weeks, `beta` every day it is rebuilt, `nightly` every night.
   # Between releases nobody pushes, so a toolchain change that breaks the
-  # crate would sit unseen until the next commit — which is the worst moment
+  # crate would sit unseen until the next commit, which is the worst moment
   # to learn about it. Once a week, unprompted, is the whole point.
   #
   # Off the hour: scheduled jobs queue behind everyone else's :00 cron.
@@ -29,7 +29,7 @@ permissions:
 # in separate groups, so a push to main never cancels a PR's run.
 #
 # Not on main, though: commits land there directly, and cancelling would
-# leave a commit with no result — the badge and the history should say
+# leave a commit with no result, and the badge and the history should say
 # something about every one of them.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -54,7 +54,7 @@ jobs:
       - run: cargo test -p reassoc --test renamed -- --ignored
 
   # `test` above already runs the newest stable: `@stable` resolves to it and
-  # follows each release. This job is the other direction — the release that
+  # follows each release. This job is the other direction: the release that
   # has not happened yet. A regression caught here is six weeks from reaching
   # anyone, which is the difference between reporting it upstream and finding
   # out from an issue. Add `continue-on-error: true` if a beta ever breaks for
@@ -135,7 +135,7 @@ jobs:
 
   # The floors in Cargo.toml are a promise: build against exactly these
   # versions and this crate works. Every other job resolves to the newest
-  # compatible release, so none of them has ever exercised one — the single
+  # compatible release, so none of them has ever exercised one: the single
   # verification was by hand, and two of the floors had drifted below what
   # they could resolve to at all. `-Z direct-minimal-versions` pins every
   # direct dependency to its declared floor and builds that.
@@ -196,10 +196,14 @@ jobs:
       # The diagnostics comparison must keep running (its cases track the
       # current macro surface); its output is informational.
       - run: python3 scripts/diag-compare.py
+      # The repository is ASCII only. `.githooks/pre-commit` runs the same
+      # script, but hooks are per-clone and `--no-verify` skips them, so this
+      # is where it is actually enforced.
+      - run: scripts/check-ascii.sh
 
   # The crate promises one thing about its surface: the macros are the API,
   # and the dispatch layer they expand into is machinery, not a contract.
-  # Nothing enforced that promise — an item that drifted into public view
+  # Nothing enforced that promise, so an item that drifted into public view
   # would have been found by a user, not by CI. This compares the working
   # tree against the newest release on crates.io and fails when a change
   # needs a larger version bump than the manifest carries.

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Rejects a commit that would add a non-ASCII character. Enable with:
+#
+#     git config core.hooksPath .githooks
+#
+# Hooks are per-clone and `--no-verify` skips them, so this is a convenience.
+# The `lint` CI job runs the same script over every tracked file, which is
+# where it is actually enforced.
+set -eu
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -n "$staged" ] || exit 0
+
+root=$(git rev-parse --show-toplevel)
+IFS='
+'
+# shellcheck disable=SC2086
+exec "$root/scripts/check-ascii.sh" $staged

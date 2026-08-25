@@ -22,6 +22,7 @@ cargo test -p reassoc --test codegen_matrix         # every construct == its han
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
+scripts/check-ascii.sh                      # the repository is ASCII only; `git config core.hooksPath .githooks` to check on commit
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
 scripts/mutants.sh [--re REGEX]                     # cargo-mutants over the rewriter; a survivor is a line no test observes
 scripts/adopt/adopt.py apply|report|ir|revert DIR  # adopt reassoc across a whole foreign crate and see what breaks (scripts/adopt/README.md)
@@ -71,19 +72,19 @@ parses the attribute's parameters); `reassoc` holds the traits, impls, and
 `passthrough!`, and re-exports the macros. Users depend only on `reassoc`.
 
 The dispatch layer is one marker, `Passthrough<Tag = ()>`, two traits per
-operator — `MulRhs<Lhs, O, Tag>` (binary) and `MulAssignRhs<Lhs, Tag>` (the
-compound form through a `&mut`) — blanket impls of those for every
+operator, `MulRhs<Lhs, O, Tag>` (binary) and `MulAssignRhs<Lhs, Tag>` (the
+compound form through a `&mut`), blanket impls of those for every
 `Passthrough` left type through its own `std::ops` (output = the type's
 `Output`, `op=` = its `MulAssign`), and free functions in `ops.rs`. Floats
 and integers are not marked: their impls are generic over sealed `Float` /
 `Int` under `traits::FloatTag` / `IntTag`, so `{float}`/`{integer}` meet one
 candidate; the blankets are bounded on `OptInTag`, which those tags never
-implement — that is what makes coherence accept both. A float or integer on
+implement, and that is what makes coherence accept both. A float or integer on
 the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per primitive
 bounded on the right type's marker (`float_left!`, `int_left!`). `String` and
 `uN / NonZero<uN>` are concrete.
 
-## Invariants — one line each; the evidence is in `docs/design.md`
+## Invariants, one line each; the evidence is in `docs/design.md`
 
 Read `docs/design.md` before changing any of these. Each was measured and
 reverts to a worse result if undone.
@@ -108,12 +109,12 @@ reverts to a worse result if undone.
   synthesised for `Copy` types and references follow the type's own impls:
   native parity over convenience.
 - `passthrough!(OP: A, B => O)` and `OP_assign: A, B` are only for a
-  *foreign* right operand — a primitive on the left of another crate's type,
+  *foreign* right operand: a primitive on the left of another crate's type,
   under the `foreign` tag. With a plain tag and an opted-in `B` both forms
   overlap the primitive-left blankets (`E0119`); the assign form joined them
   in 0.11.0, when those blankets grew their in-place twin.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
-- Macros are opaque — `strict!` depends on it — except the std expression
+- Macros are opaque (`strict!` depends on it) except the std expression
   macros (`LISTED_MACROS` in `rewrite.rs`), entered by last path segment and
   only when the arguments parse as expressions; `macros = false` turns it off.
 - `unparen` strips groups, then exactly one paren layer.
@@ -128,11 +129,11 @@ reverts to a worse result if undone.
   statement is a call, not block-like (bare, the user's `;` trips pedantic
   `unnecessary_semicolon`; dropping the `;` trips
   `semicolon_if_nothing_returned` on a block's last statement). The user's
-  tokens are never touched. `consumers/lints/` pins both directions. The binding is call-site with a suffix — mixed-site hygiene
+  tokens are never touched. `consumers/lints/` pins both directions. The binding is call-site with a suffix; mixed-site hygiene
   moves the error caret to the attribute. `String`'s in-place impls are
   concrete, not `&T: AsRef<str>`.
 - Const positions are never rewritten; `#[algebraic]` on `const fn` is rejected
-  — except under the nightly `const-fn` feature, where the whole dispatch
+  except under the nightly `const-fn` feature, where the whole dispatch
   layer is `const` (`konst!` in `lib.rs` pastes `const`/`[const]` into the
   impl-stamping macros) and a `const fn` is entered like any other.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
@@ -152,11 +153,11 @@ Gaps against plain Rust are documented in `docs/diagnostics.md` and
 
 Native `f32` operators produce values identical to dispatched ones, so a test
 using `f32` passes even if the rewriter is a no-op. Use the `Dispatched` type
-in `tests/alg.rs` / `tests/attribute.rs` — it implements only the `*Rhs` traits,
+in `tests/alg.rs` / `tests/attribute.rs`: it implements only the `*Rhs` traits,
 so rewriting is observable at compile time. The scope UI cases
 (`closures_false_*`, `skip_excludes_*`, `items_false_*`, `container_*`) are
 must-fail tests for this reason. Before trusting a new guard, neuter the thing it guards
-and watch it fail — and read every `.stderr` you bless: five must-fail cases
+and watch it fail, and read every `.stderr` you bless: five must-fail cases
 once named a removed trait and passed for several releases on "cannot find
 trait", pinning nothing. `tests/ui.rs::must_fail_cases_fail_for_the_stated_reason`
 now rejects any snapshot whose error is an unresolved name.
@@ -171,7 +172,7 @@ Regenerate with `scripts/gen-fuzz-corpus.py` and run `rustfmt` on the output.
 
 A const-position guard (array-repeat length, array-type length, const generic
 argument, discriminant, associated const) must be pinned with *named
-constants* as operands — `[0.0; A * B]`, never `[0.0; 4 * 2]`: the literal
+constants* as operands, `[0.0; A * B]`, never `[0.0; 4 * 2]`: the literal
 rule leaves literal arithmetic native whether or not the guard exists, so the
 literal form passes with the guard deleted (four did, until
 `scripts/mutants.sh` said so). The same script is the check for any new
@@ -182,11 +183,11 @@ mutant of the branch is caught. The README's code blocks are doctests too
 
 ## Releasing
 
-Two packages, in order: `reassoc-macros` first, then `reassoc` — the facade pins
+Two packages, in order: `reassoc-macros` first, then `reassoc`; the facade pins
 `reassoc-macros = "=<version>"`. Bump both together, tag at the published
 commit. See `RELEASING.md`. Dependency floors are the minimum actually required.
 
 README links into `docs/` must be absolute GitHub URLs: crates.io resolves a
 README's relative links against the package directory, and the README lives one
 level above it, so `docs/x.md` renders as `reassoc/docs/x.md` and 404s.
-`LICENSE` stays relative — the package carries its own copy at that path.
+`LICENSE` stays relative: the package carries its own copy at that path.
