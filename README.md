@@ -1,8 +1,9 @@
 # reassoc
 
-[![CI](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml/badge.svg)](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml)
+[![github](https://img.shields.io/badge/github-northbymidwest%2Freassoc-blue?logo=github)](https://github.com/northbymidwest/reassoc)
 [![crates.io](https://img.shields.io/crates/v/reassoc.svg)](https://crates.io/crates/reassoc)
 [![docs.rs](https://docs.rs/reassoc/badge.svg)](https://docs.rs/reassoc)
+[![CI](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml/badge.svg)](https://github.com/northbymidwest/reassoc/actions/workflows/ci.yml)
 
 Ordinary arithmetic syntax for Rust's algebraic float operators.
 
