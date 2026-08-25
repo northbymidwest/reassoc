@@ -1,0 +1,90 @@
+name: mutants
+
+# Mutation-test the rewriter: a surviving mutant is a line of `rewrite.rs`
+# that no test observes. The whole `reassoc` suite runs once per mutant, so
+# this is far too slow to gate a pull request — it runs weekly and on demand,
+# and what it produces is a debt report, not a verdict on anyone's change.
+#
+# An hour after CI's own Monday run, so a red here is never just the toolchain
+# having moved underneath it.
+on:
+  schedule:
+    - cron: '43 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Nobody is waiting on a weekly run; let one finish rather than cancelling it
+# for the next.
+concurrency:
+  group: mutants
+  cancel-in-progress: false
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      # The pinned toolchain with `rust-src`, for the same reason the `ui` job
+      # needs it: the run includes the trybuild cases, and five of them quote a
+      # line of `core` that rustc can only render with core's source present.
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+      # Pinned deliberately. `scripts/mutants.sh` wraps `cargo` to redirect a
+      # flag that 27.x passes regardless of `--test-package`; a release that
+      # stopped doing that would quietly test the wrong package and report
+      # everything as caught.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0
+
+      - name: Mutate the rewriter
+        env:
+          # Survivors that cannot be killed rather than gaps in the suite.
+          # Nine are the `REASSOC_TRACE` machinery, invisible here because its
+          # test shells out to cargo and the script excludes the shell-outs;
+          # the rest are equivalent mutants, each documented at its site.
+          # Lowering this is the point. Raising it needs a reason in the
+          # commit message.
+          BASELINE: 18
+          NO_COLOR: 1
+        run: |
+          set -o pipefail
+          # Exit 2 is cargo-mutants for "survivors found", which is the normal
+          # state here. Anything else is a real failure.
+          scripts/mutants.sh 2>&1 | tee mutants.log && status=0 || status=$?
+          if [ "${status:-0}" -ne 0 ] && [ "${status:-0}" -ne 2 ]; then
+            echo "::error::cargo-mutants exited $status"
+            exit "$status"
+          fi
+
+          missed=$(grep -c '^MISSED' mutants.log || true)
+          {
+            echo "## $missed surviving mutants (baseline $BASELINE)"
+            echo
+            echo '```'
+            grep '^MISSED' mutants.log | sed -E 's/ in [0-9]+s build.*//' || echo '(none)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$missed" -gt "$BASELINE" ]; then
+            echo "::error::$missed surviving mutants against a baseline of $BASELINE — a line of the rewriter has lost the test that observed it"
+            exit 1
+          fi
+          if [ "$missed" -lt "$BASELINE" ]; then
+            echo "::notice::$missed surviving mutants, below the baseline of $BASELINE — lower BASELINE in this workflow to hold the ground"
+          fi
+          echo "$missed surviving mutants, at or below the baseline of $BASELINE"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mutants
+          path: |
+            mutants.log
+            target/mutants/mutants.out/outcomes.json
+          if-no-files-found: warn
