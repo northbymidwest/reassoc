@@ -1,0 +1,131 @@
+name: release
+
+# Publishes both packages, then tags. That order is the whole design.
+#
+# The `v*` tags are protected with no bypass actors, so a tag is permanent for
+# everyone the moment it lands: it cannot be deleted, moved or updated. A
+# release triggered *by* a tag would therefore burn a version number for good
+# every time anything downstream failed, and leave a tag pointing at a commit
+# that never shipped. So the tag is an output of a release that already
+# succeeded, never its trigger.
+#
+# Nothing is published until every preflight check passes, and a failed
+# preflight costs nothing at all: no tag, no burnt version, one red run.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without the leading v (e.g. 0.11.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write   # create the tag and the release
+  id-token: write   # trusted publishing: exchange OIDC for a crates.io token
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Scopes the OIDC token to this environment, and is where a required
+    # reviewer goes if a publish should pause for a human.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          fail() { echo "::error::$1"; exit 1; }
+
+          case "$VERSION" in
+            v*) fail "give the version without the leading v: 0.11.3, not $VERSION" ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) fail "not a version: $VERSION" ;;
+          esac
+
+          # Both packages move in lockstep and the facade pins the macros crate
+          # exactly, so a bump that misses one is the mistake RELEASING.md warns
+          # about. Read them rather than trust them.
+          ws=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          pin=$(sed -n 's/.*reassoc-macros = { version = "=\([^"]*\)".*/\1/p' reassoc/Cargo.toml | head -1)
+          [ "$ws" = "$VERSION" ] || fail "Cargo.toml says $ws, you asked for $VERSION"
+          [ "$pin" = "$VERSION" ] || fail "the facade pins reassoc-macros =$pin, not =$VERSION"
+
+          # The tag must not already exist: it could not be replaced if it did.
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            fail "tag v$VERSION already exists, and protected tags cannot be moved"
+          fi
+
+          # Neither version may already be on crates.io. A publish there is
+          # irreversible, so finding out at upload time is finding out too late.
+          for crate in reassoc reassoc-macros; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: reassoc-release-workflow' \
+              "https://crates.io/api/v1/crates/$crate/$VERSION")
+            [ "$code" = "404" ] || fail "$crate $VERSION already exists on crates.io (HTTP $code)"
+          done
+
+          # CI must already be green on this exact commit. Queried rather than
+          # re-run: the suite is twelve jobs and it has already passed.
+          sha=$(git rev-parse HEAD)
+          concl=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$sha&status=completed" \
+            --jq '[.workflow_runs[] | select(.name == "CI")] | .[0].conclusion // "none"')
+          [ "$concl" = "success" ] || fail "CI on $sha is '$concl', not success"
+
+          # The notes are that version's own CHANGELOG section; an empty one
+          # means the entry was never written.
+          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          [ -s /tmp/notes.md ] || fail "CHANGELOG.md has no section for $VERSION"
+
+          echo "preflight ok: $VERSION at $sha, CI green, neither crate published"
+
+      # Assembles both archives and compiles the macros crate from its own
+      # archive, so a publish blocker surfaces before anything is uploaded.
+      - run: cargo package -p reassoc-macros
+      - run: cargo package -p reassoc --no-verify --exclude-lockfile
+
+      # Trusted publishing: a short-lived token from OIDC, so the repository
+      # holds no standing credential that could publish.
+      - id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
+      # Order is mandatory: the facade pins `=<version>` and resolves it
+      # against the registry, not the workspace, so the macros crate must be
+      # live first.
+      - name: Publish reassoc-macros
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p reassoc-macros
+
+      - name: Publish reassoc
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p reassoc
+
+      # Only now. Everything above can fail without leaving a mark; from here
+      # on the tag is permanent, and so is what it points at.
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          sha=$(git rev-parse HEAD)
+          gh api "repos/${{ github.repository }}/git/refs" -X POST \
+            -f ref="refs/tags/v$VERSION" -f sha="$sha" > /dev/null
+          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          # Pre-release, as every release here is: the README calls the crate
+          # experimental, and a 0.x moving this fast should not present any
+          # version as the settled one.
+          gh release create "v$VERSION" --title "v$VERSION" \
+            --notes-file /tmp/notes.md --prerelease --verify-tag
+          echo "::notice::published $VERSION and tagged v$VERSION at $sha"
