@@ -180,6 +180,10 @@
 //!
 //! # `no_std`
 //!
+//! The crate is `#![no_std]`. Default features enable `std`; use
+//! `default-features = false` for core-only builds, which keep every
+//! primitive, every reference combination, and `Duration`.
+//!
 //! # `const-fn`
 //!
 //! On nightly, the `const-fn` feature lets `#[algebraic]` enter a `const fn`:
@@ -192,10 +196,6 @@
 //! runtime may differ in the last bits, as any two algebraic evaluations
 //! may. Without the feature a `const fn` in an algebraic scope is an error
 //! if it has arithmetic to rewrite.
-//!
-//! The crate is `#![no_std]`. Default features enable `std`; use
-//! `default-features = false` for core-only builds, which keep every
-//! primitive, every reference combination, and `Duration`.
 #![no_std]
 // Nothing here needs `unsafe`, and the guarantee is worth stating: a crate
 // that rewrites arithmetic has to be trusted, and this removes one reason to

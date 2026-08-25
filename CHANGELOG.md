@@ -8,6 +8,15 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Fixed
+
+- **The `no_std` section of the crate documentation was empty**, and its one
+  paragraph sat at the end of the `const-fn` section above it, where it read
+  as a remark about const evaluation. An editing slip, live on docs.rs since
+  0.11.0. The README's copy was always right.
+
 ## 0.11.2 - 2026-08-25
 
 ### Fixed
