@@ -1,0 +1,69 @@
+name: Bug report
+description: Something the macros got wrong
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things make a report actionable here: code that fails on its own,
+        and the toolchain it failed on. What this crate emits can depend on the
+        rustc version, the target and the optimization level, so those are
+        asked for below even when they seem beside the point.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - It does not compile, and the same code without the macro does
+        - It compiles but the numbers are wrong
+        - The error message is confusing or points at the wrong place
+        - The generated code is slower, or not vectorised
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead. If it is a wrong number, both numbers.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest function that shows it, with the `#[algebraic]` or `alg!`
+        left in. If it only fails inside a larger crate, say which crate and where.
+      render: rust
+    validations:
+      required: true
+
+  - type: input
+    id: rustc
+    attributes:
+      label: rustc version
+      description: Output of `rustc -Vv`, all of it, including host and LLVM.
+      placeholder: "rustc 1.98.0 (88d9e12ae 2026-08-18) / host: aarch64-apple-darwin / LLVM: 20.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: optlevel
+    attributes:
+      label: Optimization level
+      description: Debug or release, and the `-C opt-level` if you changed it. Say so if you tried more than one.
+      placeholder: "release / opt-level=2 / same at every level"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: reassoc version
+      placeholder: "0.11.1"
+    validations:
+      required: true
