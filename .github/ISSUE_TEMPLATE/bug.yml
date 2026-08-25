@@ -1,6 +1,6 @@
 name: Bug report
 description: Something the macros got wrong
-labels: []
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
