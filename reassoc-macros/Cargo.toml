@@ -29,12 +29,19 @@ const-fn = []
 [dependencies]
 proc-macro-crate = { version = "3.5", optional = true }
 # Floors are the minimum we actually require, not the newest published: a
-# needlessly high floor forces downstream upgrades for no reason. Verified the
-# full suite passes at syn 3.0.0.
+# needlessly high floor forces downstream upgrades for no reason. The whole
+# suite passes with every one of them held at its floor, and the
+# `minimal_versions` CI job is what keeps that true — every other job resolves
+# to the newest compatible release and would never notice these rotting.
+#
+# `quote` and `proc-macro2` are not floored by anything this crate does: syn
+# 3.0.0 requires `quote ^1.0.35` and `proc-macro2 ^1.0.91`, and a floor below
+# what our own syn floor forces is a range that cannot be resolved at all.
+# Both said `1.0` until that job was added and said otherwise.
 #
 # `default-features = false` keeps the enabled set explicit. `clone-impls` is
 # needed because the rewriter clones `Expr` nodes, and `derive` because
 # `#[derive(Passthrough)]` parses a `DeriveInput`.
 syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
-quote = "1.0"
-proc-macro2 = "1.0"
+quote = "1.0.35"
+proc-macro2 = "1.0.91"

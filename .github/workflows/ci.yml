@@ -133,6 +133,25 @@ jobs:
       - run: cargo test -p reassoc --no-default-features --features f16,f128,const-fn
       - run: cargo clippy -p reassoc --all-targets --features f16,f128,const-fn -- -D warnings
 
+  # The floors in Cargo.toml are a promise: build against exactly these
+  # versions and this crate works. Every other job resolves to the newest
+  # compatible release, so none of them has ever exercised one — the single
+  # verification was by hand, and two of the floors had drifted below what
+  # they could resolve to at all. `-Z direct-minimal-versions` pins every
+  # direct dependency to its declared floor and builds that.
+  #
+  # Nightly because the flag is unstable, and uncached for the same reason
+  # `nightly_floats` is. What is under test here is the manifest, not the
+  # compiler, so the toolchain being nightly costs nothing.
+  minimal_versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo update -Z direct-minimal-versions
+      - run: cargo test --workspace
+
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 15
