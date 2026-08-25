@@ -106,7 +106,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
+      # No cache here on purpose. rust-cache keys on the rustc version and
+      # nightly changes daily, so this job would miss almost every time and
+      # pay the save cost for nothing: measured at 92s uncached against 112s
+      # with a cache it could not use.
       - run: cargo test -p reassoc --features f16
       - run: cargo test -p reassoc --features f128
       - run: cargo test -p reassoc --features f16,f128
