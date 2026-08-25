@@ -1,6 +1,21 @@
 # reassoc: design
 
-**Status:** approved for implementation
+> **Historical. Superseded, and wrong about the crate as it stands.**
+>
+> This is the design as it was approved on 2026-08-20, before any of it was
+> built. It describes one trait per operator (`AlgAdd<B, O>`, method
+> `alg_add`), keyed on the *left* operand. The crate replaced that in 0.3.0
+> with a pair of traits per operator keyed on the right operand
+> (`AddRhs<Lhs, O, Tag>`), because a left-keyed trait makes two opt-ins for
+> one type overlap and `passthrough!(mul: Vec3, f32 => Vec3)` inexpressible.
+> Nothing named `Alg*` exists any more.
+>
+> Kept because the reasoning that was later overturned is worth being able
+> to read. For what the crate actually does, see
+> [`docs/design.md`](../../design.md), and `CLAUDE.md` for the one-line rule
+> behind each shape.
+
+**Status:** superseded by the implementation; see the note above
 **Date:** 2026-08-20
 **MSRV:** 1.98 (algebraic float operators stabilized)
 

@@ -3,9 +3,12 @@
 The reasoning behind the shapes in this crate that look like cleanup
 opportunities and are not. Every item here was measured: built, compiled,
 and in most cases tried the other way first. `CLAUDE.md` carries the one-line
-rule for each; this is the evidence. The original design document in
-`docs/superpowers/specs/` predates the operand/output split and still
-describes a single trait per operator.
+rule for each; this is the evidence.
+
+`docs/superpowers/` holds the original spec and the plan that built the first
+version. Both predate the operand/output split, still describe a single
+`Alg*` trait per operator, and are kept only as a record of how this got
+here; each says so at the top. This page, not those, is the current design.
 
 ## The dispatch layer
 

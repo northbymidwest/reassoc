@@ -35,6 +35,12 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   Note for anyone copying this: the attribute is `feature(doc_cfg)`.
   `doc_auto_cfg` was removed in 1.92 and merged into it.
 
+- The original spec and implementation plan under `docs/superpowers/` now say
+  at the top that they are historical and were superseded. Both describe the
+  pre-0.3.0 `AlgAdd<B, O>` design that no longer exists anywhere in the
+  crate, and the plan opened by instructing a reader to implement from it.
+  `docs/design.md` disclaimed the spec and not the plan.
+
 ## 0.11.2 - 2026-08-25
 
 ### Fixed
