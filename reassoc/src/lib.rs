@@ -202,6 +202,13 @@
 // audit it. `forbid` rather than `deny` so a future `allow` cannot quietly
 // reopen it.
 #![forbid(unsafe_code)]
+// docs.rs only (`--cfg docsrs`, set in `Cargo.toml`): annotates every
+// feature-gated impl with the feature it needs, which is most of what a
+// `no_std` reader wants from the `Passthrough` and `AddRhs` impl lists.
+// Nightly-only, and invisible to every ordinary build, `cargo doc` included.
+// The feature is `doc_cfg`: `doc_auto_cfg` was removed in 1.92 and merged
+// into it, and auto-annotation is what `doc_cfg` does on its own now.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "f16", feature(f16))]
 #![cfg_attr(feature = "f128", feature(f128))]
 #![cfg_attr(feature = "const-fn", feature(const_trait_impl, const_ops))]

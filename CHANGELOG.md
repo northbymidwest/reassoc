@@ -17,6 +17,24 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   as a remark about const evaluation. An editing slip, live on docs.rs since
   0.11.0. The README's copy was always right.
 
+### Documentation
+
+- **docs.rs is configured**, which it never was, so the build there used
+  default features and no item said which feature it needed.
+  `[package.metadata.docs.rs]` turns on `f16` and `f128` and passes `--cfg
+  docsrs`, which enables `doc_cfg`: the `String` operand impls now say
+  "Available on crate feature `alloc`" and `Instant`/`SystemTime` say `std`,
+  which is what a `no_std` reader wants from an impl list. `f16`/`f128` are
+  on because they add impls that render (the `float_lefts!` blankets are one
+  per concrete type, so without the features those two are absent from
+  `AddRhs` and friends); `const-fn` is off because it adds no item, re-signs
+  all ten `ops::*` as `const fn`, and documents each a second time under
+  `ops::konst`. Both decided by building the docs each way and comparing,
+  not from the feature list.
+
+  Note for anyone copying this: the attribute is `feature(doc_cfg)`.
+  `doc_auto_cfg` was removed in 1.92 and merged into it.
+
 ## 0.11.2 - 2026-08-25
 
 ### Fixed
