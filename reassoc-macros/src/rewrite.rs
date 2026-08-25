@@ -642,6 +642,15 @@ fn is_integer_type(ty: &syn::Type) -> bool {
         };
     }
     match ty {
+        // The `qself` guard cannot be observed from stable Rust and is kept
+        // deliberately. `<S as T>::u8` is the only qualified form rustc
+        // accepts, and its path carries the trait segment too, so `get_ident`
+        // already answers `None`; the single-segment `<S>::u8` that would
+        // reach `INTS` is rejected as an ambiguous associated type (E0223).
+        // If inherent associated types ever stabilise it becomes writable,
+        // and an associated type named `u8` would otherwise be read as the
+        // primitive. `scripts/mutants.sh` reports this guard as a survivor
+        // for that reason: it is equivalent today, not untested.
         syn::Type::Path(path) if path.qself.is_none() => path
             .path
             .get_ident()

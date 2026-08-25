@@ -14,6 +14,11 @@
 # when cargo-mutants is invoked as a binary (the `cargo mutants` shim resets
 # $CARGO to the toolchain's).
 #
+# Consequence worth knowing: `trace` is one of the shell-outs, so the
+# `REASSOC_TRACE` machinery (`trace.rs`, and the operator counting that feeds
+# it) is invisible here and every mutant of it is reported as a survivor. Those
+# are a property of this selection, not gaps in the suite.
+#
 # The test selection is the suite minus the shell-outs and the fuzz corpora:
 # `ui` is included (trybuild, ~8s; needs the pinned toolchain, see tests/ui.rs)
 # and `renamed`, `codegen_matrix`, `fuzz_corpus*` are not — compile time per
