@@ -9,6 +9,8 @@
 #![allow(clippy::all)]
 
 use core::fmt::Write as _;
+use core::future::Future;
+use core::task::{Context, Poll, Waker};
 use reassoc::{alg, algebraic};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -177,15 +179,22 @@ fn matches_enters_its_scrutinee_and_leaves_the_pattern_alone() {
 /// would read back as `|..| body(x)` and fail (libm's `select_once!` has
 /// exactly this shape). The rewriter re-parenthesises a grouped
 /// low-precedence expression in the positions that bind tighter.
+///
+/// Every fragment has to still *be* low-precedence by the time the
+/// re-parenthesising runs, which rules out the obvious choices. `-2.0 * 1.5`
+/// is rewritten into a call before it gets there and then needs no
+/// parentheses at all, and an index whose base is a literal array never holds
+/// a group. Both were once written that way, and the `Index` and `Cast` arms
+/// went unpinned for it: deleting either changed nothing any test could see.
 macro_rules! apply_to {
-    ($call:expr, $x:expr, $range:expr, $neg:expr, $cond:expr) => {{
+    ($call:expr, $x:expr, $range:expr, $arr:expr, $cond:expr) => {{
         #[reassoc::algebraic]
-        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, f32, bool) {
+        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, u8, bool) {
             let called = $call(a * b); // callee
             let len = $range.len(); // method receiver
             let start = $range.start; // field base
-            let idx = [1.0f32, 2.0][$range.start]; // index
-            let cast = $neg as f32; // cast operand
+            let idx = $arr[1]; // index base: `&arr[1]` is a reference, not f32
+            let cast = $cond as u8; // cast operand: `2.0 as u8` would bind first
             let not = !$cond; // unary operand
             (called, len, start, idx, cast, not)
         }
@@ -196,11 +205,63 @@ macro_rules! apply_to {
 #[test]
 fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
     let (called, len, start, idx, cast, not) =
-        apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, -2.0 * 1.5, 1.0 < 2.0);
+        apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, &[1.0f32, 2.0], 1.0 < 2.0);
     assert_eq!(called, 11.0);
     assert_eq!(len, 2);
     assert_eq!(start, 0);
-    assert_eq!(idx, 1.0);
-    assert_eq!(cast, -3.0);
+    assert_eq!(idx, 2.0);
+    assert_eq!(cast, 1);
     assert!(!not);
+}
+
+/// `?` and `.await` bind tighter as well, and neither was reachable from the
+/// test above: one needs a type whose `Try` the operand satisfies, the other
+/// an `async` body. Unparenthesised, `-m?` applies `?` to `m` and
+/// `&mut f.await` awaits `f` before taking the reference — both stop
+/// compiling, which is the whole point of the parentheses.
+#[derive(Clone, Copy)]
+struct Maybe(f32);
+
+impl core::ops::Neg for Maybe {
+    type Output = Option<f32>;
+    fn neg(self) -> Option<f32> {
+        Some(-self.0)
+    }
+}
+
+/// `ready` is finished on the first poll, so this never sees `Pending`.
+fn block_on<F: Future>(future: F) -> F::Output {
+    let mut future = core::pin::pin!(future);
+    let mut cx = Context::from_waker(Waker::noop());
+    loop {
+        if let Poll::Ready(value) = future.as_mut().poll(&mut cx) {
+            return value;
+        }
+    }
+}
+
+macro_rules! through_tight_suffixes {
+    ($fallible:expr, $future:expr) => {{
+        #[reassoc::algebraic]
+        fn fallible() -> Option<f32> {
+            let v = $fallible?; // `?` operand
+            Some(v * 2.0)
+        }
+
+        #[reassoc::algebraic]
+        async fn awaited() -> f32 {
+            let v = $future.await; // `.await` base
+            v * 2.0
+        }
+
+        (fallible(), block_on(awaited()))
+    }};
+}
+
+#[test]
+fn grouped_low_precedence_expressions_survive_in_try_and_await_positions() {
+    let (fallible, awaited) =
+        through_tight_suffixes!(-Maybe(2.0), &mut core::future::ready(3.0f32));
+    assert_eq!(fallible, Some(-4.0));
+    assert_eq!(awaited, 6.0);
 }
