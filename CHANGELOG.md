@@ -35,11 +35,27 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   Note for anyone copying this: the attribute is `feature(doc_cfg)`.
   `doc_auto_cfg` was removed in 1.92 and merged into it.
 
+- **The README's codegen table was wrong in one cell.** It claimed `8x
+  fmla.4s` for the algebraic dot loop; the loop actually compiles to 5x
+  `fmla.4s` and 3x `fadd.4s` (8 vector float operations, which is probably
+  where the number came from). The `21x` scalar `fadd` for the strict twin
+  was exact. The figure had no reproduction in the repository, which is why
+  it could drift unnoticed.
+
 - The original spec and implementation plan under `docs/superpowers/` now say
   at the top that they are historical and were superseded. Both describe the
   pre-0.3.0 `AlgAdd<B, O>` design that no longer exists anywhere in the
   crate, and the plan opened by instructing a reader to implement from it.
   `docs/design.md` disclaimed the spec and not the plan.
+
+### Tools
+
+- `scripts/codegen-demo.sh` regenerates the README's dot-loop table for the
+  host: it counts the float instructions in the three forms the codegen
+  fixture already carries, and follows the assembler alias LLVM leaves behind
+  when it merges the macro form into the hand-written one, which is itself
+  the zero-cost result. `tests/codegen_matrix.rs` remains the check that runs
+  in CI; this is for putting a number in prose.
 
 ## 0.11.2 - 2026-08-25
 

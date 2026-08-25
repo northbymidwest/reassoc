@@ -59,12 +59,13 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
 }
 ```
 
-Measured on aarch64 at `-O`, the loop above:
+Measured on aarch64 at `-O3` (`scripts/codegen-demo.sh` regenerates this for
+your host), the loop above:
 
 | version | codegen |
 | --- | --- |
 | plain `+`/`*` | 21x scalar `fadd`, a serial dependency chain |
-| `reassoc` | 8x `fmla.4s`, vectorized and FMA-contracted |
+| `reassoc` | 5x `fmla.4s` and 3x `fadd.4s`, vectorized and FMA-contracted |
 
 The generated code is byte-identical to hand-written algebraic calls; the
 dispatch layer compiles away entirely in release builds, checked in CI, for

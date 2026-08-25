@@ -24,6 +24,7 @@ cargo test -p reassoc --test foreign                # passthrough!(foreign ..) a
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
 scripts/check-ascii.sh                      # the repository is ASCII only; `git config core.hooksPath .githooks` to check on commit
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
+scripts/codegen-demo.sh [OPT_LEVEL]                 # the README's dot-loop table, regenerated for this host
 scripts/mutants.sh [--re REGEX]                     # cargo-mutants over the rewriter; a survivor is a line no test observes
 scripts/adopt/adopt.py apply|report|ir|revert DIR  # adopt reassoc across a whole foreign crate and see what breaks (scripts/adopt/README.md)
 REASSOC_TRACE=/tmp/t.log cargo build                # one line per function the macros entered, with operators rewritten (tests/trace.rs)
