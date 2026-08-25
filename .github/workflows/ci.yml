@@ -3,6 +3,21 @@ name: CI
 on:
   push:
   pull_request:
+  # Nothing here is pinned to this repository's own activity: `stable` moves
+  # every six weeks, `beta` every day it is rebuilt, `nightly` every night.
+  # Between releases nobody pushes, so a toolchain change that breaks the
+  # crate would sit unseen until the next commit — which is the worst moment
+  # to learn about it. Once a week, unprompted, is the whole point.
+  #
+  # Off the hour: scheduled jobs queue behind everyone else's :00 cron.
+  #
+  # GitHub disables a schedule in a public repository after 60 days without
+  # a commit, and mails the owner. A quiet stretch that long is exactly when
+  # this matters, so treat that mail as a prompt to re-enable it.
+  schedule:
+    - cron: '37 6 * * 1'
+  # So the schedule's path can be exercised without waiting for Monday.
+  workflow_dispatch:
 
 # No job here writes anything back: they build, test and lint a checkout. The
 # default token is read-write, so this drops it to what is actually used.
