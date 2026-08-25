@@ -20,6 +20,24 @@ jobs:
       # Inside this repository the feature only ever takes the `Itself` path.
       - run: cargo test -p reassoc --test renamed -- --ignored
 
+  # `test` above already runs the newest stable: `@stable` resolves to it and
+  # follows each release. This job is the other direction — the release that
+  # has not happened yet. A regression caught here is six weeks from reaching
+  # anyone, which is the difference between reporting it upstream and finding
+  # out from an issue. Add `continue-on-error: true` if a beta ever breaks for
+  # reasons that are not this crate's and the red becomes noise.
+  #
+  # The UI tests do not run here: they are `#[ignore]`d and compare rustc's
+  # rendered diagnostics against a pinned toolchain, so beta would fail them
+  # by construction.
+  beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@beta
+      - run: cargo test --workspace
+      - run: cargo test -p reassoc --no-default-features
+
   no_std:
     runs-on: ubuntu-latest
     steps:

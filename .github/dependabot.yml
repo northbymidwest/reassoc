@@ -1,11 +1,17 @@
 # Only the GitHub Actions this workflow pins, and only monthly.
 #
-# In practice that is `actions/checkout`: the `dtolnay/rust-toolchain` refs
-# are branches (`stable`, `nightly`, `1.98.0`), not versions, so there is
-# nothing for Dependabot to bump and `@stable` already follows each Rust
-# release. The point is not freshness but the upgrades that arrive as
-# deadlines — a runner's Node version reaching end of life takes unattended
-# workflows down with it.
+# In practice that is `actions/checkout`. The point is not freshness but the
+# upgrades that arrive as deadlines — a runner's Node version reaching end of
+# life takes unattended workflows down with it.
+#
+# `dtolnay/rust-toolchain` is ignored. Its refs are not dependencies: `stable`
+# and `nightly` are branches that already follow each Rust release, and
+# `1.98.0` is a pin two jobs are built around. `msrv` uses it because that is
+# the crate's declared `rust-version`, so raising it would leave the MSRV
+# claim untested while the job still passed; `ui` uses it because trybuild
+# compares rustc's rendered diagnostics byte-for-byte and a newer toolchain
+# fails those for reasons that have nothing to do with this crate. Dependabot
+# proposed 1.98.0 -> 1.100.0 on its first run and it was closed.
 #
 # Deliberately not the `cargo` ecosystem: the dependency versions in
 # `Cargo.toml` are floors, the minimum each package actually needs
@@ -20,3 +26,5 @@ updates:
     commit-message:
       prefix: "ci"
     labels: []
+    ignore:
+      - dependency-name: dtolnay/rust-toolchain
