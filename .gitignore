@@ -1,5 +1,60 @@
+# Build output. `target/` is matched at any depth: the consumers and the
+# compile-bench expander each have their own.
 target/
-Cargo.lock
 *.rlib
+*.pdb
+
+# A library, so the lockfile is not committed: dependants resolve their own,
+# and pinning here would only hide a version floor that has drifted
+# (`RELEASING.md` on dependency floors).
+Cargo.lock
+
+# Artifacts of the codegen work: `cargo rustc --emit=asm/llvm-ir` writes
+# these beside a build when run by hand rather than through
+# `tests/codegen_matrix.rs`, which keeps its own target dir.
 *.s
+*.ll
+*.bc
+
+# Profiling and coverage, from investigating a regression by hand.
+perf.data
+perf.data.old
+flamegraph.svg
+*.profraw
+*.profdata
+
+# `scripts/` is Python; `scripts/adopt` and `scripts/diag-compare` import
+# each other's modules when run directly.
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and IDEs. Not everyone working here uses the same one, and none of
+# it belongs to the crate.
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.\#*
+\#*\#
+
+# macOS, Windows and Linux desktop droppings, which arrive by opening a
+# folder rather than by doing anything.
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.directory
+
+# Merge and patch leftovers: committing one is always an accident.
+*.orig
+*.rej
+*.bak
