@@ -1,0 +1,69 @@
+name: codeql
+
+# Two languages, and honestly only one of them is expected to say anything.
+#
+# `actions` is the reason this workflow exists. Three workflows here run
+# unattended on a schedule and two of them hold `issues: write`, so the class
+# of bug that matters is a `${{ }}` substituted into the source of a `run:`
+# block, where the expression's *text* becomes shell code. `fuzz.yml` had
+# exactly that and it is fixed; this is what notices the next one, including
+# in a workflow nobody has re-read for a year.
+#
+# `rust` is close to free and expected to be quiet. Both crates are
+# `#![forbid(unsafe_code)]`, nothing here takes untrusted input at runtime
+# (the "input" to a proc macro is tokens from a build the user already
+# controls), and there is no network, no crypto and no filesystem work beyond
+# `trace.rs` appending to the path in `REASSOC_TRACE`. That last one is the
+# single plausible alert, as an environment variable reaching a file path, and
+# it would be a false positive: setting it means already controlling the
+# build. It is on anyway because the cost is one job and the day this crate
+# grows a surface, nobody will think to come back and turn it on.
+#
+# Off the hour, and after CI's own Monday run, for the reason `ci.yml` gives.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '7 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Same rule as `ci.yml`: a second push to a branch makes the first answer
+# irrelevant, but main keeps a result for every commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # The only scope that does anything here, and the reason the actions
+      # below are pinned by commit rather than by a tag somebody else can move.
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      # One language failing should not hide the other's result.
+      fail-fast: false
+      matrix:
+        language: [actions, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # `build-mode: none` for both. `actions` is interpreted and has no other
+      # option; Rust analysis without a build went generally available in
+      # October 2025, and using it keeps this job off the toolchain entirely,
+      # so nothing here can fail for a reason that is really about cargo.
+      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          category: /language:${{ matrix.language }}

@@ -70,6 +70,15 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   the same treatment, and no longer breaks outright when the seed is empty,
   which it could be, since that step runs `if: always()`.
 
+- **CodeQL runs on push, on pull requests and weekly**, over `actions` and
+  `rust`. The `actions` half is the point: the finding above was found by
+  hand, and this is what notices the next one in a workflow nobody has
+  re-read. The `rust` half is expected to stay quiet, and is on because it
+  costs one buildless job rather than because this crate has a surface: both
+  crates are `#![forbid(unsafe_code)]` and nothing takes untrusted input at
+  runtime. Its actions are pinned by commit, as `release.yml`'s are, since
+  the job holds `security-events: write`; Dependabot moves those pins.
+
 ## 0.11.2 - 2026-08-25
 
 ### Fixed
