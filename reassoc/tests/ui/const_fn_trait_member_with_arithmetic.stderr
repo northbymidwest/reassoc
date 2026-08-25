@@ -1,0 +1,23 @@
+error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+  --> tests/ui/const_fn_trait_member_with_arithmetic.rs:19:5
+   |
+19 |     const fn scale(x: f32) -> f32 {
+   |     ^^^^^
+
+error[E0379]: functions in traits cannot be declared const
+  --> tests/ui/const_fn_trait_member_with_arithmetic.rs:14:5
+   |
+14 |     const fn unit() -> f32 {
+   |     ^^^^^-
+   |     |
+   |     functions in traits cannot be const
+   |     help: remove the `const`
+
+error[E0379]: functions in traits cannot be declared const
+  --> tests/ui/const_fn_trait_member_with_arithmetic.rs:19:5
+   |
+19 |     const fn scale(x: f32) -> f32 {
+   |     ^^^^^-
+   |     |
+   |     functions in traits cannot be const
+   |     help: remove the `const`
