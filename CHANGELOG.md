@@ -8,6 +8,21 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Security
+
+- **CodeQL analyses Rust with `build-mode: autobuild` rather than `none`.**
+  Buildless analysis drew a "Low Rust analysis quality" warning on the tool
+  status page: calls with a known target 41%, against a 50% threshold,
+  because without a build nothing resolves `syn`, `quote` or `proc-macro2`
+  and most call targets stay unknown. The other metric, expressions with a
+  known type, passed at 50% against a threshold of 20%. Taint tracking
+  follows calls, so the degraded half is the one that matters. Building
+  first costs a toolchain and a slower job, which is what `none` was
+  avoiding; that trade is worth taking here, since CI already builds this
+  crate twelve ways and would go red before this job did.
+
 ## 0.11.3 - 2026-08-25
 
 ### Fixed

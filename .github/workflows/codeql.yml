@@ -51,18 +51,33 @@ jobs:
       # One language failing should not hide the other's result.
       fail-fast: false
       matrix:
-        language: [actions, rust]
+        include:
+          # Interpreted; `none` is the only build mode it has.
+          - language: actions
+            build-mode: none
+          # Was `none`, which analyses without a toolchain and cannot fail for
+          # a cargo reason. The tool status page then reported "Low Rust
+          # analysis quality": calls with a known target 41%, against a 50%
+          # threshold, because without a build nothing resolves `syn`,
+          # `quote` or `proc-macro2`, so most call targets are unknown. (The
+          # other metric, expressions with known type, passed at 50% against
+          # a threshold of 20%.) Taint tracking follows calls, so a database
+          # that cannot resolve them is weak at the one job this is here to
+          # do the day the crate grows a surface worth analysing.
+          #
+          # `autobuild` builds the crate and its dependencies first. The cost
+          # is what `none` was avoiding: a toolchain, a slower job, and a
+          # failure mode that is really about cargo. Acceptable, because CI
+          # already builds this crate twelve ways and would go red first.
+          - language: rust
+            build-mode: autobuild
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # `build-mode: none` for both. `actions` is interpreted and has no other
-      # option; Rust analysis without a build went generally available in
-      # October 2025, and using it keeps this job off the toolchain entirely,
-      # so nothing here can fail for a reason that is really about cargo.
       - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
 
       - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
         with:
