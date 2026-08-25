@@ -57,6 +57,19 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   the zero-cost result. `tests/codegen_matrix.rs` remains the check that runs
   in CI; this is for putting a number in prose.
 
+### Security
+
+- **`fuzz.yml` interpolated its `seed` dispatch input into a `run:` block**,
+  where a `${{ }}` is substituted into the shell *source* before the shell
+  runs it, so the text becomes code. It now travels through `env:` and is
+  quoted, which is what `release.yml` already did with its `version`. Not an
+  escalation path: only someone who can dispatch the workflow could set the
+  input, and they can push a workflow anyway. Fixed because it is latent, the
+  file holds `issues: write`, and the pattern stops being harmless the moment
+  a trigger carrying untrusted text is added to it. The `Summarise` step got
+  the same treatment, and no longer breaks outright when the seed is empty,
+  which it could be, since that step runs `if: always()`.
+
 ## 0.11.2 - 2026-08-25
 
 ### Fixed

@@ -42,11 +42,18 @@ jobs:
 
       - name: Generate a corpus nobody has run
         id: gen
+        # Through the environment, never interpolated into the script: a `${{
+        # }}` in a `run:` block is substituted into the shell *source* before
+        # the shell sees it, so its text becomes code. Only a dispatcher can
+        # set this input today, but the trigger is the only thing making that
+        # true, and `release.yml` already takes its `version` this way.
+        env:
+          SEED_INPUT: ${{ inputs.seed }}
         run: |
           # The date, so a failure is reproducible from the log alone and a
           # re-run on the same day tests the same trees rather than quietly
           # moving on from the one that failed.
-          seed="${{ inputs.seed }}"
+          seed="$SEED_INPUT"
           [ -n "$seed" ] || seed=$(date -u +%Y%m%d)
           echo "seed=$seed" >> "$GITHUB_OUTPUT"
           echo "::notice::fuzzing with seed $seed"
@@ -113,16 +120,21 @@ jobs:
 
       - name: Summarise
         if: always()
+        # As above, and for the same reason: this seed is the dispatch input
+        # when there was one, so it carries whatever that carried.
+        env:
+          SEED: ${{ steps.gen.outputs.seed }}
         run: |
+          NEXT=$((SEED + 1))
           {
-            echo "### Seed \`${{ steps.gen.outputs.seed }}\`"
+            echo "### Seed \`$SEED\`"
             echo
             echo 'Reproduce locally:'
             echo
             echo '```sh'
-            echo "python3 scripts/gen-fuzz-corpus.py --seed ${{ steps.gen.outputs.seed }} \\"
+            echo "python3 scripts/gen-fuzz-corpus.py --seed $SEED \\"
             echo "    --count 200 --chains 80 --nodes 40 --width 64 > reassoc/tests/fuzz_corpus.rs"
-            echo "python3 scripts/gen-fuzz-corpus.py --seed $(( ${{ steps.gen.outputs.seed }} + 1 )) \\"
+            echo "python3 scripts/gen-fuzz-corpus.py --seed $NEXT \\"
             echo "    --count 100 --chains 40 --nodes 24 --width 32 > reassoc/tests/fuzz_corpus_f32.rs"
             echo "cargo test -p reassoc --test fuzz_corpus --test fuzz_corpus_f32"
             echo '```'
