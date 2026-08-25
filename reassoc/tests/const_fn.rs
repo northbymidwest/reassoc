@@ -18,7 +18,7 @@ const fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
 }
 
 /// Floats, an unannotated accumulator, integer counters (literal-native and
-/// dispatched), compound assignment and a loop — all in one const body.
+/// dispatched), compound assignment and a loop, all in one const body.
 #[algebraic]
 const fn horner(x: f32, c: &[f32]) -> f32 {
     let mut acc = 0.0;

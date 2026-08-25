@@ -1,8 +1,8 @@
 //! Opting in types from another crate. `foreign_types` has no dependency on
 //! reassoc, so its `Vec3` is to these tests exactly what `glam::Vec3` is to a
 //! user: the plain `passthrough!` forms are an orphan-rule error on it
-//! (`tests/ui/foreign_needs_keyword.rs`), and `passthrough!(foreign ..)` —
-//! which carries a type local to this crate in the impl — is the way in.
+//! (`tests/ui/foreign_needs_keyword.rs`), and `passthrough!(foreign ..)`,
+//! which carries a type local to this crate in the impl, is the way in.
 //! One line per type; a float on the *left* of a foreign type is the one pair
 //! that has to be named. The one new hazard, two crates opting in the same
 //! type, is pinned in `tests/ui/foreign_diamond.rs`.
@@ -88,7 +88,7 @@ fn local_and_foreign_opt_ins_coexist() {
 
 // ---- a generic foreign type, per instantiation ----
 
-// `passthrough!(foreign Pair<f64>)` — a generic type from another crate is
+// `passthrough!(foreign Pair<f64>)`: a generic type from another crate is
 // opted in one instantiation at a time, which is what a crate with concrete
 // operands needs (`num_complex::Complex<f64>` is the real-world shape). There
 // is no form for "every `T`", and inside code generic over `T` the arithmetic

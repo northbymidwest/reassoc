@@ -21,7 +21,7 @@
 #
 # The test selection is the suite minus the shell-outs and the fuzz corpora:
 # `ui` is included (trybuild, ~8s; needs the pinned toolchain, see tests/ui.rs)
-# and `renamed`, `codegen_matrix`, `fuzz_corpus*` are not — compile time per
+# and `renamed`, `codegen_matrix`, `fuzz_corpus*` are not: compile time per
 # mutant, and they observe nothing the rest does not.
 set -eu
 cd "$(dirname "$0")/.."

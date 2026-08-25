@@ -1,8 +1,8 @@
 /// Opt a type into `reassoc`'s dispatch layer.
 ///
-/// One line per type. Every operator the type implements — `+ - * / %` with
+/// One line per type. Every operator the type implements (`+ - * / %` with
 /// any right-hand type and any output, the `op=` forms, and references
-/// wherever the type implements them — is dispatched from then on, exactly
+/// wherever the type implements them) is dispatched from then on, exactly
 /// as `std::ops` defines it; nothing is listed:
 ///
 /// ```
@@ -22,21 +22,21 @@
 ///
 /// Forms:
 ///
-/// - `passthrough!(T)` — a type of this crate.
-/// - `passthrough!(foreign T)` — a type from another crate (`glam::Vec3`,
+/// - `passthrough!(T)`: a type of this crate.
+/// - `passthrough!(foreign T)`: a type from another crate (`glam::Vec3`,
 ///   say). Rust's orphan rule forbids implementing this crate's traits for a
 ///   foreign type unless the impl names a type of yours, so this form emits
 ///   one privately and carries it in the traits' tag parameter. Opt a foreign
 ///   type in **once**, in the binary or one shared crate: two crates opting
 ///   in the same type give every crate that depends on both an ambiguity
 ///   error at each use (`docs/limitations.md`). A *generic* foreign type is
-///   opted in one instantiation at a time — `passthrough!(foreign
-///   num_complex::Complex<f64>);` — which is what a crate with concrete
+///   opted in one instantiation at a time, `passthrough!(foreign
+///   num_complex::Complex<f64>);`, which is what a crate with concrete
 ///   operands needs; there is no form for "every `T`". One thing the foreign
 ///   form cannot do automatically is a *float on the left* of the type (`2.0
 ///   * v`); that pair is named explicitly, see the next form.
 /// - `passthrough!(mul: f32, glam::Vec3 => glam::Vec3)` and the `foreign`
-///   prefix of it — one operator for one pair, written out. Needed only for a
+///   prefix of it: one operator for one pair, written out. Needed only for a
 ///   float on the left of a foreign type; everything else the first two forms
 ///   cover. `add_assign: A, B` names an in-place pair the same way.
 ///
@@ -103,7 +103,7 @@ macro_rules! passthrough {
         ));
     };
 
-    // ---- entry: a type of this crate — under the default tag ----
+    // ---- entry: a type of this crate, under the default tag ----
     ($($form:tt)*) => {
         $crate::passthrough!(@tag (); $($form)*);
     };
@@ -116,11 +116,11 @@ macro_rules! passthrough {
 /// sequence. It works as an escape hatch inside `alg!` and `#[algebraic]`
 /// because the rewriter never descends into a macro's token stream unless the
 /// macro is one of the std ones whose arguments are expressions (`assert!`,
-/// `println!`, `vec!`, ..) — and `strict!` is not, so it is opaque even as an
+/// `println!`, `vec!`, ..), and `strict!` is not, so it is opaque even as an
 /// argument of those. Like any macro it must be in scope: `use
 /// reassoc::strict;` or `reassoc::strict!(..)`.
 ///
-/// This exists to protect algorithms that depend on exact rounding — most
+/// This exists to protect algorithms that depend on exact rounding, most
 /// importantly compensated summation, where `(t - sum) - y` is algebraically
 /// zero and reassociation would delete it.
 #[macro_export]

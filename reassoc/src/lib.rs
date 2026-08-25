@@ -2,21 +2,21 @@
 //!
 //! <div class="warning">
 //!
-//! **Experimental — days old, lightly used, and it changes your results on
+//! **Experimental: days old, lightly used, and it changes your results on
 //! purpose.**
 //!
 //! This crate rewrites your arithmetic, so when it is wrong the failure is
 //! rarely a compile error: code compiles and quietly does something other
 //! than what you wrote. The rewriter has been checked systematically against
-//! the compiler — every construct it enters has a test that fails if the
-//! rewrite stops happening — but real code finds what an author did not
+//! the compiler (every construct it enters has a test that fails if the
+//! rewrite stops happening), but real code finds what an author did not
 //! imagine. Please report what you find. The known differences from plain
 //! Rust are few and deliberate (`docs/limitations.md` in the repository), and
 //! none touch an ordinary float kernel.
 //!
 //! What always applies: algebraic operators may reassociate and contract, so
 //! results can differ from strict IEEE in the last bits and between targets.
-//! That is the point, and it is silent — see [Floating point
+//! That is the point, and it is silent: see [Floating point
 //! semantics](#floating-point-semantics) and wrap anything that depends on
 //! exact rounding in [`strict!`].
 //!
@@ -45,8 +45,8 @@
 //!
 //! Algebraic operators let the compiler reassociate and contract. Results may
 //! differ from strict IEEE evaluation in the final bits, and may differ
-//! between targets. Algorithms that depend on exact rounding — compensated
-//! summation above all — must be wrapped in [`strict!`], which takes an
+//! between targets. Algorithms that depend on exact rounding, compensated
+//! summation above all, must be wrapped in [`strict!`], which takes an
 //! expression or a brace-delimited statement sequence:
 //!
 //! ```
@@ -67,23 +67,23 @@
 //! # What is rewritten
 //!
 //! Everything lexically inside the scope: closure bodies, nested items, and
-//! the arguments of the std macros whose arguments are expressions —
+//! the arguments of the std macros whose arguments are expressions:
 //! `assert!` and friends, `panic!` and friends, the `print`/`format`/`write`
 //! families, `dbg!`, `vec!`, and the scrutinee of `matches!`. Any other macro
 //! is opaque, which is exactly what makes [`strict!`] an escape hatch.
 //! `#[algebraic(closures = false)]` and `#[algebraic(macros = false)]` turn
-//! those two off; `#[algebraic(skip)]` on any item — a nested item, a
-//! container member of any kind, or a standalone `const fn` — leaves it
+//! those two off; `#[algebraic(skip)]` on any item (a nested item, a
+//! container member of any kind, or a standalone `const fn`) leaves it
 //! alone.
 //!
 //! # Rewriting a whole `impl`, module or trait
 //!
 //! The attribute also goes on an `impl` block (inherent or trait), an inline
-//! `mod`, or a `trait`, and rewrites every member body — as a function's
+//! `mod`, or a `trait`, and rewrites every member body, as a function's
 //! annotation already covers every closure and nested item inside it.
 //! `#[algebraic(skip)]` excludes one member or nested item; a member with its
 //! own `#[algebraic(..)]` follows that instead. A `const fn` member is skipped if the rewrite would not touch it
-//! and is an error otherwise — `reassoc::ops::*` are not `const fn`, so
+//! and is an error otherwise: `reassoc::ops::*` are not `const fn`, so
 //! rewriting it cannot compile, and leaving it strict silently would be worse.
 //!
 //! ```
@@ -132,7 +132,7 @@
 //! supported standard types dispatch to ordinary operators. Your own types
 //! need one line; a type from another crate (a `glam` or `nalgebra` vector,
 //! say) takes the same line with the `foreign` prefix, once per dependency
-//! tree — see [`passthrough!`] and `docs/limitations.md`.
+//! tree. See [`passthrough!`] and `docs/limitations.md`.
 //!
 //! ```
 //! # #[derive(Clone, Copy)] struct Vec3(f32);
@@ -158,8 +158,8 @@
 //! # }
 //! ```
 //!
-//! Either way, every operator the type implements — any right-hand type, any
-//! output, the `op=` forms, references wherever the type implements them — is
+//! Either way, every operator the type implements (any right-hand type, any
+//! output, the `op=` forms, references wherever the type implements them) is
 //! dispatched, exactly as `std::ops` defines it; nothing is listed. A type from
 //! another crate takes `passthrough!(foreign ..)`.
 //!
@@ -167,13 +167,13 @@
 //!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
 //! [`passthrough!`] and the derive. The `ops` functions and dispatch traits
-//! they expand to are implementation detail — visible because generated code
+//! they expand to are implementation detail, visible because generated code
 //! has to name them, but not a surface to write against by hand.
 //!
 //! # `f16` and `f128`
 //!
 //! On nightly, the `f16` and `f128` features make those floats algebraic too
-//! — same literal inference, same reference forms, same `op=` — each by
+//! (same literal inference, same reference forms, same `op=`), each by
 //! turning on its own `#![feature(..)]` gate; neither can build on stable
 //! while the type is unstable. Separate features, as rustc gates them
 //! separately.
@@ -189,7 +189,7 @@
 //! at compile time. Const evaluation interprets it as written (today; the
 //! language promises nothing about the precision of algebraic operations
 //! anywhere), runtime code is optimized, so a `const` and the same call at
-//! runtime may differ in the last bits — as any two algebraic evaluations
+//! runtime may differ in the last bits, as any two algebraic evaluations
 //! may. Without the feature a `const fn` in an algebraic scope is an error
 //! if it has arithmetic to rewrite.
 //!
@@ -208,10 +208,10 @@
 
 // `const-fn` (nightly): the dispatch traits are `const trait`s, every impl
 // on the primitive path is a `const impl`, and `ops::*` are `const fn` with
-// `[const]` bounds — so the code `#[algebraic]` emits is legal inside a
+// `[const]` bounds, so the code `#[algebraic]` emits is legal inside a
 // `const fn`. The `algebraic_*` methods themselves have been const-stable
 // since 1.98; only this layer stood in the way. `konst!` hands the two token
-// sets — `const` before an item, `[const]` in a bound — to the macros that
+// sets (`const` before an item, `[const]` in a bound) to the macros that
 // stamp the impls out, or nothing at all without the feature; a macro cannot
 // expand in bound position, so the macros take them as parameters.
 #[cfg(feature = "const-fn")]
@@ -243,7 +243,7 @@ pub use reassoc_macros::{Passthrough, alg, algebraic};
 
 // The README's code blocks, compiled as doctests so that they cannot drift
 // from the crate (the README is not the crate docs, so nothing else would
-// compile them). `cfg(doctest)` only — never an item of the library, and the
+// compile them). `cfg(doctest)` only: never an item of the library, and the
 // path is resolved only under `cargo test --doc`, where the workspace layout
 // (README one level above the package) is the one that exists.
 #[cfg(doctest)]

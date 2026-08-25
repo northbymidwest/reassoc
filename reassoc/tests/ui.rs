@@ -1,6 +1,6 @@
 //! Compiler-diagnostic tests. The expected `.stderr` files are rendered by
 //! rustc and change with compiler versions, so these run only on the pinned
-//! MSRV toolchain in CI — not in the general stable matrix, where a compiler
+//! MSRV toolchain in CI, not in the general stable matrix, where a compiler
 //! upgrade would fail them for reasons unrelated to this crate.
 
 #[test]
@@ -19,7 +19,7 @@ fn ui() {
 
 /// A must-fail case that fails for the wrong reason proves nothing. Every
 /// `compile_fail` case here exists to show some construct was *not* rewritten,
-/// so the failure it pins must be rustc rejecting a native operator — never an
+/// so the failure it pins must be rustc rejecting a native operator, never an
 /// unresolved name. Five cases named a trait that had since been removed and
 /// sat green for several releases; this would have caught it on day one. Not
 /// ignored: it only reads files.

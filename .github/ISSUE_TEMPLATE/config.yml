@@ -1,5 +1,5 @@
 # Kept on deliberately. The bug form asks for a reproduction and a toolchain,
-# which is right for a bug and wrong for everything else — the first issue
+# which is right for a bug and wrong for everything else. The first issue
 # this repository received was a design question, and a form demanding a
 # minimal reproduction would have turned it away.
 blank_issues_enabled: true

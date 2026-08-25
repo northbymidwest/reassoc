@@ -1,5 +1,5 @@
 //! `REASSOC_TRACE=<file>` makes the macros append one line per function
-//! entered and per `alg!` — `file:line  kind  name  operators` — with no
+//! entered and per `alg!` (`file:line  kind  name  operators`) with no
 //! change to the generated code. Checked by building `examples/codegen_matrix`
 //! (every construct the rewriter emits) with the variable set and reading the
 //! log back: every `sugar_` function appears with at least one operator,

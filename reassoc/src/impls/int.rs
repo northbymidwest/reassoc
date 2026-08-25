@@ -98,8 +98,8 @@ plain_int_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, *, *=);
 plain_int_op!(DivRhs, div_rhs, DivAssignRhs, div_assign_rhs, /, /=);
 plain_int_op!(RemRhs, rem_rhs, RemAssignRhs, rem_assign_rhs, %, %=);
 
-// An integer on the *left* of an opted-in type — `n * v` with `impl Mul<V>
-// for u32`, `k / vec` — is a blanket per integer type bounded on the right
+// An integer on the *left* of an opted-in type (`n * v` with `impl Mul<V>
+// for u32`, `k / vec`) is a blanket per integer type bounded on the right
 // type's marker, exactly as `float.rs`'s `float_left!`. Distinct from the
 // `Int` impls above by tag and from the marker blankets because integers are
 // never `Passthrough`. By value, like the float form. (Found adopting glam:

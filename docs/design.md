@@ -1,7 +1,7 @@
 # Design notes
 
 The reasoning behind the shapes in this crate that look like cleanup
-opportunities and are not. Every item here was measured — built, compiled,
+opportunities and are not. Every item here was measured: built, compiled,
 and in most cases tried the other way first. `CLAUDE.md` carries the one-line
 rule for each; this is the evidence. The original design document in
 `docs/superpowers/specs/` predates the operand/output split and still
@@ -33,12 +33,12 @@ combination, and the macro had nine forms to say which. It also synthesised
 `+=` from `+` for `Copy` types and dereferenced reference operands for them,
 both of which accepted code plain Rust refuses; now `v += w` needs the type's
 `AddAssign` and `&v + w` needs `Add<W> for &V`. (A generic function *could*
-work with `T: Passthrough` in its bounds; that is deliberately not offered —
+work with `T: Passthrough` in its bounds; that is deliberately not offered,
 the marker is not a contract to write into signatures, so generic code is
 skipped instead.) Why this was
 not the first design: a blanket over *every* type with `std::ops` overlaps the
 float impls, and there is no specialization; the marker is the gate that
-makes the blanket and the float impls disjoint in coherence's eyes — `f32:
+makes the blanket and the float impls disjoint in coherence's eyes: `f32:
 Passthrough<()>` is knowably unimplemented, since no crate but this one could
 write it.
 
@@ -56,7 +56,7 @@ the crate can implement `OptInTag` for them, so the blankets, bounded on
 `OptInTag`, are provably disjoint from the primitive impls. Integers are the
 same story (`let n = 0; n + k` must resolve `n` from `k`'s type); a projected
 output through the blanket would see `{integer}` fall back to `i32` first and
-fail with `E0271` — the hazard that once argued against associated-type
+fail with `E0271`, the hazard that once argued against associated-type
 outputs, in a new place.
 
 **A float or integer on the left of an opted-in type is a separate blanket,
@@ -78,7 +78,7 @@ through it.
 a trait, and a stable `const fn` cannot call a trait method. With
 `const_trait_impl` the dispatch traits are `const trait`s, every impl on the
 primitive path is a `const impl`, and `ops::*` are `const fn` with `[const]`
-bounds (`ops/konst.rs` — the syntax is gated at parse time, so it lives in a
+bounds (`ops/konst.rs`; the syntax is gated at parse time, so it lives in a
 file that is only compiled under the feature). `konst!` in `lib.rs` hands the
 two token groups to the impl-stamping macros, nothing at all otherwise; the
 macros keep their one-line invocations because rustc renders them in impl
@@ -86,7 +86,7 @@ listings. `ops.rs` is written out rather than stamped for the same reason: the
 "required by a bound in `add`" note on every operand error quotes it. Const
 evaluation interprets a rewritten `const fn` as written (measured:
 `a.algebraic_mul(b).algebraic_add(c)` is the sequential IEEE value in a
-`const`, and the fused one from the same function at runtime in release) —
+`const`, and the fused one from the same function at runtime in release),
 an implementation property, not a promise; the docs allow algebraic results
 to differ between any two evaluations. So a `const` and the same call at
 runtime may differ in the last bits. `tests/const_fn.rs`. On kurbo it
@@ -96,8 +96,8 @@ entered all 142 `const fn`s and rewrote the 84 operators in them
 **Outputs are type parameters, never associated types.** With `type Out`,
 rustc cannot invert the projection, so `let s = 0.0;` in a function returning
 `f32` defaults the literal to `f64` and fails with `E0271`. The blanket's
-output is a projection *in the impl header* — `MulRhs<A, <A as Mul<B>>::Output>`
-— which is fine: it is normalized once `A` and `B` are known, and for the
+output is a projection *in the impl header*, `MulRhs<A, <A as Mul<B>>::Output>`,
+which is fine: it is normalized once `A` and `B` are known, and for the
 primitives, where they are not, the sealed generic impls pin `O` directly.
 
 **The operand bound hangs off `B`, not `A`.** Rustc anchors the error on the
@@ -130,12 +130,12 @@ insert the conversion the language refuses.
 **Nothing is matched by name, except the std expression macros.** `strict!`
 works because `VisitMut` cannot descend into a macro's token stream. A version
 that consumed `strict!` during rewriting made `use reassoc::{algebraic,
-strict};` warn as unused — an error under `#![deny(warnings)]`. The exception
+strict};` warn as unused, an error under `#![deny(warnings)]`. The exception
 came in 0.5.0: `assert!(x * y > eps)` inside a kernel silently computing
 strict IEEE was the most common everyday surprise, so the `assert`, `panic`,
-`print`, `format` and `write` families, `dbg!` and `vec!` are entered — by
+`print`, `format` and `write` families, `dbg!` and `vec!` are entered, by
 last path segment, and only when the tokens parse as comma-separated
-expressions (`vec!`'s `elem; len` aside) — and `matches!` for its scrutinee,
+expressions (`vec!`'s `elem; len` aside), and `matches!` for its scrutinee,
 the one argument that is an expression. A listed name whose arguments do not
 parse is left whole, so a user macro sharing a std name keeps its grammar
 unless it takes expressions and reads their tokens. `strict!` is never on the
@@ -177,7 +177,7 @@ the place: `match (rhs,) { (r,) => { ops::add_assign(&mut place, r); } }`. RHS
 first because native `+=` does, and because `&mut` on the place first makes
 `s += s * k` a borrow error. `match` rather than `let` because a `let` drops
 the RHS's temporaries before the place is evaluated. A one-tuple scrutinee
-because a bare struct literal is not allowed as one — `acc += P { x: 1.0 }`
+because a bare struct literal is not allowed as one: `acc += P { x: 1.0 }`
 made the generated `match` unparsable and the proc macro panic, and `unparen`
 had already removed any parens the user put there. Every place goes through
 `&mut`, bare paths included. They used to be assigned through by name
@@ -185,14 +185,14 @@ had already removed any parens the user put there. Every place goes through
 local captured by a closure or `async` block was *moved* out, turning an
 `FnMut` into an `FnOnce`, and a type with `AddAssign` but no `Add` was
 rejected where native accepts it. The one thing by-name bought was `static
-mut` — edition 2024 denies `&mut` on one — so the generated statement carries
+mut` (edition 2024 denies `&mut` on one) so the generated statement carries
 `#[allow(static_mut_refs)]`; native `+=` on a primitive static takes no
 reference either. Release codegen is unchanged: the `&mut` form of the dot
 kernel merges with the hand-written one (`_dot_direct = _dot_bymut`).
 `ops::add_assign` is bounded on `AddAssignRhs<Place>`, which the marker
-blanket implements through the place type's own `AddAssign<B>` — nothing is
+blanket implements through the place type's own `AddAssign<B>`; nothing is
 formed from `+` any more, so a `Copy` type without `AddAssign` has no `+=`,
-as natively — with direct impls for the primitives (under their tags) and for
+as natively, with direct impls for the primitives (under their tags) and for
 `String`. `String`'s in-place impls are for `&str`, `&String`, `&Cow<str>` and
 the rest concretely, not `&T: AsRef<str>`: a generic `&T` would overlap the
 blanket for a downstream type. Native place-first
@@ -205,25 +205,25 @@ primitives, which is what this crate is for.
 ()>`, that means nothing and is never named by a user. It exists for one
 reason: Rust's orphan rule lets a crate implement a foreign trait for a
 foreign type only if the impl header names a type local to that crate, and
-`AddRhs<Lhs, O> for Rhs` had no slot for one — so a user of `glam` or
+`AddRhs<Lhs, O> for Rhs` had no slot for one, so a user of `glam` or
 `nalgebra` could not opt those types in at all. `passthrough!(foreign ..)`
 wraps its impls in `const _: () = { struct __ReassocOptIn; .. }` and passes
 that type as the tag; `ops::*` leave the tag free and rustc infers it from the
 one impl that matches, as it already infers `O`. The plain forms pass `()`, so
 a duplicate opt-in of a local type stays the `E0119` it always was at the
-definition — with a per-expansion tag it would instead become `E0283` at
+definition; with a per-expansion tag it would instead become `E0283` at
 every use, which is what the `foreign` form cannot avoid: two crates opting
 in the same foreign pair are two impls coherence can no longer reject, and a
 crate seeing both is ambiguous at the operator (`tests/ui/foreign_diamond.rs`).
 That hazard is the price of the capability, the same one serde's `remote`
 derives carry, and is managed by guidance (opt in once, at the top of the
 tree). Measured: the tag changes no inference result (every pinned literal
-and iterator case still resolves) but is not free to type-check — on the
+and iterator case still resolves) but is not free to type-check: on the
 `scripts/compile-bench.sh` workload (1800 fns, ~72k operators) the dispatch
-half of `cargo check` went from 2.21s to 2.75s over plain, about +7µs per
+half of `cargo check` went from 2.21s to 2.75s over plain, about +7us per
 rewritten operator, ~+7% on the whole `#[algebraic]` check; one more
 inference variable per call. And `#[doc(hidden)]` on `traits` is not an
-option — rustc stops trimming paths in diagnostics under a hidden module, and
+option: rustc stops trimming paths in diagnostics under a hidden module, and
 every error would read `reassoc::traits::AddRhs<..>`. Shipping impls for
 popular crates behind features would avoid the tag for those types; not done,
 since such types are along for the ride in an algebraic scope rather than its
@@ -232,9 +232,9 @@ point.
 **Zero cost is measured per construct, not assumed.** `tests/codegen_matrix.rs`
 compiles `examples/codegen_matrix.rs` to LLVM IR at `-C opt-level=1,2,3,s,z`
 and requires each
-`sugar_`/`direct_` pair — every operator, every place shape, chains of binary
+`sugar_`/`direct_` pair: every operator, every place shape, chains of binary
 operators and of `+=` steps, user and foreign and std types, `strict!`,
-closures, both `alg!` forms, the dot and axpy loops — to be identical after
+closures, both `alg!` forms, the dot and axpy loops, to be identical after
 alpha-renaming of SSA values and labels and erasure of metadata and
 panic-location constants at O2/O3 (or merged by LLVM, the same proof), and to
 hold the same instructions order-insensitively at O1/Os/Oz, where the
@@ -252,14 +252,14 @@ nothing behind. Mutation-checked: float `*` routed to IEEE fails eight pairs.
 
 **The compound `match` is wrapped in `ops::unit(..)`, an identity on `()`.**
 Bare, the `match` is a block-like statement, and the user's `;` after it is
-what clippy's pedantic `unnecessary_semicolon` reported on every `+=` — the
+what clippy's pedantic `unnecessary_semicolon` reported on every `+=`; the
 generated tokens sit at the operator's span (so errors point there), which
 is also why clippy does not treat them as expansion output. Dropping the `;`
 was built and measured first: it parses cleanly whatever the next statement
 starts with, but a rewritten `+=` that ends a block then trips
 `semicolon_if_nothing_returned` (clippy reads the snippet at the span, `+=`,
 and sees no block), so one pedantic lint or the other fired on every loop
-body — and it silently turned a user's `;;` into a single valid `;`. The
+body, and it silently turned a user's `;;` into a single valid `;`. The
 wrapper makes the statement a call: clean under both lints in every
 position, `alg!(x += y);` included, with the user's tokens untouched. Zero
 cost (`#[inline(always)] const fn unit(_: ())`; the codegen guard is
@@ -275,22 +275,22 @@ invocation, so the caret of an unsatisfied `+=` moved from the operator to the
 binding of the same name is a loud error (`tests/ui/binding_collision.rs`),
 never a misresolve.
 
-**Const positions are never rewritten** — `ops::*` are not `const fn`, so a
+**Const positions are never rewritten**: `ops::*` are not `const fn`, so a
 call there is `E0015` blamed on the attribute. `#[algebraic]` on a `const fn`
 is rejected with an authored error.
 
 **Everything lexically inside an annotated scope is entered.** Nested items
 were out by default until 0.4.0 on the reading that a nested `fn` "reads like
 a standalone item"; that left a helper silently strict inside a body that
-looked covered — the silent-miss shape the rest of the crate is built to
-avoid — treated `fn sq(x)` and `|x| ..` differently on syntax alone, and once
+looked covered (the silent-miss shape the rest of the crate is built to
+avoid) treated `fn sq(x)` and `|x| ..` differently on syntax alone, and once
 containers propagated all the way down made a function body the one place
 nesting stopped. The `items` knob that restored the old boundary was
 deprecated in 0.4.0 (warned about through a `#[deprecated]` const the
 expansion used at the parameter's span, since a stable proc macro cannot warn
 directly) and removed in 0.8.0; writing it is an authored error naming
 `skip`.
-**`#[algebraic]` on a container** — `impl`, inline `mod`, `trait` — enters
+**`#[algebraic]` on a container** (`impl`, inline `mod`, `trait`) enters
 every member body, and containers nested in those: the annotation on an
 `impl` means "these methods". (When `items` still existed, it applied to
 items inside function bodies only, tracked by an `in_body` flag the fn
@@ -313,11 +313,11 @@ second `#[algebraic(..)]` directly on an annotated function: the outer
 expansion returns it untouched and the inner governs, as on a container
 (`tests/ui/double_attribute_inner_wins.rs`). `skip` is accepted on any item,
 wherever it lands: the container form strips it from members of every kind
-(`const`, `static`, `struct`, `use`, `macro_rules!` included — inside a `mod`
+(`const`, `static`, `struct`, `use`, `macro_rules!` included; inside a `mod`
 the attribute is not even in scope, so leaving it would be an error), a
 skipped item has the `skip`s nested inside it stripped too since nothing else
 will see them, a `const fn` body likewise, and the attribute invoked directly
-with `skip` returns its item unchanged before looking at what it is — which is
+with `skip` returns its item unchanged before looking at what it is, which is
 how `#[algebraic(skip)] const fn` works at top level. A `const fn` nested
 inside a skipped `const fn` with arithmetic of its own is still reported: the
 probe's errors propagate.

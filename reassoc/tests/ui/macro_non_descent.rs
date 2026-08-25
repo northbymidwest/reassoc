@@ -1,8 +1,8 @@
 use reassoc::alg;
 
 /// A type that implements the dispatch traits but NOT `std::ops`. Only the
-/// std macros whose arguments are expressions are entered; any other macro —
-/// here one of the user's own — is opaque, so the `w + w` inside it is left
+/// std macros whose arguments are expressions are entered; any other macro,
+/// here one of the user's own, is opaque, so the `w + w` inside it is left
 /// for rustc to reject with E0369.
 struct Dispatched(f32);
 

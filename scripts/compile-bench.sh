@@ -6,7 +6,7 @@
 # (non-incremental) `cargo check`, debug build and release build of each, with
 # dependencies prebuilt so only the workload crate is measured:
 #
-#   plain     native operators — the baseline
+#   plain     native operators, the baseline
 #   expanded  the rewriter's output compiled as ordinary source: dispatch cost
 #             (generic `ops::*` calls through the traits) without the proc macro
 #   alg       `#[algebraic]` with cargo's defaults (proc macros at opt-level 0)

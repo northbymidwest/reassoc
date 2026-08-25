@@ -1,4 +1,4 @@
-//! A `const fn` member with nothing of its own to rewrite is skipped — but a
+//! A `const fn` member with nothing of its own to rewrite is skipped, but a
 //! `const fn` nested inside it whose arithmetic *would* be rewritten is still
 //! reported, not left strict without a word.
 use reassoc::algebraic;

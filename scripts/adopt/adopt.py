@@ -46,7 +46,7 @@ RE_IMPL = re.compile(r"^(?:unsafe\s+)?impl\b")
 RE_TRAIT = re.compile(rf"^{VIS}(?:unsafe\s+)?(?:auto\s+)?trait\s+[A-Za-z_]\w*")
 RE_MOD = re.compile(rf"^{VIS}mod\s+[A-Za-z_]\w*\s*\{{")
 RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_]\w*")
-# `fn f(..) -> T;` — a required trait method, no body to rewrite (ndarray's
+# `fn f(..) -> T;`: a required trait method, no body to rewrite (ndarray's
 # sealed `__private__` inside a `macro_rules!` template). The attribute is an
 # authored error there.
 # Macro invocations whose body is ordinary items, not a custom grammar:
@@ -55,7 +55,7 @@ RE_TYPE = re.compile(rf"^(?P<indent>\s*){VIS}(?:struct|enum|union)\s+\$?[A-Za-z_
 RE_ITEM_PASSING_MACRO = re.compile(r"^(?:cfg_if::)?cfg_if!\s*[\({]")
 # An item that declares type parameters: `fn f<T>`, `impl<T> Tr for X<T>`,
 # `trait T<U>`. Arithmetic on a type parameter cannot be dispatched, so with
-# `--skip-generic-items` such items are left native rather than annotated —
+# `--skip-generic-items` such items are left native rather than annotated,
 # the difference between "the adoption compiles" and a wall of E0277.
 # Lifetimes and const parameters alone do not count: `fn f<'a>` and
 # `fn f<const N: usize>(a: [f32; N])` still do float arithmetic.
@@ -127,7 +127,7 @@ def mod_has_file_submodules(lines: list[str], i: int) -> bool:
 OPS = {"add": "+", "sub": "-", "mul": "*", "div": "/", "rem": "%"}
 ASSIGN_OPS = {f"{k}_assign": f"{v}=" for k, v in OPS.items()}
 # A single primary expression: a path/field chain, optionally one call or
-# index at the end, or a literal, possibly negated — safe as a bare operand.
+# index at the end, or a literal, possibly negated: safe as a bare operand.
 RE_PRIMARY = re.compile(r"^-?(?:[A-Za-z_][\w:.]*(?:\([^()]*\)|\[[^\[\]]*\])?|\d[\w.]*(?:e-?\d+)?)$")
 RE_METHOD = re.compile(r"\.(add|sub|mul|div|rem|add_assign|sub_assign|mul_assign|div_assign|rem_assign)\(")
 
@@ -246,7 +246,7 @@ def rewrite_method_calls(line: str, stats: collections.Counter, self_is_ref: boo
 
 
 def is_bodiless_fn(lines: list[str], i: int) -> bool:
-    """A required method has no body — `fn f(..) -> T\nwhere ..;` counts, so
+    """A required method has no body. `fn f(..) -> T\nwhere ..;` counts, so
     the signature is followed until a `;` or `{` decides it."""
     depth = 0
     for j in range(i, min(i + 8, len(lines))):
@@ -357,7 +357,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 # Only the transcriber of each rule is annotatable: an
                 # attribute inserted into the *matcher* changes what the
-                # macro accepts ("no rules expected keyword `unsafe`" —
+                # macro accepts ("no rules expected keyword `unsafe`",
                 # ndarray's `impl_ndproducer!`, fixed's `shift_all!`).
                 macro_rule = depth
             stats["macro_rules! (entered)" if macro_bodies else "macro_rules! (left)"] += 1
@@ -383,7 +383,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             and not RE_MACRO_RULES.match(stripped)
             and not RE_ITEM_PASSING_MACRO.match(stripped)
         ):
-            # A macro *invocation* is opaque — annotating lines inside its
+            # A macro *invocation* is opaque, so annotating lines inside its
             # braces corrupts the call (num-bigint's `impl_binop! { .. }`:
             # "no rules expected `#`"). Only `macro_rules!` *definitions*
             # take attributes in their templates.
@@ -445,7 +445,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             stats["fn"] += 1
         elif items and skip_generic and RE_FN.match(line) and not is_bodiless_fn(lines, i) and declares_type_params(lines, i):
             # A generic member of an annotated container is covered by it, so
-            # leaving it out is not enough — it must say `skip` (sgrust's
+            # leaving it out is not enough: it must say `skip` (sgrust's
             # `impl Basis for LinearBasis` declares nothing, and its
             # `fn eval_t<T: Float>` inside was rewritten and failed).
             if covered and cover[-1][1] == "alg":
@@ -459,8 +459,8 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             else:
                 pending = "native"
         elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "opaque"):
-            # A derive is fine anywhere a type is *declared* — an enclosing
-            # `#[algebraic]` does not opt the type in — but never inside a
+            # A derive is fine anywhere a type is *declared* (an enclosing
+            # `#[algebraic]` does not opt the type in) but never inside a
             # macro invocation, where the declaration is the macro's argument
             # and a derive breaks the call (faer-ffi's `cerr! { pub enum .. }`).
             if not already:
@@ -488,7 +488,7 @@ def crate_edition(cargo_toml: Path) -> str:
 
 def head_end(lines: list[str]) -> int:
     """Index of the first line after the crate root's head: inner attributes
-    (which may span lines — `#![deny(\n .. \n)]`), inner docs, plain and
+    (which may span lines, `#![deny(\n .. \n)]`), inner docs, plain and
     block comments (license headers), blanks. An item inserted before a later
     `//!` is an error (E0753); one inserted inside an attribute is worse."""
     i = 0
@@ -629,8 +629,8 @@ def from_src(path: str) -> str:
 
 def all_fns(src: Path) -> tuple[dict[tuple[str, int], str], collections.Counter]:
     """Every `fn` in src/ by (file, line) -> name, from the annotated tree,
-    minus what was deliberately left alone — fns inside `#[cfg(test)] mod`
-    bodies and fns the tool put `#[algebraic(skip)]` on — which are counted
+    minus what was deliberately left alone (fns inside `#[cfg(test)] mod`
+    bodies and fns the tool put `#[algebraic(skip)]` on) which are counted
     instead."""
     out = {}
     left: collections.Counter = collections.Counter()
@@ -692,7 +692,7 @@ def trace_coverage(trace: Path, crate: Path) -> list[str]:
         f"functions in src/: {len(fns)}; entered by the macros: {sum(1 for v in entered.values() if v[0] == 'fn')} "
         f"(+{const_fns} const fn met and left); operators rewritten: {total_ops}; `alg!` invocations: {algs} ({alg_ops} operators)",
         f"entered but nothing rewritten (no operator arithmetic, or method-call style): {len(zero)}",
-        f"never entered (no attribute reached them — macro-generated items, trait required methods, cfg'd-out files): {len(never)}",
+        f"never entered (no attribute reached them: macro-generated items, trait required methods, cfg'd-out files): {len(never)}",
         "left alone on purpose: " + ", ".join(f"{v} {k}" for k, v in sorted(left.items())) if left else "left alone on purpose: none",
     ]
     for label, keys in (("never entered", never), ("entered, 0 operators", zero)):
@@ -717,7 +717,7 @@ def target_dir(crate: Path) -> Path:
 
 def baseline_failures(crate: Path, cargo_args: list[str], out_dir: Path) -> set[str] | None:
     """Run the same tests on the pristine tree (the tool's edits stashed) and
-    return the tests that fail there too — a crate's own debug-only or flaky
+    return the tests that fail there too: a crate's own debug-only or flaky
     tests are not the macros' doing. None if the tree could not be stashed."""
     stash = subprocess.run(["git", "stash", "push", "-q", "--", "Cargo.toml", "src"], cwd=crate, capture_output=True, text=True)
     if stash.returncode != 0:
@@ -777,7 +777,7 @@ def cmd_report(a: argparse.Namespace) -> int:
     passed = sum(int(r[1]) for r in results)
     nfailed = sum(int(r[2]) for r in results)
 
-    lines = [f"# reassoc adoption report — {crate.name}", ""]
+    lines = [f"# reassoc adoption report: {crate.name}", ""]
     lines.append(f"cargo exit status: {proc.returncode}")
     lines.append(f"compile errors: {total_errors}  (distinct: {len(errors)})")
     lines.append(f"tests: {passed} passed, {nfailed} failed across {len(results)} binaries")
@@ -785,7 +785,7 @@ def cmd_report(a: argparse.Namespace) -> int:
     if errors:
         lines.append("## compile errors by kind")
         for (code, msg), locs in sorted(errors.items(), key=lambda kv: -len(kv[1])):
-            lines.append(f"- {len(locs):5} × {code}: {msg}")
+            lines.append(f"- {len(locs):5} x {code}: {msg}")
             for l in locs[:3]:
                 lines.append(f"          e.g. {l}")
         lines.append("")
@@ -812,7 +812,7 @@ ALG_OP = re.compile(r"\b(fadd|fsub|fmul|fdiv|frem) reassoc")
 
 def cmd_ir(a: argparse.Namespace) -> int:
     """Emit optimized IR for the library and list the non-inlined functions
-    that still contain strict float ops — the arithmetic the adoption did not
+    that still contain strict float ops: the arithmetic the adoption did not
     reach (method-call style, macro-generated items, code the tool left)."""
     crate = Path(a.crate).resolve()
     cmd = ["cargo", "rustc", "--release", "--lib", *a.cargo_args, "--", "--emit=llvm-ir", "-C", "codegen-units=1"]
@@ -887,7 +887,7 @@ def imported_paths(src: Path) -> dict[str, str]:
 
 
 def local_types(src: Path) -> set[str]:
-    """Every type this crate declares — what the derive already covers."""
+    """Every type this crate declares, which is what the derive already covers."""
     rx = re.compile(r"^\s*(?:(?:pub(?:\([^)]*\))?|\$\w+)\s+)?(?:struct|enum|union)\s+(\$?\w+)")
     out = set()
     for p in src.rglob("*.rs"):
@@ -901,7 +901,7 @@ def local_types(src: Path) -> set[str]:
 def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
     """Types named as the left operand of a failed dispatch that look like
     they come from another crate: a path with `::`, no generic arguments and
-    no reference — exactly what `passthrough!(foreign T)` takes. A generic
+    no reference, exactly what `passthrough!(foreign T)` takes. A generic
     foreign type (`Complex<T>`) has no form yet and is reported, not emitted."""
     local = local or set()
     seen, out, generic = set(), [], set()
@@ -920,7 +920,7 @@ def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
                 generic.add(ty)
                 continue
         if "::" not in ty:
-            # A bare name: foreign only if this crate does not declare it —
+            # A bare name: foreign only if this crate does not declare it,
             # a re-export (`pub use tiny_skia_path::f32x2;`) reads bare in
             # diagnostics. A type parameter (`T`, `Self`) is neither.
             if ty in local or ty == "Self" or (len(ty) <= 2 and ty.isupper()):
@@ -930,7 +930,7 @@ def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
         seen.add(ty)
         out.append(ty)
     if generic:
-        print(f"  (not emitted — a type argument that is a parameter, `_` or an "
+        print(f"  (not emitted: a type argument that is a parameter, `_` or an "
               f"associated type cannot be written in an impl: "
               f"{', '.join(sorted(generic)[:4])})")
     return out
@@ -960,10 +960,10 @@ def cmd_opt_in(a: argparse.Namespace) -> int:
         else:
             unresolved.append(t)
     if unresolved:
-        print(f"  (not emitted — no `use` names them, so no path to write: {', '.join(unresolved)})")
+        print(f"  (not emitted: no `use` names them, so no path to write: {', '.join(unresolved)})")
     # Dedupe *after* resolution: a bare `Complex<f32>` and a qualified
     # `num_complex::Complex<f32>` in the same log are one impl, and emitting
-    # both is `E0119 conflicting implementations` — worse than the gap.
+    # both is `E0119 conflicting implementations`, worse than the gap.
     types = list(dict.fromkeys(resolved))
     if not types:
         print("no foreign types named in the log")

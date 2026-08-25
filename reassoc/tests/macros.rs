@@ -1,6 +1,6 @@
 //! Arithmetic inside the arguments of the std macros whose arguments are
-//! expressions — the assert, panic, print, format and write families, `dbg!`
-//! and `vec!` — is rewritten like arithmetic anywhere else in the scope.
+//! expressions (the assert, panic, print, format and write families, `dbg!`
+//! and `vec!`) is rewritten like arithmetic anywhere else in the scope.
 //! Every other macro is still opaque, `strict!` above all; the must-fail
 //! directions are `tests/ui/macro_*.rs`.
 //!
@@ -90,7 +90,7 @@ fn std_macro_arguments_are_rewritten() {
     assert_eq!(alg!(vec![a + b; 2]), vec![Dispatched(5.0); 2]);
 }
 
-/// A listed name whose arguments do not parse as expressions is left alone —
+/// A listed name whose arguments do not parse as expressions is left alone:
 /// a user macro that happens to share a std name keeps its own grammar.
 macro_rules! panic {
     (never: $e:expr) => {
@@ -150,7 +150,7 @@ fn format_args_trailing_commas_and_opaque_macros_inside_listed_ones() {
     );
 }
 
-/// `matches!` is entered for its first argument alone — an expression — and
+/// `matches!` is entered for its first argument alone, an expression, and
 /// the pattern (and guard) after the comma is left as written: a pattern is
 /// not an expression, and a guard is rustc's to check.
 #[algebraic]
@@ -217,7 +217,7 @@ fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
 /// `?` and `.await` bind tighter as well, and neither was reachable from the
 /// test above: one needs a type whose `Try` the operand satisfies, the other
 /// an `async` body. Unparenthesised, `-m?` applies `?` to `m` and
-/// `&mut f.await` awaits `f` before taking the reference — both stop
+/// `&mut f.await` awaits `f` before taking the reference. Both stop
 /// compiling, which is the whole point of the parentheses.
 #[derive(Clone, Copy)]
 struct Maybe(f32);

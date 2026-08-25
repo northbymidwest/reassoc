@@ -1,6 +1,6 @@
 //! The handful of syntax shapes the rewriter emits, built directly rather
 //! than `quote!`d and re-parsed (see `rewrite.rs` for why). Every token is
-//! placed at the span the caller gives, which is the operator's — that is
+//! placed at the span the caller gives, which is the operator's, and that is
 //! what anchors the diagnostics on it. Coupling to syn's field layout lives
 //! here and nowhere else.
 
@@ -8,7 +8,7 @@ use proc_macro2::Span;
 use syn::punctuated::Punctuated;
 use syn::{Attribute, Expr, Token};
 
-/// `::a::b::c` — leading colon and separators at `span`; each ident keeps
+/// `::a::b::c`, with the leading colon and separators at `span`; each ident keeps
 /// its own span.
 pub fn path(span: Span, segments: impl IntoIterator<Item = syn::Ident>) -> Expr {
     let mut path = syn::Path {

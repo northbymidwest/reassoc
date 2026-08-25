@@ -1,4 +1,4 @@
-//! Randomly generated expression trees — do not edit by hand.
+//! Randomly generated expression trees. Do not edit by hand.
 //!
 //! Regenerate with:
 //!
@@ -11,7 +11,7 @@
 //! Each case asserts four things about the same source:
 //!
 //! 1. `alg!(src)` equals the value computed exactly, offline, in rational
-//!    arithmetic — so both the rewriter and the plain form would have to be
+//!    arithmetic, so both the rewriter and the plain form would have to be
 //!    wrong in the same way to pass.
 //! 2. `alg!(src)` equals the plain form bit for bit. The generator only emits
 //!    dyadic rationals inside `f32`'s exact range, so reassociation and
@@ -19,9 +19,9 @@
 //!    bug in the rewrite.
 //! 3. The same source inside `#[algebraic]` agrees too, so the attribute and
 //!    the expression macro cannot drift apart.
-//! 4. The same source over `Disp` — a type with the dispatch traits and no
+//! 4. The same source over `Disp`, a type with the dispatch traits and no
 //!    `std::ops`, every literal leaf wrapped as `Disp(lit)` and `strict!`
-//!    wrappers removed — compiles and agrees. The float forms pass even if an
+//!    wrappers removed, compiles and agrees. The float forms pass even if an
 //!    operator is left unrewritten, since native and dispatched give the same
 //!    bits; this one fails to compile instead.
 //!
@@ -31,7 +31,7 @@
 //! compound-assignment emitter on bare paths.
 //!
 //! Seed 2, 100 trees of ~24 nodes and 40 chains, over `f32`.
-//! Generator sha256 faa5417b1c86, run at commit e67b6e1: the same seed under a
+//! Generator sha256 6ce5af640dcf, run at commit b317775 (generator modified): the same seed under a
 //! different generator hash is a different corpus.
 #![allow(
     clippy::float_cmp,

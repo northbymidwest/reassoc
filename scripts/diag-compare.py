@@ -6,7 +6,7 @@ macros (`reassoc::alg!(..)`, `#[reassoc::algebraic]`, `reassoc::passthrough!(..)
 `#[derive(.., reassoc::Passthrough)]`). The tool derives the plain-Rust twin by
 stripping those, generates one crate per variant with one bin per case under
 `target/diag-compare/`, runs `cargo check` on every bin, and prints the errors
-side by side as a Markdown table — codes and the first line of each message,
+side by side as a Markdown table: codes and the first line of each message,
 `compiles` when there is none. `--full DIR` also writes every raw stderr.
 
 Variants:

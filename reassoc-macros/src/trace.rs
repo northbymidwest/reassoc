@@ -11,7 +11,7 @@
 //! member of an annotated container), `const fn` (met in an algebraic scope and
 //! left as written, so always 0), or `alg` (one `alg!`, named `-`). Nothing in
 //! the generated code changes; the log is for tooling that asks "which
-//! functions did the macro reach, and where did it find nothing to rewrite" —
+//! functions did the macro reach, and where did it find nothing to rewrite".
 //! `scripts/adopt/` in the repository uses it. Lines are appended, so a build
 //! that expands a crate more than once (check, test, doc) repeats them;
 //! readers de-duplicate on the location.

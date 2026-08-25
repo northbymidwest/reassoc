@@ -1,5 +1,5 @@
 //! Float spokes, the only ones that route to `algebraic_*` rather than to the
-//! plain operators — and never through the blanket path over `std::ops`,
+//! plain operators, and never through the blanket path over `std::ops`,
 //! which would be IEEE.
 //!
 //! Generic over a sealed [`Float`] rather than written per type, under a
@@ -10,7 +10,7 @@
 //! blankets in `traits.rs` (bounded on `OptInTag`, which it never implements
 //! and no other crate can implement for it).
 //! Plus the one blanket a float needs: a float on the *left* of an opted-in
-//! type (`2.0 * v`), through that type's own `Mul<..> for f32` impl — per
+//! type (`2.0 * v`), through that type's own `Mul<..> for f32` impl: per
 //! concrete float, under the default tag, since there coherence relies on
 //! `f32: Passthrough<()>` never holding.
 

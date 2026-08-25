@@ -62,7 +62,7 @@ fn unannotated_integer_literals_infer_from_return_type() {
 
 /// `#[track_caller]` on the dispatch functions and the passthrough impls: a
 /// debug-build integer overflow must be reported at the user's operator, not
-/// inside this crate. Debug only — release builds do not check overflow.
+/// inside this crate. Debug only: release builds do not check overflow.
 #[cfg(debug_assertions)]
 #[test]
 fn integer_overflow_panics_at_the_users_operator() {

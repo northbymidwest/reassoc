@@ -1,4 +1,4 @@
-//! `#[derive(Passthrough)]` — opt a type into the dispatch layer at its
+//! `#[derive(Passthrough)]`: opt a type into the dispatch layer at its
 //! definition, rather than with a separate `passthrough!` invocation. The
 //! whole of it is one marker impl; the blanket impls in `reassoc::traits`
 //! route every `std::ops` operator the type has.
@@ -10,7 +10,7 @@ use syn::DeriveInput;
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // `#[passthrough(add, mul, no_refs, ..)]` used to name which operators to
     // emit; nothing is emitted per operator any more, so the list has no
-    // meaning — say so rather than silently ignore it.
+    // meaning, so say so rather than silently ignore it.
     if let Some(attr) = input
         .attrs
         .iter()

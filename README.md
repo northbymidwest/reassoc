@@ -8,15 +8,15 @@
 Ordinary arithmetic syntax for Rust's algebraic float operators.
 
 > [!WARNING]
-> **Experimental — days old, lightly used, and it changes your results on
+> **Experimental: days old, lightly used, and it changes your results on
 > purpose.**
 >
 > This crate rewrites your arithmetic, so when it is wrong the failure is
 > rarely a compile error: code compiles and quietly does something other than
 > what you wrote. The rewriter has been checked systematically against the
-> compiler — every construct it enters has a test that fails if the rewrite
+> compiler (every construct it enters has a test that fails if the rewrite
 > stops happening, a fuzz corpus checks it against exact values, and release
-> codegen is verified identical to hand-written algebraic calls — but real code
+> codegen is verified identical to hand-written algebraic calls) but real code
 > finds what an author did not imagine. Please report what you find.
 >
 > The known differences from plain Rust are few and deliberate;
@@ -25,7 +25,7 @@ Ordinary arithmetic syntax for Rust's algebraic float operators.
 >
 > What always applies: algebraic operators may reassociate and contract, so
 > results can differ from strict IEEE in the last bits and between targets.
-> That is the point, and it is silent — wrap anything that depends on exact
+> That is the point, and it is silent, so wrap anything that depends on exact
 > rounding in `strict!` (see [Correctness](#correctness)), and check your
 > numbers before and after.
 
@@ -63,19 +63,19 @@ Measured on aarch64 at `-O`, the loop above:
 
 | version | codegen |
 | --- | --- |
-| plain `+`/`*` | 21x scalar `fadd` — serial dependency chain |
-| `reassoc` | 8x `fmla.4s` — vectorized and FMA-contracted |
+| plain `+`/`*` | 21x scalar `fadd`, a serial dependency chain |
+| `reassoc` | 8x `fmla.4s`, vectorized and FMA-contracted |
 
 The generated code is byte-identical to hand-written algebraic calls; the
-dispatch layer compiles away entirely in release builds — checked in CI, for
+dispatch layer compiles away entirely in release builds, checked in CI, for
 every construct the rewriter emits, as optimized LLVM IR against a
 hand-written twin (`examples/codegen_matrix.rs`) at every optimization level
 from `-C opt-level=1` up, including long operator chains and chains of `+=`
 steps, which stay one reassociable expression across every layer.
 
-This is the optimization `-ffast-math` grants in C and C++ — reassociation,
+This is the optimization `-ffast-math` grants in C and C++ (reassociation,
 FMA contraction, division as reciprocal multiplication, sign of zero ignored
-(LLVM's `reassoc contract arcp nsz`) — but per function or expression rather
+(LLVM's `reassoc contract arcp nsz`)) but per function or expression rather
 than per translation unit, with `strict!` to carve a step back out, and
 without `-ffast-math`'s `-ffinite-math-only` (`nnan ninf`): NaN and infinity
 are never undefined behaviour here, though a rearranged expression may
@@ -85,7 +85,7 @@ algebraic scope changes.
 ## Why not just call the methods?
 
 Because arithmetic stops being readable. Here is Catmull-Rom spline
-interpolation — four control points and one parameter:
+interpolation, with four control points and one parameter:
 
 ```text
 p(t) = 0.5 * ( 2p1 + (-p0+p2)t + (2p0-5p1+4p2-p3)t^2 + (-p0+3p1-3p2+p3)t^3 )
@@ -105,7 +105,7 @@ fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
 }
 ```
 
-The same thing written by hand — 23 method calls, five levels of nesting:
+The same thing written by hand, 23 method calls and five levels of nesting:
 
 ```rust
 fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
@@ -133,7 +133,7 @@ fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
 ```
 
 Both compile to the same machine code. Only one of them can be checked
-against the formula on the page — and getting the second one right by hand
+against the formula on the page, and getting the second one right by hand
 took two attempts, which is rather the point. A transposed operand or a
 `sub` where an `add` belonged is invisible in that shape, and no compiler
 error will find it for you.
@@ -149,8 +149,8 @@ negation is exact anyway.
 reassoc = "0.11"
 ```
 
-- `alg!(expr)` — rewrite one expression.
-- `alg! { .. }` — rewrite a block, for part of a function rather than all of
+- `alg!(expr)`: rewrite one expression.
+- `alg! { .. }`: rewrite a block, for part of a function rather than all of
   it. Takes statements, loops and compound assignment, and evaluates to the
   block's value; `let`s inside it are scoped to it, like any block:
 
@@ -165,16 +165,16 @@ reassoc = "0.11"
   }
   # }
   ```
-- `#[algebraic]` — rewrite a whole function; or every method of an `impl`
+- `#[algebraic]`: rewrite a whole function; or every method of an `impl`
   block, every item of an inline `mod`, every default body of a `trait`.
-- `strict!(expr)` / `strict! { stmts.. }` — opt a subexpression, or a whole
+- `strict!(expr)` / `strict! { stmts.. }`: opt a subexpression, or a whole
   statement block such as a Kahan step, back out to strict IEEE.
-- `passthrough!(Ty)` — opt your own type in. One line: every operator the
-  type implements — `+ - * / %` with any right-hand type and any output, the
-  `op=` forms, references wherever the type implements them — is dispatched
+- `passthrough!(Ty)`: opt your own type in. One line: every operator the
+  type implements (`+ - * / %` with any right-hand type and any output, the
+  `op=` forms, references wherever the type implements them) is dispatched
   from then on, exactly as `std::ops` defines it. Nothing is listed.
-- `#[derive(Passthrough)]` — the same, at the type's definition.
-- `passthrough!(foreign glam::Vec3)` — a type from another crate. Rust's
+- `#[derive(Passthrough)]`: the same, at the type's definition.
+- `passthrough!(foreign glam::Vec3)`: a type from another crate. Rust's
   orphan rule forbids the plain form there; the prefix carries a private
   marker type of yours in the impl, which is what the rule asks for. Opt a
   foreign type in once, in the binary or one shared crate (two crates opting
@@ -191,9 +191,9 @@ and need no opt-in.
 What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements
 `AddAssign<W>`, a dot product yields whatever its `Mul::Output` is. Nothing is
-synthesised and nothing is dereferenced for you — which is also why the
-errors read like Rust's own ([Diagnostics](#diagnostics)). Generic code —
-arithmetic on a type parameter — is out of scope: leave such a function out
+synthesised and nothing is dereferenced for you, which is also why the
+errors read like Rust's own ([Diagnostics](#diagnostics)). Generic code,
+arithmetic on a type parameter, is out of scope: leave such a function out
 of the annotated scope (`#[algebraic(skip)]`), and use `alg!` on its concrete
 float parts if you want them.
 
@@ -203,9 +203,9 @@ Everything lexically inside the annotated scope is rewritten: closure bodies,
 nested `fn`/`impl`/`mod`/`trait` items, and the arguments of the std macros
 whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
 `write!`, `dbg!`, `vec!` and their relatives, and the scrutinee of
-`matches!`). Any other macro is opaque — which is what makes `strict!` work.
-`#[algebraic(skip)]` on any item — a nested item, a container member of any
-kind, a standalone `const fn` — excludes it. A `const fn` cannot be
+`matches!`). Any other macro is opaque, which is what makes `strict!` work.
+`#[algebraic(skip)]` on any item (a nested item, a container member of any
+kind, a standalone `const fn`) excludes it. A `const fn` cannot be
 rewritten; one with nothing to rewrite is skipped, one with arithmetic is an
 error asking for `skip`.
 
@@ -218,7 +218,7 @@ error asking for `skip`.
 
 Algebraic operators may reassociate. Results can differ from strict IEEE in
 the last bits and can differ between targets. **Wrap compensated-summation
-code in `strict!`** — `(t - sum) - y` is algebraically zero, and reassociation
+code in `strict!`**: `(t - sum) - y` is algebraically zero, and reassociation
 will delete it. The block form covers a whole step:
 
 ```rust
@@ -248,7 +248,7 @@ parameter are out; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 
 Almost all of the above is about code that is *not* float arithmetic but sits
-inside an algebraic scope — a `Vec3 += Vec3`, a `String + &str`, a
+inside an algebraic scope, a `Vec3 += Vec3`, a `String + &str`, a
 `Duration * 2` next to the float work. The macros rewrite only `+ - * / %`; on
 `f32` and `f64` those become the algebraic operators, on integers and every
 other primitive they stay what they were, and a numeric routine over primitive
@@ -268,7 +268,7 @@ outside it, and mostly it does: the message text, the operand the caret sits on,
 and rustc's own `.into()` suggestion all carry over.
 
 Two things differ. The operand error is `E0277` where plain Rust reports
-`E0308` — same span, same sentence, different code — and the diagnostics
+`E0308` (same span, same sentence, different code) and the diagnostics
 therefore arrive in a different order. Both follow from one constraint, and
 neither is an oversight.
 
@@ -306,12 +306,12 @@ The `const-fn` feature lets `#[algebraic]` enter a `const fn` (the dispatch
 layer becomes `const` via `const_trait_impl`; the using crate enables that
 gate too). Const evaluation interprets the body as written, runtime code is
 optimized, so a `const` and the same call at runtime may differ in the last
-bits — as any two algebraic evaluations may.
+bits, as any two algebraic evaluations may.
 
 ## `f16` and `f128`
 
 On nightly, the `f16` and `f128` features make those floats algebraic as
-well — same literal inference, reference forms and `op=` as `f32`/`f64`. Each
+well, with the same literal inference, reference forms and `op=` as `f32`/`f64`. Each
 turns on its own `#![feature(..)]` gate for you and cannot build on stable
 while the type is unstable ([rust-lang/rust#116909](https://github.com/rust-lang/rust/issues/116909)).
 
@@ -323,7 +323,7 @@ primitives, all reference combinations, and `Duration`.
 ## Packaging
 
 `reassoc` ships as two crates.io packages: `reassoc` and `reassoc-macros`.
-That split is a Rust constraint rather than a design choice — a crate with
+That split is a Rust constraint rather than a design choice: a crate with
 `proc-macro = true` can export only proc macros, so the traits and impls
 cannot live alongside them.
 
@@ -338,7 +338,7 @@ pinned to an exact version, since the two are released in lockstep.
 
 The majority of this codebase was generated by AI coding agents (primarily
 Claude). AI-generated code is not copyrightable and is effectively public
-domain, making 0BSD — which imposes no restrictions on use — the most
+domain, making 0BSD, which imposes no restrictions on use, the most
 appropriate license.
 
 ### Disclaimer

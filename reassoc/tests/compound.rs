@@ -1,6 +1,6 @@
-//! Compound assignment, exhaustively. Two expansions exist — a bare path is
+//! Compound assignment, exhaustively. Two expansions exist (a bare path is
 //! assigned through by name, anything else goes through
-//! `ops::add_assign(&mut place, rhs)` — and both must agree with native `+=`
+//! `ops::add_assign(&mut place, rhs)`), and both must agree with native `+=`
 //! on evaluation order, evaluation count, drop timing, aliasing, and value.
 //!
 //! Every case that compiles natively is written twice, native and rewritten,
@@ -16,8 +16,8 @@ use reassoc::{alg, algebraic};
 // ---------------------------------------------------------------------------
 
 /// Records every observable step of `v[idx()] += guard().value()`, where the
-/// guard is a temporary of the RHS *expression* — not a local inside a
-/// closure — so its drop marks the end of the statement's temporaries. A
+/// guard is a temporary of the RHS *expression*, not a local inside a
+/// closure, so its drop marks the end of the statement's temporaries. A
 /// `let`-based expansion would drop it before the place is evaluated.
 fn trace(rewritten: bool) -> (Vec<&'static str>, f64) {
     let log: RefCell<Vec<&'static str>> = RefCell::new(Vec::new());
@@ -54,7 +54,7 @@ fn trace(rewritten: bool) -> (Vec<&'static str>, f64) {
 fn index_place_matches_native_order_count_and_drop_timing() {
     assert_eq!(trace(true), trace(false));
     // RHS first, then the place, and the RHS's temporary lives until the
-    // statement ends — after the place is evaluated and written.
+    // statement ends, after the place is evaluated and written.
     assert_eq!(
         trace(false).0,
         [
@@ -316,7 +316,7 @@ fn wrapping_saturating_and_duration_through_an_index() {
         d[0] += d[1];
         d[1] *= n;
         let second = d[1];
-        d[0] -= second; // `Duration: SubAssign<Duration>` only — no `&` form natively either
+        d[0] -= second; // `Duration: SubAssign<Duration>` only, no `&` form natively either
     }
     let mut w = [Wrapping(250u8), Wrapping(5)];
     let mut s = [Saturating(250u8), Saturating(10)];
@@ -359,7 +359,7 @@ fn reference_rhs_on_the_index_path() {
 #[test]
 fn integer_literal_rhs_through_an_index_stays_native() {
     // A literal on the right leaves the operation native (it cannot be float
-    // arithmetic), so this is plain `AddAssign` on usize — including through
+    // arithmetic), so this is plain `AddAssign` on usize, including through
     // an index, with no dispatch involved.
     #[algebraic]
     fn count(hist: &mut [usize], keys: &[usize]) {
@@ -707,7 +707,7 @@ fn raw_pointer_deref_place() {
     assert_eq!(v, 7.0);
 }
 
-/// A place that is an index of an index, and a tuple field — nested, so the
+/// A place that is an index of an index, and a tuple field: nested, so the
 /// re-emitted `&mut t.0.1` is three tokens and not the float literal `0.1`.
 #[test]
 fn nested_index_and_tuple_field_places() {
@@ -729,7 +729,7 @@ fn nested_index_and_tuple_field_places() {
 /// A rewritten compound statement is a call (`ops::unit(match ..)`), not a
 /// bare `match`, so the user's `;` stays exactly where it was. Every
 /// following-token class a statement can start with, tail position, and every
-/// enclosing shape, with the values checked against plain `f64` — so neither
+/// enclosing shape, with the values checked against plain `f64`, so neither
 /// order nor what executes can drift.
 #[test]
 fn compound_statements_keep_their_meaning_in_every_position() {

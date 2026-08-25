@@ -16,7 +16,7 @@ impl Default for Scope {
         // closures and nested items alike. Nested items used to be out by
         // default on the reading that a nested `fn` is "a standalone item",
         // which left a helper silently strict inside a body that looked
-        // covered — and, once containers propagated all the way down, made a
+        // covered and, once containers propagated all the way down, made a
         // function body the one place nesting stopped. Opting out is
         // `#[algebraic(skip)]` on the item.
         Scope {

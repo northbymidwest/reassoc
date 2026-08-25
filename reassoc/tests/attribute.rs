@@ -270,7 +270,7 @@ fn enum_discriminant_stays_const() {
 // same values the dispatched calls would. That means every one of them
 // would keep passing even if `#[algebraic]` rewrote nothing at all. To make
 // that impossible, the tests below use a type that implements only the
-// crate's `Alg*` traits and NOT `std::ops` — so `w * w` compiles at all only
+// crate's `Alg*` traits and NOT `std::ops`, so `w * w` compiles at all only
 // if the attribute actually rewrote it into a `::reassoc::ops::mul` call.
 //
 // Duplicated (not shared) from `reassoc/tests/alg.rs`'s `Dispatched`
@@ -346,8 +346,8 @@ fn array_repeat_element_is_rewritten() {
 
 // A nested item carrying its own `#[algebraic(..)]` is governed by that
 // attribute alone, inside a function body exactly as inside a container (the
-// must-fail direction — the outer scope must not reach in first, or an inner
-// `closures = false` would be silently overridden — is
+// must-fail direction (the outer scope must not reach in first, or an inner
+// `closures = false` would be silently overridden) is
 // `tests/ui/nested_fn_own_attribute_wins.rs` and its `mod`/`trait` twins).
 // The pass direction: the inner attribute is left in place and does its own
 // rewriting, so the nested body compiles on `Dispatched`.
@@ -555,7 +555,7 @@ fn doubles_behave_like_floats() {
 /// associated const and a `const fn` method are `ImplItem`s, not `Item`s, so
 /// the `Item`-level check used to miss them and they failed with E0015. A
 /// `const fn` whose arithmetic the rewrite would touch is not skipped
-/// silently — it must say `#[algebraic(skip)]` (the must-fail direction is
+/// silently: it must say `#[algebraic(skip)]` (the must-fail direction is
 /// `tests/ui/const_fn_member_with_arithmetic.rs`); one with nothing to
 /// rewrite, like `h`, is skipped without a word.
 struct Consts;
@@ -764,9 +764,9 @@ fn algebraic_then_test() {
 // ---- `#[algebraic]` on containers: impl, trait impl, trait, inline mod ----
 //
 // `Dispatched` throughout, so a member the container form failed to enter is
-// a compile error. The must-fail directions — a `skip`ped member, a nested fn
+// a compile error. The must-fail directions (a `skip`ped member, a nested fn
 // a member
-// carrying its own narrower attribute — are `tests/ui/container_*.rs`.
+// carrying its own narrower attribute) are `tests/ui/container_*.rs`.
 
 mod container {
     use super::Dispatched;
@@ -1030,7 +1030,7 @@ mod skip_on_every_member_kind {
 /// leaves in place reaches rustc as an unresolved attribute. `skip` on a
 /// `union`, an `extern` block, an `extern crate`; on a trait impl's `type`
 /// and a macro invocation in impl position; on a trait's `const`, `type`,
-/// `fn` and macro members — each inside a skipped container *and* inside an
+/// `fn` and macro members, each inside a skipped container *and* inside an
 /// entered one, since different code strips the two.
 #[algebraic]
 mod skip_on_the_remaining_member_kinds {

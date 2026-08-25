@@ -7,7 +7,7 @@
 use myalg::{Passthrough, alg, algebraic, passthrough, strict};
 
 /// Implements only the dispatch traits, so compiling at all proves the
-/// operators were rewritten — and that the generated path resolved.
+/// operators were rewritten, and that the generated path resolved.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Dispatched(f32);
 impl myalg::traits::MulRhs<Dispatched, Dispatched> for Dispatched {

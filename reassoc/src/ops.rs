@@ -27,8 +27,8 @@ mod konst;
 #[cfg(feature = "const-fn")]
 pub use konst::*;
 
-// Compound assignment. Every place goes through `*_assign` by `&mut` — a
-// bare path as much as a field, an index or a deref — so a non-`Copy` local
+// Compound assignment. Every place goes through `*_assign` by `&mut` (a
+// bare path as much as a field, an index or a deref), so a non-`Copy` local
 // captured by a closure stays borrowed, not moved (`docs/design.md`). The
 // whole rewritten statement is passed to `unit`, an identity on `()`, so
 // that it is a call rather than a block-like expression (clippy's semicolon

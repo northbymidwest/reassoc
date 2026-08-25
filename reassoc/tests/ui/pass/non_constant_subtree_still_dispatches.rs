@@ -6,7 +6,7 @@
 // `2u8 << 1` is arithmetic over two integer literals, but `<<` is not an
 // operator this crate dispatches, so the subtree proves nothing about the
 // operation containing it. `A` is a `const` the rewriter cannot see into.
-// Neither side of the `+` is a non-float constant, so it is rewritten — and
+// Neither side of the `+` is a non-float constant, so it is rewritten, and
 // rustc's `arithmetic_overflow` lint, which only sees native operators, stays
 // quiet. Loosen either half of the conjunction that decides this and the
 // operation goes native, 253 + 4 is folded, and this file stops compiling.

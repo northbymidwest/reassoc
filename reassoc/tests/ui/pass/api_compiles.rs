@@ -1,8 +1,8 @@
 // A compiling end-to-end use of the public API.
 //
 // This also flips trybuild from `cargo check` to `cargo build`: lints that
-// fire during codegen rather than analysis — `arithmetic_overflow` and
-// `unconditional_panic` among them — are invisible under `check`, so the
+// fire during codegen rather than analysis (`arithmetic_overflow` and
+// `unconditional_panic` among them) are invisible under `check`, so the
 // compile-fail case that pins them needs a `pass` case to exist at all.
 use reassoc::{alg, algebraic, strict, Passthrough};
 

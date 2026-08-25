@@ -1,7 +1,7 @@
 //! The standard types beyond the primitives. Each is opted in as a whole and
-//! gets exactly the operators std gives it — `Duration * u32` but not
+//! gets exactly the operators std gives it: `Duration * u32` but not
 //! `Duration * u64`, `Instant - Instant => Duration`, `Wrapping<T>` with
-//! references, and so on — with no list kept here.
+//! references, and so on, with no list kept here.
 //!
 //! `String` is the one concrete set: `String + &str` natively also accepts
 //! `&String`, `&Box<str>`, `&Cow<str>`, .. because rustc deref-coerces the
@@ -18,7 +18,7 @@ impl<T> Passthrough for Wrapping<T> {}
 impl<T> Passthrough for Saturating<T> {}
 
 // `u32 * Duration` goes through the integer-left blanket (`int.rs`), since
-// `Duration` is marked. `NonZero` is not — it has no operators of its own —
+// `Duration` is marked. `NonZero` is not, having no operators of its own,
 // so `uN / NonZero<uN>` with `%`, `/=`, `%=` are spelled out.
 macro_rules! nonzero_divisor {
     ($($t:ty)*) => {$(

@@ -7,7 +7,7 @@ readme = "../README.md"
 # text into the archive without needing `license-file`, which would
 # otherwise warn on every build ("only one of license or license-file is
 # necessary"). The canonical copy lives at the repo root; this is a real
-# copy, kept in sync manually — 0BSD's text never changes.
+# copy, kept in sync manually; 0BSD's text never changes.
 keywords = ["fast-math", "float", "simd", "fma", "numerics"]
 categories = ["mathematics", "no-std"]
 version.workspace = true

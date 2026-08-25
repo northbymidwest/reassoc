@@ -4,7 +4,7 @@ use reassoc::{alg, algebraic, strict};
 
 // Exercises the same generated-paren hazard through `#[algebraic]`: binary
 // ops, compound assignment, `strict!`, and a closure. None of these may
-// leak a paren into `unused_parens` — only the `alg!` case above (already
+// leak a paren into `unused_parens`: only the `alg!` case above (already
 // redundant in source) may lint.
 #[algebraic]
 fn item_scope(a: f32, b: f32, c: f32) -> f32 {

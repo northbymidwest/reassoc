@@ -71,8 +71,8 @@ error[E0277]: no `reassoc` dispatch for `f64` with this operand
    |     required by a bound introduced by this call
    |
    = help: the trait `Passthrough<_>` is not implemented for `f64`
-   = note: a type of yours is opted in with `reassoc::passthrough!(f64);` where it is defined, or `reassoc::passthrough!(foreign f64);` if it comes from another crate; a generic type parameter is out of scope — mark the function `#[algebraic(skip)]`
-   = note: a primitive number needs no opt-in: if `f64` is one, the two operands have different types — cast one of them — or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: a type of yours is opted in with `reassoc::passthrough!(f64);` where it is defined, or `reassoc::passthrough!(foreign f64);` if it comes from another crate; a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`
+   = note: a primitive number needs no opt-in: if `f64` is one, the two operands have different types, so cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
    = help: the following other types implement trait `Passthrough<Tag>`:
              `&T` implements `Passthrough<Tag>`
              `&mut T` implements `Passthrough<Tag>`

@@ -1,7 +1,7 @@
 //! Fixture for the codegen matrix (`tests/codegen_matrix.rs`): every construct
-//! the rewriter emits, written twice — `sugar_*` through the macros, `direct_*`
+//! the rewriter emits, written twice: `sugar_*` through the macros, `direct_*`
 //! by hand with the `algebraic_*` methods (or the native operators, for the
-//! types that are dispatched to them) — plus `plain_*` IEEE negative controls.
+//! types that are dispatched to them), plus `plain_*` IEEE negative controls.
 //! The test compiles this at `-O3` to LLVM IR and requires each pair's
 //! optimized IR to be identical after alpha-renaming: the dispatch layer,
 //! the `match`/`ops::unit` around `+=`, `#[track_caller]`, the marker
@@ -567,7 +567,7 @@ pub fn direct_derive_generic(p: Pair<f64>, q: Pair<f64>) -> Pair<f64> {
 }
 
 /// A non-`Copy` type with its operators on references and a heterogeneous
-/// output — the heavy-numeric shape. `&Heavy + &Heavy`, `&Heavy * f64`,
+/// output: the heavy-numeric shape. `&Heavy + &Heavy`, `&Heavy * f64`,
 /// `&Heavy * &Heavy => f64`, `Heavy += Heavy` (a move in, as natively).
 #[derive(Clone, Debug, PartialEq, reassoc::Passthrough)]
 pub struct Heavy(pub Vec<f64>);

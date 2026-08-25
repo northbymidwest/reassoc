@@ -2,7 +2,7 @@
 //!
 //! Native Rust rejects each of these with "expected `X`, found `Y`". The
 //! dispatch layer used to turn every one of them into "`X` can't be used with
-//! `+`", and advise `passthrough!(X)` — for types that are already opted in,
+//! `+`", and advise `passthrough!(X)`; for types that are already opted in,
 //! where the advice could not have helped. This pins the wording that
 //! replaced it, across every family of operand type the crate covers.
 use core::num::Wrapping;

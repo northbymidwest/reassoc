@@ -1,6 +1,6 @@
 //! `passthrough!` and `#[derive(Passthrough)]`: one line opts a type in, and
-//! every operator it implements — any right-hand type, any output, the
-//! in-place forms, references wherever the type implements them — is
+//! every operator it implements (any right-hand type, any output, the
+//! in-place forms, references wherever the type implements them) is
 //! dispatched from then on, exactly as `std::ops` defines it.
 use reassoc::{alg, passthrough, strict};
 
@@ -17,7 +17,7 @@ macro_rules! vec3_ops {
 }
 vec3_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 
-/// `Scaled * u32` — one operator, a foreign right-hand type. Nothing names it:
+/// `Scaled * u32`: one operator, a foreign right-hand type. Nothing names it:
 /// the opt-in covers whatever the type implements.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Scaled(u32);
@@ -93,7 +93,7 @@ fn derive_covers_all_five_operators() {
 }
 
 /// A type that implements three operators gets three. Nothing is named, and
-/// nothing is emitted for the two it lacks — `Partial / Partial` is rejected
+/// nothing is emitted for the two it lacks, so `Partial / Partial` is rejected
 /// exactly as native Rust rejects it (`tests/ui/unsupported_type.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
 struct Partial(f32);
@@ -462,8 +462,8 @@ impl core::ops::DivAssign<f32> for V2 {
     }
 }
 
-/// An unsuffixed float literal on either side of a user vector — `v * 2.0`,
-/// `2.0 * v` — infers to the scalar type the type's own impl names, on both
+/// An unsuffixed float literal on either side of a user vector (`v * 2.0`,
+/// `2.0 * v`) infers to the scalar type the type's own impl names, on both
 /// binary and compound forms; a float on the left goes through the type's
 /// `Mul<V2> for f32` without being named.
 #[test]
@@ -541,7 +541,7 @@ fn operators_on_references_only() {
 // `k * v` with `impl Mul<IVec> for i32`. Found adopting glam, whose integer
 // vectors have exactly this (`i8 / I8Vec2`): with only the float-left
 // blanket the operator had no impl. A literal on the left (`2 * v`) was
-// always fine — the literal rule leaves it native.
+// always fine: the literal rule leaves it native.
 #[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
 struct IVec(i32, i32);
 impl core::ops::Mul<IVec> for i32 {

@@ -2,8 +2,8 @@
 //!
 //! Three techniques, because no single one catches everything:
 //!
-//! 1. **Exact equivalence.** On exactly-representable values — small integers
-//!    and powers of two — reassociation and contraction cannot change the
+//! 1. **Exact equivalence.** On exactly-representable values (small integers
+//!    and powers of two) reassociation and contraction cannot change the
 //!    result, so the rewritten form must equal the plain form *bit for bit*.
 //!    That turns any precedence, associativity or operator-mapping bug into a
 //!    failing `assert_eq!` with no epsilon to hide behind.
@@ -276,22 +276,22 @@ fn exact_equivalence_on_representable_values() {
     assert_eq!(block_form(&V, 2.0), block_form_plain(&V, 2.0));
 }
 
-/// The values above are not merely equal to each other — they are the
+/// The values above are not merely equal to each other: they are the
 /// mathematically correct answers. Equivalence alone would pass if both sides
 /// were wrong in the same way.
 #[test]
 fn the_reference_values_are_actually_correct() {
-    // b² - 4ac with b=8, a=2, c=1 -> 64 - 8 = 56
+    // b^2 - 4ac with b=8, a=2, c=1 -> 64 - 8 = 56
     assert_eq!(discriminant_alg(2.0, 8.0, 1.0), 56.0);
-    // (1·2 + 2)·2 + 0.5)·2 + 4)·2 + 8
+    // (1*2 + 2)*2 + 0.5)*2 + 4)*2 + 8
     assert_eq!(horner_alg(2.0, &[1.0, 2.0, 0.5, 4.0, 8.0]), 50.0);
-    // (1+2i)(4+8i) = 4 + 8i + 8i + 16i² = -12 + 16i
+    // (1+2i)(4+8i) = 4 + 8i + 8i + 16i^2 = -12 + 16i
     assert_eq!(complex_mul_alg((1.0, 2.0), (4.0, 8.0)), (-12.0, 16.0));
     assert_eq!(mat2_mul_alg(&Q, &Q), [[9.0, 18.0], [36.0, 72.0]]);
 }
 
 // ---------------------------------------------------------------------------
-// 2. Dispatch proof — these compile only if every operator was rewritten
+// 2. Dispatch proof: these compile only if every operator was rewritten
 // ---------------------------------------------------------------------------
 
 #[algebraic]
@@ -350,7 +350,7 @@ fn complex_expressions_are_fully_dispatched() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Hand-written reference — pins the exact call shape
+// 3. Hand-written reference: pins the exact call shape
 // ---------------------------------------------------------------------------
 
 #[algebraic]

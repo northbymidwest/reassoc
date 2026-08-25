@@ -16,9 +16,9 @@ impl<A: Passthrough<Tag> + Mul<B>, B, Tag> MulRhs<A, <A as Mul<B>>::Output, Tag>
 ```
 
 so for an opted-in type the bound that fails is the type's own `std::ops`
-bound, and rustc prints its own sentence for it — `cannot add `f64` to
+bound, and rustc prints its own sentence for it: `cannot add `f64` to
 `Metres``, `no implementation for `Wrapping<u8> + Wrapping<u32>``, `binary
-assignment operation `+=` cannot be applied to type `C`` — the same sentence
+assignment operation `+=` cannot be applied to type `C``, the same sentence
 plain Rust prints. Floats and integers are not opted in (their impls route
 to the algebraic methods, under a private tag), so a mismatch *between
 primitives* fails a different way, and that is where the two sets of errors
@@ -31,19 +31,19 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 
 | case | native Rust | reassoc |
 | --- | --- | --- |
-| `f32 + f64` (fn returns `f64`) | `E0308` ×2 "expected `f32`, found `f64`" with a **`.into()` hint**, then `E0277` cannot add `f64` to `f32` | `E0277` cannot add `f64` to `f32` — *operands never converted; cast one, or `strict!`*. **No `.into()` hint.** |
+| `f32 + f64` (fn returns `f64`) | `E0308` x2 "expected `f32`, found `f64`" with a **`.into()` hint**, then `E0277` cannot add `f64` to `f32` | `E0277` cannot add `f64` to `f32` , *operands never converted; cast one, or `strict!`*. **No `.into()` hint.** |
 | `&f64 * &f32` | `E0308`, then `E0277` no implementation for `&f64 * &f32` | `E0277` no implementation for `&f64 * &f32` (rustc's own), **plus** `E0277` "no `reassoc` dispatch for `f64` with this operand" whose note says a primitive needs no opt-in: cast one |
-| `u8 + u32` | `E0308` ×2 with `.into()`, then `E0277` cannot add `u32` to `u8` | `E0277` cannot add `u32` to `u8` — *operands never converted; cast one, or `strict!`* (one error; the integer-left blanket made the earlier "no dispatch for `u8`" companion go away) |
-| `u32 + f64` | `E0277` cannot add `f64` to `u32` | `E0277` cannot add `f64` to `u32` — same note |
-| `Wrapping<u8> + Wrapping<u32>` | `E0277` no implementation for … | **identical** |
+| `u8 + u32` | `E0308` x2 with `.into()`, then `E0277` cannot add `u32` to `u8` | `E0277` cannot add `u32` to `u8`, *operands never converted; cast one, or `strict!`* (one error; the integer-left blanket made the earlier "no dispatch for `u8`" companion go away) |
+| `u32 + f64` | `E0277` cannot add `f64` to `u32` | `E0277` cannot add `f64` to `u32`, same note |
+| `Wrapping<u8> + Wrapping<u32>` | `E0277` no implementation for ... | **identical** |
 | `Duration * u64` | `E0308` expected `u32`, found `u64` | `E0277` cannot multiply `Duration` by `u64` |
 | opted-in `Metres + f64` | `E0308` expected `Metres`, found `f64` | `E0277` cannot add `f64` to `Metres` |
-| `Odd * Odd`, no ops, never opted in | `E0369` cannot multiply `Odd` by `Odd` — *must implement `Mul`* | `E0277` cannot multiply `Odd` by `Odd` — *if `Odd` is a type of yours that is not opted in yet, add `reassoc::passthrough!(Odd);`* |
-| `P * P`, has `Mul`, never opted in | compiles | `E0277` cannot multiply `P` by `P` — *add `reassoc::passthrough!(P);`* |
-| `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C` — *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
+| `Odd * Odd`, no ops, never opted in | `E0369` cannot multiply `Odd` by `Odd`, *must implement `Mul`* | `E0277` cannot multiply `Odd` by `Odd` , *if `Odd` is a type of yours that is not opted in yet, add `reassoc::passthrough!(Odd);`* |
+| `P * P`, has `Mul`, never opted in | compiles | `E0277` cannot multiply `P` by `P`, *add `reassoc::passthrough!(P);`* |
+| `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C`, *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
 | `&c + d`, `C: Add<C>` only | `E0369` cannot add `C` to `&C` | `E0277` cannot add `C` to `&C` |
 | `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |
-| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277` — *a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`* |
+| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277`, *a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`* |
 | `f64 + f64` in a fn returning `f32` | `E0308` expected `f32`, found `f64` | **identical** |
 
 ## What to read off it
@@ -52,7 +52,7 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 failing bound is its own `Add`/`Mul`/`AddAssign`, and the message is rustc's.
 `Wrapping`, `Duration`, a user type, a missing `AddAssign`, a missing
 reference impl: same sentence, sometimes a different code (`E0277` for
-rustc's `E0308`/`E0368`/`E0369` — a trait bound failing in a generic call
+rustc's `E0308`/`E0368`/`E0369`: a trait bound failing in a generic call
 rather than the operator's own check).
 
 **Primitive mismatches are `E0277` where rustc leads with `E0308`, and lose
@@ -69,11 +69,11 @@ could not coexist with outputs that are not the left type, and the type's own
 and the pair does not match, rustc commits to the blanket (the `&T` and
 float-left impls make it a plausible candidate) and reports both of its
 unsatisfied bounds: the `std::ops` one, in rustc's wording, and the
-`Passthrough` one — "no `reassoc` dispatch for `u8` with this operand", whose
+`Passthrough` one, "no `reassoc` dispatch for `u8` with this operand", whose
 note says a primitive needs no opt-in and to cast. It cannot be suppressed
 without the blanket ceasing to be a candidate, which is what makes every
 other row match. A type never opted in gets *one* error, from the operator
-trait itself, whose note names `passthrough!` — rustc rejects the blanket for
+trait itself, whose note names `passthrough!`: rustc rejects the blanket for
 it outright, since nothing implements `Passthrough` for the type.
 
 **Counts differ case by case.** Plain Rust reports a mismatched pair two or

@@ -3,7 +3,7 @@
 //!
 //! The shape: one marker, [`Passthrough`], says "this type takes part in
 //! dispatch"; blanket impls then route every `std::ops` operator the type
-//! implements — any right-hand type, any output, the in-place forms too —
+//! implements (any right-hand type, any output, the in-place forms too)
 //! through [`AddRhs`] and friends, which is what `ops::*` are bounded on.
 //! Floats are the exception: their impls are concrete and route to the
 //! `algebraic_*` methods, which is the point of the crate.
@@ -19,7 +19,7 @@
 //! type. Everything this crate ships, and every plain `passthrough!`, uses
 //! the default `()`; the `foreign` form uses a private type of its own. The
 //! `ops::*` functions leave it free, and rustc infers it from the one impl
-//! that matches — the same way it already infers the output.
+//! that matches, the same way it already infers the output.
 
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
@@ -31,9 +31,9 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, 
     label = "no dispatch for `{Self}`",
     note = "a type of yours is opted in with `reassoc::passthrough!({Self});` where it is \
             defined, or `reassoc::passthrough!(foreign {Self});` if it comes from another crate; \
-            a generic type parameter is out of scope — mark the function `#[algebraic(skip)]`",
+            a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`",
     note = "a primitive number needs no opt-in: if `{Self}` is one, the two operands have \
-            different types — cast one of them — or wrap the expression in `strict!(..)` to \
+            different types, so cast one of them, or wrap the expression in `strict!(..)` to \
             use ordinary operators"
 )]
 pub trait Passthrough<Tag = ()> {}
@@ -47,7 +47,7 @@ impl<T: ?Sized + Passthrough<Tag>, Tag> Passthrough<Tag> for &mut T {}
 /// `impls/int.rs`), are provably disjoint from them: no crate but this one
 /// can implement `OptInTag` for those private types, so coherence accepts
 /// both, and an unsuffixed literal meets one generic impl rather than one
-/// per width — which is what pins `{float} * {float}` to `{float}` before
+/// per width, which is what pins `{float} * {float}` to `{float}` before
 /// fallback, as native does.
 pub trait OptInTag {}
 impl OptInTag for () {}

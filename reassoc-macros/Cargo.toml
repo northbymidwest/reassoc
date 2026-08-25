@@ -7,7 +7,7 @@ readme = "../README.md"
 # text into the archive without needing `license-file`, which would
 # otherwise warn on every build ("only one of license or license-file is
 # necessary"). The canonical copy lives at the repo root; this is a real
-# copy, kept in sync manually — 0BSD's text never changes.
+# copy, kept in sync manually; 0BSD's text never changes.
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -31,7 +31,7 @@ proc-macro-crate = { version = "3.5", optional = true }
 # Floors are the minimum we actually require, not the newest published: a
 # needlessly high floor forces downstream upgrades for no reason. The whole
 # suite passes with every one of them held at its floor, and the
-# `minimal_versions` CI job is what keeps that true — every other job resolves
+# `minimal_versions` CI job is what keeps that true, since every other job resolves
 # to the newest compatible release and would never notice these rotting.
 #
 # `quote` and `proc-macro2` are not floored by anything this crate does: syn

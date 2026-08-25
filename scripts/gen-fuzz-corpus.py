@@ -3,7 +3,7 @@
 
 The oracle is exactness. Every value in a generated tree is a dyadic rational
 whose numerator fits well inside the float's significand, so the expression
-evaluates identically under strict IEEE and under the algebraic operators —
+evaluates identically under strict IEEE and under the algebraic operators,
 reassociation and contraction cannot change a result that never rounds. That
 makes `assert_eq!` legitimate, with no epsilon to hide a bug behind.
 
@@ -54,7 +54,7 @@ MAX_DENOM_EXP = 16
 def is_safe(v: Fraction) -> bool:
     """True when `v` is exactly representable in the float and inside bounds."""
     if v.denominator & (v.denominator - 1) != 0:
-        return False  # not a dyadic rational — would round
+        return False  # not a dyadic rational, so it would round
     if v.denominator.bit_length() - 1 > MAX_DENOM_EXP:
         return False
     return abs(v.numerator) < MAX_NUM
@@ -152,7 +152,7 @@ def dispatched(src: str) -> str:
     `std::ops`: every literal leaf becomes `Disp(lit)` and `strict!` wrappers
     are removed (their contents would be native operators on `Disp`), so the
     code compiles only if every operator in it was rewritten. The float forms
-    cannot tell — native and dispatched give the same bits on exact values."""
+    cannot tell: native and dispatched give the same bits on exact values."""
     return LITERAL.sub(r"Disp(\1)", src).replace("strict!(", "(")
 
 
@@ -217,7 +217,7 @@ def main() -> None:
         chains.append((src, value))
 
     out = []
-    out.append(f'''//! Randomly generated expression trees — do not edit by hand.
+    out.append(f'''//! Randomly generated expression trees. Do not edit by hand.
 //!
 //! Regenerate with:
 //!
@@ -230,7 +230,7 @@ def main() -> None:
 //! Each case asserts four things about the same source:
 //!
 //! 1. `alg!(src)` equals the value computed exactly, offline, in rational
-//!    arithmetic — so both the rewriter and the plain form would have to be
+//!    arithmetic, so both the rewriter and the plain form would have to be
 //!    wrong in the same way to pass.
 //! 2. `alg!(src)` equals the plain form bit for bit. The generator only emits
 //!    dyadic rationals inside `{ty}`'s exact range, so reassociation and
@@ -238,9 +238,9 @@ def main() -> None:
 //!    bug in the rewrite.
 //! 3. The same source inside `#[algebraic]` agrees too, so the attribute and
 //!    the expression macro cannot drift apart.
-//! 4. The same source over `Disp` — a type with the dispatch traits and no
+//! 4. The same source over `Disp`, a type with the dispatch traits and no
 //!    `std::ops`, every literal leaf wrapped as `Disp(lit)` and `strict!`
-//!    wrappers removed — compiles and agrees. The float forms pass even if an
+//!    wrappers removed, compiles and agrees. The float forms pass even if an
 //!    operator is left unrewritten, since native and dispatched give the same
 //!    bits; this one fails to compile instead.
 //!

@@ -1,6 +1,6 @@
 //! The `const fn` rule reaches a trait's default bodies, not only an `impl`'s.
 //! rustc rejects a `const fn` in a trait on its own account (E0379) and the
-//! macro cannot know that, so both errors are expected here — what this pins
+//! macro cannot know that, so both errors are expected here. What this pins
 //! is that the macro's own error is among them. Without it the arithmetic
 //! would be rewritten into calls that are not `const fn`, and the member would
 //! be left strict without a word, which is the one thing the container form

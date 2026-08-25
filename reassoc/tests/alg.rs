@@ -42,7 +42,7 @@ fn unary_negation_behaves_natively() {
 }
 
 /// `strict!` takes a brace-delimited statement sequence as well as a single
-/// expression, because the thing it exists for — a Kahan step — is several
+/// expression, because the thing it exists for (a Kahan step) is several
 /// statements. The braces are the macro's own delimiters, so the body arrives
 /// as bare statements and is given a block to live in.
 #[test]
@@ -148,7 +148,7 @@ impl_dispatched!(SubRhs, sub_rhs, -);
 impl_dispatched!(MulRhs, mul_rhs, *);
 impl_dispatched!(DivRhs, div_rhs, /);
 impl_dispatched!(RemRhs, rem_rhs, %);
-// `Copy`, so `+=` is formed from `+` — the marker says so, per pair.
+// `Copy`, so `+=` is formed from `+`: the marker says so, per pair.
 impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
     fn add_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 += self.0
@@ -232,7 +232,7 @@ fn nested_strict_layers_are_all_peeled() {
 #[test]
 fn qualified_strict_path_is_recognized() {
     let (a, b) = (3.0f32, 2.0f32);
-    // The rewriter does not match `strict!` by name or path at all — it
+    // The rewriter does not match `strict!` by name or path at all: it
     // skips descending into *every* macro invocation. So the fully
     // qualified form works exactly the same as the plain one; this test
     // exists to pin that down as a regression guard now that nothing in
@@ -275,7 +275,7 @@ fn block_form_covers_loops_and_compound_assignment() {
 #[test]
 fn block_form_leaves_the_rest_of_the_function_alone() {
     let a = Dispatched(2.0);
-    // Outside the block, `Dispatched` has no operators at all — so anything
+    // Outside the block, `Dispatched` has no operators at all, so anything
     // here would fail to compile if the block leaked.
     let outside = a;
     let inside = alg! {
@@ -310,7 +310,7 @@ fn block_form_enters_nested_items() {
 }
 
 /// Corner forms: an empty invocation is `()`, and a block whose statements all
-/// end in `;` is `()` too — both usable where a unit value is expected.
+/// end in `;` is `()` too, both usable where a unit value is expected.
 #[test]
 fn empty_and_all_statement_block_forms_are_unit() {
     let unit: () = alg!();
@@ -338,7 +338,7 @@ fn single_expression_brace_form_in_statement_position() {
     assert_eq!(t.0, 12.0);
 }
 
-/// `+=` in tail position — a fn body or closure body with no semicolon — is
+/// `+=` in tail position (a fn body or closure body with no semicolon) is
 /// a `()`-typed expression, and as the body of a match arm or an `if`/`else`
 /// branch it needs no braces, exactly as native `+=` does not.
 #[test]

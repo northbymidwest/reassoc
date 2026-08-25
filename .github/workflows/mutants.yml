@@ -2,7 +2,7 @@ name: mutants
 
 # Mutation-test the rewriter: a surviving mutant is a line of `rewrite.rs`
 # that no test observes. The whole `reassoc` suite runs once per mutant, so
-# this is far too slow to gate a pull request — it runs weekly and on demand,
+# this is far too slow to gate a pull request, so it runs weekly and on demand,
 # and what it produces is a debt report, not a verdict on anyone's change.
 #
 # An hour after CI's own Monday run, so a red here is never just the toolchain
@@ -83,11 +83,11 @@ jobs:
 
           if [ "$missed" -gt "$BASELINE" ]; then
             echo "regression=true" >> "$GITHUB_OUTPUT"
-            echo "::error::$missed surviving mutants against a baseline of $BASELINE — a line of the rewriter has lost the test that observed it"
+            echo "::error::$missed surviving mutants against a baseline of $BASELINE; a line of the rewriter has lost the test that observed it"
             exit 1
           fi
           if [ "$missed" -lt "$BASELINE" ]; then
-            echo "::notice::$missed surviving mutants, below the baseline of $BASELINE — lower BASELINE in this workflow to hold the ground"
+            echo "::notice::$missed surviving mutants, below the baseline of $BASELINE; lower BASELINE in this workflow to hold the ground"
           fi
           echo "$missed surviving mutants, at or below the baseline of $BASELINE"
 
@@ -109,7 +109,7 @@ jobs:
             printf '%s\n' '```'
             grep '^MISSED' mutants.log | sed -E 's/ in [0-9]+s build.*//' | sed -E 's|reassoc-macros/src/||'
             printf '%s\n\n' '```'
-            printf '%s\n' "The baseline covers $BASELINE that cannot be killed — the \`REASSOC_TRACE\` machinery this run cannot observe, and equivalent mutants documented at each site. Anything beyond that is new."
+            printf '%s\n' "The baseline covers $BASELINE that cannot be killed: the \`REASSOC_TRACE\` machinery this run cannot observe, and equivalent mutants documented at each site. Anything beyond that is new."
           } > /tmp/mutants-issue.md
 
           # One rolling issue: a count above the baseline is a single ongoing

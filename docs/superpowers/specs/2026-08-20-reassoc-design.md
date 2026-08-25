@@ -26,8 +26,8 @@ Measured on aarch64 at `-O`, a dot product loop:
 
 | version | codegen |
 | --- | --- |
-| plain `+`/`*` | 21x scalar `fadd s0` — serial dependency chain, no reassociation |
-| algebraic ops | 8x `fmla.4s`/`fadd.4s` — fully vectorized, FMA-contracted |
+| plain `+`/`*` | 21x scalar `fadd s0`, a serial dependency chain, no reassociation |
+| algebraic ops | 8x `fmla.4s`/`fadd.4s`, fully vectorized, FMA-contracted |
 
 Writing `s.algebraic_add(a[i].algebraic_mul(b[i]))` by hand gets this, but the
 method-call form is unreadable for anything larger than a single expression.
@@ -46,9 +46,9 @@ method-call form is unreadable for anything larger than a single expression.
 
 Two crates; users depend only on the facade.
 
-- **`reassoc`** — `no_std` facade. Owns the dispatch traits, their
+- **`reassoc`**: `no_std` facade. Owns the dispatch traits, their
   impls, `passthrough!`, `strict!`, and re-exports the proc macros.
-- **`reassoc-macros`** — proc macro crate (`syn`, `quote`,
+- **`reassoc-macros`**: proc macro crate (`syn`, `quote`,
   `proc-macro2`). Owns `alg!` and `#[algebraic]`, sharing one rewriter module.
 
 ## The dispatch layer
@@ -91,7 +91,7 @@ loop accumulators, and iterator closures over `&f32`.
 
 ### Zero cost
 
-Verified, not assumed. At `-O`, rustc emits `_dot_outparam = _dot_direct` —
+Verified, not assumed. At `-O`, rustc emits `_dot_outparam = _dot_direct`,
 the dispatched version is byte-identical to hand-written algebraic calls and is
 merged into the same symbol. No wrapper struct and no call survives.
 
@@ -146,7 +146,7 @@ linear scale cannot express every useful combination.
 | --- | --- | --- |
 | `closures` | `true` | `false` leaves closure bodies untouched |
 | `items` | `false` | `true` descends into nested `fn`/`impl`/`mod` |
-| `skip` | — | bare flag on a nested item; excludes it from an enclosing `items = true` |
+| `skip` | n/a | bare flag on a nested item; excludes it from an enclosing `items = true` |
 
 ```rust
 #[algebraic]                                  // closures yes, items no
@@ -165,7 +165,7 @@ standalone item and should opt in explicitly.
 Unknown parameters are a compile error, not silently ignored.
 
 ### `strict!(expr)`
-Marks a subtree as strictly IEEE. It is an ordinary identity macro — the
+Marks a subtree as strictly IEEE. It is an ordinary identity macro: the
 rewriter does not recognize it by name or special-case it in any way. Its
 contents keep ordinary operator semantics purely because the rewriter never
 descends into a macro invocation.
@@ -173,10 +173,10 @@ descends into a macro invocation.
 Consequently `strict!` must be in scope like any macro, either imported or
 path-qualified. An earlier design consumed it during rewriting, which made the
 natural `use reassoc::{algebraic, strict};` spelling emit an unused-import
-warning — a hard error under `#![deny(warnings)]`. Defined as an identity macro so it also compiles outside an
+warning, a hard error under `#![deny(warnings)]`. Defined as an identity macro so it also compiles outside an
 annotated scope.
 
-Its purpose is *not* type coverage — it protects code that depends on exact
+Its purpose is *not* type coverage: it protects code that depends on exact
 rounding. Compensated summation is the motivating case:
 
 ```rust
@@ -192,7 +192,7 @@ passthrough!(mul: MyScalar, u32 => MyScalar); // one op, heterogeneous
 ```
 
 The same-type form generates all five impls. The heterogeneous form names a
-single operator, because heterogeneous types rarely implement all five —
+single operator, because heterogeneous types rarely implement all five;
 `Duration * u32` exists, `Duration + u32` does not.
 
 ## Rewrite rules
@@ -226,7 +226,7 @@ single operator, because heterogeneous types rarely implement all five —
   so the expected type flows backwards into the operand. Without it,
   `alg!(-(3.0 * 2.0))` fails with `E0282`: the operand is a rewritten call
   whose type is an inference variable, and `Neg` has nothing to resolve
-  against. Not applied over a literal — `-128i8` would become `neg(128i8)`,
+  against. Not applied over a literal: `-128i8` would become `neg(128i8)`,
   and `128` does not fit in an `i8`.
 - No macro invocation is descended into, `strict!` included. Nothing is
   matched by name.
@@ -234,7 +234,7 @@ single operator, because heterogeneous types rarely implement all five —
 
 ## Testing strategy
 
-**Assembly-level dispatch guard — required, not optional.** During design, a
+**Assembly-level dispatch guard, required not optional.** During design, a
 shim with inverted autoref priority sent `f32` down the *plain* path. It
 compiled cleanly and returned numerically correct results; only reading the
 assembly caught it (`_dot_shim = _dot_plain`). Behavioral tests cannot detect
@@ -247,7 +247,7 @@ kernel. Gated to `x86_64` and `aarch64`.
 Also:
 - `trybuild` UI tests pinning the `on_unimplemented` diagnostics.
 - Inference regression tests: unannotated accumulators, integers, references,
-  heterogeneous pairs — each a case that a wrong trait shape would break.
+  heterogeneous pairs, each a case that a wrong trait shape would break.
 - Compound-assignment side-effect test asserting single evaluation.
 - Scope tests covering all four `closures`/`items` combinations, `skip`,
   and rejection of unknown parameters.

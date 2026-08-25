@@ -1,6 +1,6 @@
 # The integration-test suite again, compiled as an edition-2021 crate. The
 # workspace is edition 2024, but most consumers are not, and what the macros
-# emit meets different rules in 2021 — temporary lifetimes, lint levels,
+# emit meets different rules in 2021: temporary lifetimes, lint levels,
 # syntax. Every test file in reassoc/tests except the 2024-only and shell-out
 # ones is included by `#[path]`, so this is the same suite, not a copy that
 # can drift (`reassoc/tests/suite_layout.rs` checks the list). A workspace

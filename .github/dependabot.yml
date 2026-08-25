@@ -1,7 +1,7 @@
 # Only the GitHub Actions this workflow pins, and only monthly.
 #
 # In practice that is `actions/checkout`. The point is not freshness but the
-# upgrades that arrive as deadlines — a runner's Node version reaching end of
+# upgrades that arrive as deadlines: a runner's Node version reaching end of
 # life takes unattended workflows down with it.
 #
 # `dtolnay/rust-toolchain` is ignored. Its refs are not dependencies: `stable`

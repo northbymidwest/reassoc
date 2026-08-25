@@ -29,7 +29,7 @@ pub fn alg(input: TokenStream) -> TokenStream {
 
     // Otherwise a sequence of statements. Note the braces of `alg! { .. }` are
     // the macro's own delimiters and never reach us, so this parses the body
-    // without them (`Block::parse_within`) and supplies the braces on output —
+    // without them (`Block::parse_within`) and supplies the braces on output,
     // which also keeps the result usable anywhere a value is expected.
     match syn::Block::parse_within.parse(input) {
         Ok(stmts) => {
@@ -46,7 +46,7 @@ pub fn alg(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Rewrite arithmetic operators throughout a function body — or throughout
+/// Rewrite arithmetic operators throughout a function body, or throughout
 /// every member body of an `impl` block, an inline module or a trait.
 #[proc_macro_attribute]
 pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -56,7 +56,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // `skip` means "leave this alone", whatever it is on: a `const fn`, a
-    // `const`, a `struct` — anything a reader might mark to be explicit. A
+    // `const`, a `struct`: anything a reader might mark to be explicit. A
     // container strips it from its members before rustc sees it; this is the
     // path for the item rustc does hand us.
     if scope.skip {
@@ -135,7 +135,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// The rewritten item, followed by any errors the rewriter collected — the
+/// The rewritten item, followed by any errors the rewriter collected. The
 /// item is still emitted so that everything else in it is checked too.
 fn with_errors(
     mut tokens: proc_macro2::TokenStream,
@@ -153,7 +153,7 @@ fn with_errors(
 /// every operator the type implements is dispatched. A generic type is opted
 /// in for every instantiation, with the operators each instantiation has.
 ///
-/// See `reassoc::passthrough!` for a worked example — this crate cannot depend
+/// See `reassoc::passthrough!` for a worked example. This crate cannot depend
 /// on `reassoc`, so the example lives there where it can actually be compiled.
 #[proc_macro_derive(Passthrough, attributes(passthrough))]
 pub fn derive_passthrough(input: TokenStream) -> TokenStream {

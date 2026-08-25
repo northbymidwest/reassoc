@@ -1,14 +1,14 @@
 //! The codegen matrix: every construct in `examples/codegen_matrix.rs`, the
-//! macro form against the hand-written form, compared as optimized LLVM IR —
+//! macro form against the hand-written form, compared as optimized LLVM IR.
 //! at every optimization level where the inliner runs (`-C opt-level=1,2,3,s,z`;
 //! `0` is the documented debug-build overhead and is not a claim). Identical
-//! IR after alpha-renaming — or one merged into the other by LLVM, which is
-//! the same proof — means the dispatch layer compiled to nothing for that
+//! IR after alpha-renaming (or one merged into the other by LLVM, which is
+//! the same proof) means the dispatch layer compiled to nothing for that
 //! construct at that level. Negative controls (strict IEEE twins of the
 //! chains and of the `f32` dot loop) must differ and must lack the `reassoc`
 //! flag, so the comparison cannot pass vacuously; and at `-O3` the algebraic
 //! `f32` dot must have become a vector reduction where the strict one stays
-//! serial — the crate's headline claim, pinned.
+//! serial: the crate's headline claim, pinned.
 //!
 //! This shells out to `cargo rustc` for the IR (a test binary cannot ask for
 //! another crate's optimized IR in-process); it uses its own target directory,
@@ -58,7 +58,7 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
         // O1/Os/Oz the pipelines schedule instructions within a block
         // differently depending on the shape they arrived in, so there the
         // requirement is order-insensitive: the same instructions, the same
-        // number of times, in the same number of blocks — still no extra
+        // number of times, in the same number of blocks: still no extra
         // instruction anywhere.
         let strict = matches!(level, "2" | "3");
         for name in &sugar {
@@ -84,12 +84,12 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
             }
             if !sb.contains("reassoc") {
                 failures.push(format!(
-                    "-C opt-level={level}: {s} has no `reassoc`-flagged instruction — dispatch fell back to plain operators"
+                    "-C opt-level={level}: {s} has no `reassoc`-flagged instruction, so dispatch fell back to plain operators"
                 ));
             }
             if pb.contains("reassoc") {
                 failures.push(format!(
-                    "-C opt-level={level}: {p}, the strict IEEE control, carries `reassoc` flags — the control is broken"
+                    "-C opt-level={level}: {p}, the strict IEEE control, carries `reassoc` flags, so the control is broken"
                 ));
             }
         }
@@ -300,7 +300,7 @@ fn functions(ir: &str) -> HashMap<String, String> {
     out
 }
 
-/// `@a = .. alias .., ptr @b` → a: b.
+/// `@a = .. alias .., ptr @b` maps a to b.
 fn alias_targets(ir: &str) -> HashMap<String, String> {
     ir.lines()
         .filter(|l| l.starts_with('@') && l.contains(" alias "))

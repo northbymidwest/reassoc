@@ -50,7 +50,7 @@ impl Rewriter {
         }
     }
 
-    /// `::reassoc::ops::<func>` — every token at `span` except the function
+    /// `::reassoc::ops::<func>`, every token at `span` except the function
     /// name, which keeps the call site's.
     fn ops_fn(&self, span: Span, func: &str) -> Expr {
         build::path(
@@ -65,7 +65,7 @@ impl Rewriter {
 
     /// A `const fn` met in an algebraic scope. `ops::*` are not `const fn`,
     /// so it cannot be rewritten; one the rewrite would not touch is skipped
-    /// silently, one it would touch is an error naming the way out — never
+    /// silently, one it would touch is an error naming the way out, never
     /// a member left strict without a word. "Would touch" is decided by
     /// rewriting a clone of the body under the same scope and comparing, so
     /// the literal rule, `strict!` and const positions all count exactly as
@@ -87,7 +87,7 @@ impl Rewriter {
         let mut clone = body.clone();
         probe.visit_block_mut(&mut clone);
         // The body itself is never entered, so any `#[algebraic(skip)]`
-        // nested in it is stripped here — otherwise rustc would meet it, and
+        // nested in it is stripped here, since otherwise rustc would meet it, and
         // inside a `mod` the attribute is not even in scope. The probe strips
         // the same attributes from the clone, so stripping is not a change.
         StripSkip.visit_block_mut(body);
@@ -244,8 +244,8 @@ impl VisitMut for Rewriter {
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        // A macro's body is an opaque token stream and is never entered —
-        // which is exactly what makes `strict!(..)` an escape hatch — except
+        // A macro's body is an opaque token stream and is never entered,
+        // which is exactly what makes `strict!(..)` an escape hatch, except
         // for the std macros whose arguments are known to be expressions. An
         // inline `const {}` block is a const position.
         match expr {
@@ -357,8 +357,8 @@ impl Rewriter {
     /// Enters the arguments of a listed std macro. Only a macro whose last
     /// path segment is on the list, and only when its tokens parse as
     /// comma-separated expressions (or `vec!`'s `elem; len`, or `matches!`'s
-    /// `expr, pattern`); anything else — a user macro, a listed name carrying
-    /// a different grammar, `strict!` — is left untouched, tokens and all.
+    /// `expr, pattern`); anything else (a user macro, a listed name carrying
+    /// a different grammar, `strict!`) is left untouched, tokens and all.
     fn macro_arguments(&mut self, mac: &mut syn::Macro) {
         if !self.macros {
             return;
@@ -551,7 +551,7 @@ fn reparen_tight_positions(expr: &mut Expr) {
     };
 }
 
-/// Strips invisible groups — what a `macro_rules!` `$e:expr` arrives in — and
+/// Strips invisible groups, what a `macro_rules!` `$e:expr` arrives in, and
 /// then exactly one layer of parentheses. One, because that layer is the one
 /// the call's own delimiters make redundant; any further layers were already
 /// redundant in the source and are left for `unused_parens` to report. By
@@ -594,7 +594,7 @@ fn is_place_expr(expr: &Expr) -> bool {
 /// overflow like `u8`) and any literal kind added later are exempt from
 /// rewriting by default. `2f64` has no decimal point and reaches syn as
 /// `Lit::Int`, hence the suffix check. Every paren layer is looked through
-/// here — `((200u8)) + ((100u8))` is still constant — where the emitter strips
+/// here, so `((200u8)) + ((100u8))` is still constant, where the emitter strips
 /// only the one its own delimiters make redundant.
 fn is_non_float_constant(expr: &Expr) -> bool {
     match unparen_all(expr) {
@@ -683,7 +683,7 @@ fn is_own_algebraic_attr(attr: &Attribute) -> bool {
     is_algebraic_attr(attr) && !is_skip_attr(attr)
 }
 
-/// Removes `#[algebraic(skip)]` so it never reaches rustc — inside a `mod` the
+/// Removes `#[algebraic(skip)]` so it never reaches rustc: inside a `mod` the
 /// attribute is not even in scope; returns whether there was one.
 fn strip_skip(attrs: &mut Vec<Attribute>) -> bool {
     let before = attrs.len();
@@ -695,9 +695,9 @@ fn strip_skip(attrs: &mut Vec<Attribute>) -> bool {
 enum Claim {
     /// No `#[algebraic(..)]` of its own: this visitor enters it.
     Ours,
-    /// Carries its own `#[algebraic(..)]`, which governs it alone — rewriting
+    /// Carries its own `#[algebraic(..)]`, which governs it alone (rewriting
     /// it here first would apply the outer scope and silently override the
-    /// inner parameters — and whose expansion strips its own nested `skip`s.
+    /// inner parameters), and whose expansion strips its own nested `skip`s.
     Theirs,
     /// Marked `#[algebraic(skip)]` (now removed): not entered, and every
     /// `skip` inside it must be stripped by the caller, since nothing else
@@ -716,7 +716,7 @@ fn claim(attrs: &mut Vec<Attribute>) -> Claim {
 }
 
 /// Removes `#[algebraic(skip)]` from every item inside something the rewriter
-/// does not enter — a skipped item, a `const fn` body — stopping at items that
+/// does not enter (a skipped item, a `const fn` body), stopping at items that
 /// carry their own `#[algebraic(..)]`, whose expansion does the same for them.
 struct StripSkip;
 

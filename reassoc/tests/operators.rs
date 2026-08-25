@@ -159,7 +159,7 @@ fn compound_places(v: &mut [f64], mut s: Tally) -> (u32, f64, f64, Tally) {
         TICKS
     };
     // A non-`Copy` local, updated in place through its own `AddAssign`. A
-    // variable on the right, not a literal — a literal operand proves the
+    // variable on the right, not a literal: a literal operand proves the
     // operation is not float arithmetic and is left native.
     let one = 1u32;
     s += one;
@@ -469,7 +469,7 @@ fn a_cast_to_float_is_still_dispatched() {
 // ---------------------------------------------------------------------------
 
 /// Native `f() + g()` evaluates `f` then `g`; the rewritten call evaluates its
-/// arguments left to right, which is the same order — pinned because
+/// arguments left to right, which is the same order, pinned because
 /// evaluation order is the classic silent divergence and nothing else here
 /// observes it for the binary (rather than compound) form.
 #[test]

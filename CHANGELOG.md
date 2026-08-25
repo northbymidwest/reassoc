@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are the publish date.
 
-## 0.11.1 — 2026-08-24
+## 0.11.1 - 2026-08-24
 
 ### Documented
 
@@ -22,7 +22,7 @@ Notable changes per release. Dates are the publish date.
   `#![deny(..)]` when inserting at the crate root. No library behaviour
   changes; `scripts/adopt/README.md` has the 20-crate sweep these came from.
 
-## 0.11.0 — 2026-08-23
+## 0.11.0 - 2026-08-23
 
 ### Fixed
 
@@ -34,25 +34,25 @@ Notable changes per release. Dates are the publish date.
 ### Documented
 
 - An operand whose type is only knowable from the operator, with the result
-  used as a method receiver, needs an annotation (`E0282`) — the price of
+  used as a method receiver, needs an annotation (`E0282`): the price of
   outputs being type parameters (`tests/ui/inferred_operand_under_method_call.rs`,
   found adopting tiny-skia).
 
 ### Breaking
 
 - A plain `passthrough!(OP_assign: A, B)` with a primitive `A` and an
-  opted-in `B` now overlaps the blanket above and is `E0119` — the same way
+  opted-in `B` now overlaps the blanket above and is `E0119`, the same way
   the binary `OP: A, B => O` form already did. If you wrote one to work
   around the gap, delete it: the blanket covers it. The `foreign` forms are
   unaffected; they carry their own tag.
 
-## 0.10.0 — 2026-08-22
+## 0.10.0 - 2026-08-22
 
 ### Changed
 
 - Generic code is out of scope, and the notes say so: a function whose
   arithmetic is on a type parameter is left to `#[algebraic(skip)]`. The
-  `T: reassoc::Passthrough` bound the README suggested is withdrawn — the
+  `T: reassoc::Passthrough` bound the README suggested is withdrawn. The
   marker is not a contract to write into signatures (none of seven adopted
   crates used it; the generic ones are generic over floats, which it could
   never cover). The trait itself is unchanged.
@@ -63,7 +63,7 @@ Notable changes per release. Dates are the publish date.
   `|..| body(x)` (found in libm). Authored errors now keep the item they
   refuse, so one error does not cascade.
 
-## 0.9.0 — 2026-08-22
+## 0.9.0 - 2026-08-22
 
 ### Added
 
@@ -78,13 +78,13 @@ Notable changes per release. Dates are the publish date.
   refusal of a `const fn`, the same messages.
 
 - An integer on the left of an opted-in type dispatches: `n * v` with
-  `impl Mul<V> for u32`, `k / ivec` — a blanket per integer type bounded on
+  `impl Mul<V> for u32`, `k / ivec`. It is a blanket per integer type bounded on
   the right type's marker, as a float on the left already had. Found by
   adopting glam wholesale (`i8 / I8Vec2` was the only error left);
   `u32 * Duration` goes through it now instead of a named pair.
 - `REASSOC_TRACE=<file>`: set for a build, the macros append one line per
-  function entered and per `alg!` — `file:line  kind  name  operators
-  rewritten` — with no change to the generated code. For tooling that asks
+  function entered and per `alg!` (`file:line  kind  name  operators
+  rewritten`) with no change to the generated code. For tooling that asks
   which functions the macros reached and where they found nothing to rewrite.
 - `scripts/adopt/`: adopt `reassoc` across an arbitrary crate (every type
   opted in, `#[algebraic]` on every item, tests left native as the oracle),
@@ -114,7 +114,7 @@ Notable changes per release. Dates are the publish date.
   and every `NonZero` width through every operator and `op=` form.
 - The README's code blocks are doctests (`ReadmeDoctests` in `lib.rs`).
 
-## 0.8.0 — 2026-08-22
+## 0.8.0 - 2026-08-22
 
 ### Removed
 
@@ -124,10 +124,10 @@ Notable changes per release. Dates are the publish date.
 
 ### Changed
 
-- The codegen matrix runs at `-C opt-level=1,2,3,s,z` — identical IR at 2/3,
+- The codegen matrix runs at `-C opt-level=1,2,3,s,z`: identical IR at 2/3,
   the same instructions order-insensitively (annotations and lifetime
   markers erased) at 1/s/z, where the pipelines schedule a block by the
-  shape the code arrived in — and replaces the assembly guard
+  shape the code arrived in, and replaces the assembly guard
   (`scripts/codegen-check.sh`, `examples/dot_kernel.rs`, `tests/codegen.rs`):
   the `f32` dot loop with its strict control and the `axpy` loop moved in,
   with an explicit vectorization check (a vector `fadd` instruction in the
@@ -135,7 +135,7 @@ Notable changes per release. Dates are the publish date.
   runs under `cargo test`, in its own target directory per level; 36 pairs;
   mutation-checked at every level (float `*` to IEEE fails 15 pairs).
 
-## 0.7.1 — 2026-08-22
+## 0.7.1 - 2026-08-22
 
 ### Changed
 
@@ -154,14 +154,14 @@ Notable changes per release. Dates are the publish date.
 ### Added
 
 - `tests/codegen_matrix.rs` + `examples/codegen_matrix.rs`: the zero-cost
-  claim, measured per construct. Thirty-four `sugar_`/`direct_` pairs —
+  claim, measured per construct. Thirty-four `sugar_`/`direct_` pairs,
   the five operators on `f32`/`f64`, reference operands, `+=` through bare,
   index, field and deref places and in tail position, 16-term and 8-term
   chains, eight chained `+=` steps, Horner, the `f64` dot loop, `strict!` in
   the middle, unary minus, literal subtrees, closures, both `alg!` forms,
   integers, a marker-opted user type, a generic derive, a non-`Copy` type
   with operators on references and a heterogeneous output, a foreign type
-  through the tag, `Wrapping`/`Duration`/`NonZero` — must produce identical
+  through the tag, `Wrapping`/`Duration`/`NonZero`) must produce identical
   optimized LLVM IR (alpha-renamed; or be merged by LLVM), with strict-IEEE
   negative controls that must differ and carry no `reassoc` flag. Mutation
   checked: routing float `*` to IEEE fails eight pairs. CI runs it beside the
@@ -173,13 +173,13 @@ Notable changes per release. Dates are the publish date.
   lane; the stable lint/doc lanes name their features explicitly instead of
   `--all-features`.
 
-## 0.7.0 — 2026-08-22
+## 0.7.0 - 2026-08-22
 
 ### Changed
 
 - **One line opts a type in, and every operator it implements flows.**
   `passthrough!(Ty)` and `#[derive(Passthrough)]` now emit a single marker
-  impl; blanket impls route whatever `std::ops` the type has — any right-hand
+  impl; blanket impls route whatever `std::ops` the type has (any right-hand
   type, any output (a dot product yields its own `Output`), the `op=` forms
   through the type's own `AddAssign` etc., and references wherever the type
   implements them. Nothing is listed. Generic functions work with a bound
@@ -199,7 +199,7 @@ Notable changes per release. Dates are the publish date.
 - Floats and integers dispatch through impls generic over sealed `Float` /
   `Int` traits under private tags, so `{float} * {float}` meets one candidate
   and infers as before (`-(3.0 * 2.0)`, the fuzz corpus, `(1.0 * 2.0).sqrt()`
-  → native `E0689`).
+  into native `E0689`).
 - Compile time on the reference workload is between 0.5.1's and 0.6.0's
   (dispatch ~2.4s over plain on the 1800-fn `cargo check`).
 
@@ -224,22 +224,22 @@ Notable changes per release. Dates are the publish date.
   (`--against 0.6.0`), and prints the errors side by side; the source of the
   table in `docs/diagnostics.md`.
 
-## 0.6.0 — 2026-08-21
+## 0.6.0 - 2026-08-21
 
 ### Removed
 
 - `passthrough!(out A, B => O)` and `passthrough!(add out A, B => O)` ..:
   they existed only to pair with a dispatch-trait impl written by hand, and
   the dispatch traits and `ops` functions are implementation detail, not a
-  surface to write against — the macros are the API. Every `passthrough!` form
+  surface to write against: the macros are the API. Every `passthrough!` form
   declares its own output; nothing a macro user wrote changes. A `passthrough!`
   invocation that is not one of the documented forms now gets an authored
   error naming them (`tests/ui/bad_passthrough_form.rs`).
 
 ### Fixed
 
-- **`passthrough!` with a reference on the left** — `passthrough!(add: &Big,
-  &Big => Big)`, `passthrough!(mul: &Big, f64 => Big)` — now works. It failed
+- **`passthrough!` with a reference on the left** (`passthrough!(add: &Big,
+  &Big => Big)`, `passthrough!(mul: &Big, f64 => Big)`) now works. It failed
   with `E0119` (the output was compared against `&Big` as written, but the
   `&A` blanket already says `&Big` yields `Big`) or `E0637` (`where &Big:
   RefOperand`). A reference on either side now takes the value form, and the
@@ -258,24 +258,24 @@ Notable changes per release. Dates are the publish date.
 
 - **`passthrough!(foreign ..)`: types from other crates can be opted in.**
   `passthrough!(foreign glam::Vec3)`, `passthrough!(foreign mul: &Matrix,
-  &Vector => Vector)` — any form, prefixed. The plain forms on a foreign type
+  &Vector => Vector)`, any form, prefixed. The plain forms on a foreign type
   are Rust's orphan rule (`E0117`, pinned); the `foreign` form emits a
   private local marker and carries it in a new trailing `Tag = ()` parameter
   on every dispatch trait (`AddRhs<Lhs, O, Tag>`, `AddOut<B, O, Tag>`,
   `AddAssignRhs<Lhs, Tag>`, `SynthAddAssign<B, Tag>`), which `ops::*` leave
   free for inference. Hand-written impls in the old two-parameter shape still
-  compile through the default. The hazard — two crates opting in the same
-  foreign pair give a third `E0283` at each use — is pinned
+  compile through the default. The hazard, that two crates opting in the same
+  foreign pair give a third `E0283` at each use, is pinned
   (`tests/ui/foreign_diamond.rs`) and documented with the rule that avoids it:
   opt in once, in the binary or one shared crate. `consumers/foreign-types/`
-  supplies genuinely foreign types to the tests. Measured cost: about +7µs of
+  supplies genuinely foreign types to the tests. Measured cost: about +7us of
   type-check per rewritten operator (one more inference variable), ~+7% on a
   `cargo check` of algebraic code; no runtime cost, codegen guard unchanged.
 - `uN / NonZero<uN>`, `%`, `/=` and `%=` for every unsigned width, by value,
   exactly the set core implements.
 - `String += &Cow<str>`, `&Box<str>`, `&&str`, `&&String`, `&Rc<str>`,
-  `&Arc<str>`, `&mut str`, `&mut String` — every reference native `+=`
-  deref-coerces — and `String + &mut T` for `T: AsRef<str>`.
+  `&Arc<str>`, `&mut str`, `&mut String`, every reference native `+=`
+  deref-coerces, and `String + &mut T` for `T: AsRef<str>`.
 - `matches!` is entered for its scrutinee; the pattern after the comma is
   left as written.
 - Documented: types from other crates cannot be opted in (orphan rule; use a
@@ -290,7 +290,7 @@ Notable changes per release. Dates are the publish date.
   `?`), float range patterns, `closures = false` inside a listed macro, and
   the two fixes above.
 
-## 0.5.1 — 2026-08-21
+## 0.5.1 - 2026-08-21
 
 ### Added
 
@@ -318,9 +318,9 @@ Notable changes per release. Dates are the publish date.
   result, which re-printed and re-parsed the operand subtrees at every nesting
   level, unoptimized; the operands are now moved into the new node. On the
   reference workload (`scripts/compile-bench/`) a full `cargo check` of
-  `#[algebraic]` code goes from ~5× to ~2.8× the plain-operator time, and the
-  macro's own share per rewritten operator from ~73µs to ~21µs, leaving the
-  type-check dispatch (~21µs) as most of what remains. Emitted tokens and
+  `#[algebraic]` code goes from ~5x to ~2.8x the plain-operator time, and the
+  macro's own share per rewritten operator from ~73us to ~21us, leaving the
+  type-check dispatch (~21us) as most of what remains. Emitted tokens and
   spans are identical: every UI snapshot is unchanged.
 
 - The crate name is looked up once per expansion instead of once per
@@ -332,9 +332,9 @@ Notable changes per release. Dates are the publish date.
 ### Tooling
 
 - `scripts/compile-bench.sh` measures compile-time cost on a generated
-  workload in four variants — native operators, the rewriter's output compiled
+  workload in four variants (native operators, the rewriter's output compiled
   as source (dispatch cost alone), `#[algebraic]` under cargo's defaults, and
-  with proc macros optimized — with the crate's own rewriter driven offline by
+  with proc macros optimized) with the crate's own rewriter driven offline by
   `scripts/compile-bench/expander/` (also a "show me the expansion" tool).
   Reference numbers in `scripts/compile-bench/README.md`: ~0.11ms per
   rewritten operator by default, ~0.02ms of it dispatch, the rest proc-macro
@@ -348,7 +348,7 @@ Notable changes per release. Dates are the publish date.
   to them is not (`const_trait_impl` is unstable); when that stabilises,
   `const fn` bodies need no rewriter change.
 
-## 0.5.0 — 2026-08-21
+## 0.5.0 - 2026-08-21
 
 A minor bump rather than a patch because the first item changes what existing
 code computes, with no compile error to say so.
@@ -360,11 +360,11 @@ code computes, with no compile error to say so.
   `assert`, `panic`, `print`, `format` and `write` families, `dbg!` and `vec!`
   are entered, matched on the last path segment and only when the arguments
   parse as comma-separated expressions (`vec!`'s `elem; len` too). Every
-  other macro is opaque as before — `strict!` is never entered, even as an
+  other macro is opaque as before: `strict!` is never entered, even as an
   argument of `assert!`. `#[algebraic(macros = false)]` turns the entry off.
 - The fuzz corpus grows compound-assignment chains (`{ let mut acc = x; acc
   += tree; acc *= tree; acc }`), `&x` leaves, random `strict!` wrappers, and an
-  f32 twin with tighter exactness bounds — every form still checked against
+  f32 twin with tighter exactness bounds, every form still checked against
   the exact rational value, the plain form, the attribute form and the
   `Disp` compile-proof twin. Neutering `*` fails 693 + 231 cases; neutering
   `+=` fails 57.
@@ -390,7 +390,7 @@ code computes, with no compile error to say so.
   left type before the operand bound is checked. A comment says so.
 - Docs: `alg! { .. }` is a block, and `let`s inside it are scoped to it.
 
-## 0.4.0 — 2026-08-21
+## 0.4.0 - 2026-08-21
 
 ### Changed (breaking)
 
@@ -398,7 +398,7 @@ code computes, with no compile error to say so.
   now rewrite a `fn`, `impl`, `mod` or `trait` declared inside the body, as
   they always did closures: everything lexically inside the annotated scope
   is algebraic. A nested helper used to sit silently strict unless
-  `items = true` was written — the silent-miss shape the rest of the crate
+  `items = true` was written: the silent-miss shape the rest of the crate
   exists to avoid, and, once containers propagated all the way down, the one
   place nesting stopped. Code that relied on the old default to keep a
   nested fn strict changes numerically without a compile error; put
@@ -411,7 +411,7 @@ code computes, with no compile error to say so.
 ### Added
 
 - **`#[algebraic]` on an `impl` block, an inline `mod`, or a `trait`.** Every
-  member body is rewritten — containers nested inside too — so a type's
+  member body is rewritten, containers nested inside too, so a type's
   arithmetic methods take one annotation instead of one per method, and a
   forgotten method can no longer sit silently strict. `#[algebraic(skip)]` on
   a member excludes it; a member with its own `#[algebraic(..)]` follows that.
@@ -430,7 +430,7 @@ code computes, with no compile error to say so.
   Decided by rewriting a clone of the body, so the literal rule, `strict!`
   and const positions count exactly as they do elsewhere.
 
-## 0.3.7 — 2026-08-21
+## 0.3.7 - 2026-08-21
 
 A review of 0.3.6 against the compiler; every item below was reproduced
 before it was fixed, and each has a regression test.
@@ -438,13 +438,13 @@ before it was fixed, and each has a regression test.
 ### Fixed
 
 - **`acc += P { x: 1.0 }` panicked the proc macro.** A struct literal is not
-  allowed as a `match` scrutinee, and the expansion put the RHS there bare —
+  allowed as a `match` scrutinee, and the expansion put the RHS there bare,
   even when the user had parenthesised it, since the rewriter strips that
   layer. The scrutinee is now a one-tuple, `match (rhs,) { (r,) => .. }`, which
   takes any expression; temporary lifetime and codegen are unchanged.
 - **`+=` on a bare path moved a non-`Copy` local out of a closure.** The
   expansion assigned through by name (`s = add(s, rhs)`), so `|p| s += p` on a
-  `String` became `FnOnce` and `async { s += t }` moved `s` — both `FnMut` /
+  `String` became `FnOnce` and `async { s += t }` moved `s`: both `FnMut` /
   borrows natively. It also needed `+` where native needs `+=`, rejecting a type
   with `AddAssign` and no `Add`. Every place now goes through `ops::add_assign
   (&mut place, rhs)`; a `static mut` keeps working through an allow on the
@@ -452,7 +452,7 @@ before it was fixed, and each has a regression test.
   merges with its hand-written form). A non-`Copy` type with only `+` no
   longer gets `+=`, exactly as in plain Rust.
 - **`#[derive(Passthrough)]` on a generic type whose `where` clause ends in a
-  comma** — what rustfmt writes for any multi-line bound list — produced
+  comma** (what rustfmt writes for any multi-line bound list) produced
   unparsable tokens (`where T: Copy, , ..`).
 - **A non-`Copy` type opted in without `no_refs` led with a bare "`T: Copy` is
   not satisfied"** from the 0.3.6 `Synth*` markers' `Copy` supertrait, ahead
@@ -476,14 +476,14 @@ before it was fixed, and each has a regression test.
   bug shipped unseen.
 - The fuzz corpus carries a `D`-typed twin of every tree: a type with the
   dispatch traits and no `std::ops`, so a tree compiles only if every operator
-  in it was rewritten. The f64 forms cannot tell — native and dispatched f64
+  in it was rewritten. The f64 forms cannot tell: native and dispatched f64
   give the same bits on exact values.
 - UI snapshots for the `RefOperand` note, the hand-implemented-operand case,
   the two overflow cases above, and the generated binding's collision
   behaviour; regression pins for every construct position the rewriter enters.
 - CI runs the test suite on the MSRV toolchain, not just a build.
 
-## 0.3.6 — 2026-08-21
+## 0.3.6 - 2026-08-21
 
 ### Added
 
@@ -503,19 +503,19 @@ before it was fixed, and each has a regression test.
   integer overflow panics at the user's operator rather than inside the crate.
   Free in release: codegen is byte-identical.
 - `#[algebraic]` on a trait method without a body now says that is why.
-- `tests/compound.rs` pins compound assignment end to end — evaluation order
+- `tests/compound.rs` pins compound assignment end to end: evaluation order
   and count, drop timing, a RHS that reads or writes the place, every place
   shape, every built-in type through an index, `String`, generic and
-  non-`Copy` derives — each against native where native compiles. The codegen
+  non-`Copy` derives, each against native where native compiles. The codegen
   guard gains an index-place kernel (`y[i] += a * x[i]`) that must compile to
   the hand-written form.
 
-## 0.3.5 — 2026-08-21
+## 0.3.5 - 2026-08-21
 
 ### Added
 
 - **`strict!` takes a statement block.** `strict! { let y = term - c; let t =
-  sum + y; c = (t - sum) - y; sum = t; }` — the Kahan step it exists for is
+  sum + y; c = (t - sum) - y; sum = t; }`: the Kahan step it exists for is
   several statements, and the macro only ever accepted one expression. A single
   expression is still passed through unwrapped, so nothing changes for existing
   uses and `unused_braces` stays quiet.
@@ -536,7 +536,7 @@ before it was fixed, and each has a regression test.
   are the three scope cases that are the only evidence `closures = false`,
   `items = false` and `skip` do anything; all three do.
 
-## 0.3.4 — 2026-08-21
+## 0.3.4 - 2026-08-21
 
 ### Documentation
 
@@ -544,7 +544,7 @@ before it was fixed, and each has a regression test.
   relative links against the package directory, one level below where this
   README lives, so they 404'd on the crate page in 0.3.3.
 
-## 0.3.3 — 2026-08-21
+## 0.3.3 - 2026-08-21
 
 No behavioural change. A readability pass and a documentation split.
 
@@ -564,15 +564,15 @@ No behavioural change. A readability pass and a documentation split.
   per invariant, and a pointer to `docs/design.md`, which now holds the
   evidence behind each.
 
-## 0.3.2 — 2026-08-21
+## 0.3.2 - 2026-08-21
 
 A systematic review against plain Rust: every item below is code the language
 accepts that the macro did not.
 
 ### Fixed
 
-- **Negating a reference.** `-x` with `x: &f64` — what every
-  `.iter().map(|x| -x)` produces — and `-v` for a type implementing `Neg` on
+- **Negating a reference.** `-x` with `x: &f64`, what every
+  `.iter().map(|x| -x)` produces, and `-v` for a type implementing `Neg` on
   `&Self` both failed. Negation routed through a same-type `ops::neg` to anchor
   `-(3.0 * 2.0)`; the `*Out` blanket impls already do that, so the detour is
   gone and `-` is left alone. `ops::neg` and `AlgNeg` are removed.
@@ -589,12 +589,12 @@ accepts that the macro did not.
   failed to compile, and `$e + 1` with `$e = 255u8` compiled and panicked at
   runtime instead of being rejected by `arithmetic_overflow`.
 - **Two `passthrough!` opt-ins on one left type with the same foreign output**
-  — a dot product `Q * Q => f64` beside `Q * R => f64` — collided with `E0119`.
+  (a dot product `Q * Q => f64` beside `Q * R => f64`) collided with `E0119`.
   The output trait now names the right operand as well, so they are distinct.
   `passthrough!(op out A => O)`, for operand traits implemented by hand, becomes
   `passthrough!(op out A, B => O)`.
 - **An operation with a non-float literal on either side is left native.** It
-  cannot be float arithmetic — Rust never converts an integer to a float — so
+  cannot be float arithmetic (Rust never converts an integer to a float) so
   `x + 1`, `n * 2`, `len - 1`, `i += 1` no longer enter dispatch at all. That
   closes most of a documented gap: `let x: u8 = 255; x + 1` is rejected by
   rustc's `arithmetic_overflow` lint again, where a call used to hide it. The
@@ -610,13 +610,13 @@ accepts that the macro did not.
   now fails with the same `E0689` plain Rust gives, and `(2.0f64 * 8.0).sqrt()`
   is dispatched like everything else.
 
-## 0.3.1 — 2026-08-21
+## 0.3.1 - 2026-08-21
 
 ### Fixed
 
 - **`passthrough!` works out an operator's output type instead of demanding it.**
   0.3.0 required `passthrough!(mul out Vec3 => f32);` beside any pair whose
-  output is not its left operand — a dot product, say — and made omitting it a
+  output is not its left operand (a dot product, say) and made omitting it a
   compile error. The per-operator form now compares the two types as written and
   declares the output itself, so the extra line is gone. Nothing to migrate:
   writing it as well as the automatic one is a duplicate impl, but only a pair
@@ -632,20 +632,20 @@ accepts that the macro did not.
 - **The generic-type-parameter note came back.** 0.3.0 moved the "not opted in"
   advice onto the operand message but dropped the note saying it does not apply
   to a type parameter, so `#[algebraic]` on a generic function advised
-  `passthrough!(T)` — which cannot work. Exactly the misdirection 0.3.0 set out
+  `passthrough!(T)`, which cannot work. Exactly the misdirection 0.3.0 set out
   to remove, in the one case it missed.
 
 ### Documentation
 
 - The README's limitations were audited against the code. `Unary - is not
-  rewritten` was simply wrong — it has been rewritten since 0.2.5, through a
-  no-op `ops::neg` that exists to anchor inference — and was not a limitation
+  rewritten` was simply wrong (it has been rewritten since 0.2.5, through a
+  no-op `ops::neg` that exists to anchor inference) and was not a limitation
   in the first place, since IEEE negation is exact and there is nothing an
   `algebraic_neg` could reassociate. Const positions were missing entirely and
   are now covered. The debug-build overhead figure was stale: measured again,
   a tight dot-product loop is about 25% over the hand-written form, not 40%.
 
-## 0.3.0 — 2026-08-21
+## 0.3.0 - 2026-08-21
 
 Breaking, and entirely about diagnostics. A type error inside `alg!` or
 `#[algebraic]` now reads like the same error in plain Rust. See
@@ -657,17 +657,17 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   `AlgDiv`/`AlgRem` are gone, and each operator now has two traits in their
   place: `AddRhs<Lhs, O>`, where opting in happens, and `AddOut<O>`, stating
   what the operator yields. `RefOperand` and `AlgNeg` are unchanged. The
-  `passthrough_refs!` helper is gone too — `#[doc(hidden)]`, but it was
+  `passthrough_refs!` helper is gone too: `#[doc(hidden)]`, but it was
   exported; `passthrough!` no longer needs a second macro. Code that only uses
   `alg!`, `#[algebraic]`, `passthrough!`, or `#[derive(Passthrough)]` needs no
   changes.
   Code that implemented `AlgAdd` and friends by hand must implement `AddRhs`
-  instead — note the operands are reversed, since the trait is implemented on
+  instead, and note the operands are reversed, since the trait is implemented on
   the *right*-hand type: `fn add_rhs(self, lhs: Lhs) -> O`.
 - **A mismatched operand is blamed on the mismatch.** Every case used to
   produce the same sentence, naming the left type: `alg!(a + b)` with
   `a: u8, b: u32` said ``` `u8` can't be used with `+` ``` and advised
-  `passthrough!(u8)` — for a type already opted in. It now says
+  `passthrough!(u8)`, for a type already opted in. It now says
   ``` cannot add `u32` to `u8` ```, with the caret on `b`, matching rustc.
   This covers float widths, integer widths, signedness, int-against-float,
   `Wrapping`/`Saturating`, heterogeneous pairs, and opted-in user types.
@@ -684,7 +684,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   `E0119` conflict waiting to happen under any generic form of the second; the
   operand trait is now keyed on the left type, so the two never overlap.
 - **`passthrough!(mul out A => O)`**, for a pair whose output is not its left
-  operand — a dot product, say. An operator is otherwise assumed to yield the
+  operand, a dot product, say. An operator is otherwise assumed to yield the
   type it was applied to, which covers every same-type operator and pairs like
   `Duration * u32`. Omitting it where it is needed is a compile error on the
   `passthrough!` line naming the missing declaration, not a confusing failure
@@ -708,18 +708,18 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
 - Release codegen is byte-identical to hand-written algebraic calls; the
   assembly guard passes unmodified.
 
-## 0.2.5 — 2026-08-21
+## 0.2.5 - 2026-08-21
 
 ### Fixed
 
 - **A rewritten subexpression could leave nothing for the type checker to
   anchor to.** `alg!(-(3.0 * 2.0))` failed with `E0282`: `ops::mul(3.0, 2.0)`
   returns a type variable that unsuffixed float literals cannot pin, and unary
-  minus — which was not rewritten — had no type to resolve `Neg` against.
+  minus, which was not rewritten, had no type to resolve `Neg` against.
   Unary minus now routes through `ops::neg`, a same-type function over a
   blanket `Neg` impl, so the expected type flows backwards into the operand.
   There is still no `algebraic_neg`; the indirection is purely for inference,
-  and it compiles away — a negating dot product is byte-identical to the
+  and it compiles away: a negating dot product is byte-identical to the
   hand-written algebraic form. Never applied over a literal, since `-128i8`
   would become `neg(128i8)` and `128` is out of range for `i8`.
 - **Constant integer arithmetic is now exempted transitively**, so
@@ -733,23 +733,23 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
 ### Added
 
 - An audit of the whole operator surface (`tests/operators.rs`), covering what
-  is rewritten, what is not, and that the untouched operators — bitwise,
-  shifts, comparisons, `&&`/`||` short-circuiting, `as`, indexing, ranges, `?`
-  — behave exactly as they do outside the macro.
+  is rewritten, what is not, and that the untouched operators (bitwise,
+  shifts, comparisons, `&&`/`||` short-circuiting, `as`, indexing, ranges,
+  `?`) behave exactly as they do outside the macro.
 - A random-expression corpus (`scripts/gen-fuzz-corpus.py`,
   `tests/fuzz_corpus.rs`). Trees are built with their exact values tracked in
   rational arithmetic and constrained to dyadic rationals inside f64's exact
   range, so the rewritten form must equal both the offline value and the plain
   form bit for bit. It found the `E0282` above on its first run.
 
-## 0.2.4 — 2026-08-21
+## 0.2.4 - 2026-08-21
 
 ### Added
 
 - `alg!` now accepts a braced block, so part of a function can be rewritten
   rather than all of it: `alg! { let mut s = 0.0; for x in v { s += x * x; } s }`.
   It takes statements, loops and compound assignment, and evaluates to the
-  block's value. There is no `algebraic { .. }` form without the `!` — Rust
+  block's value. There is no `algebraic { .. }` form without the `!`: Rust
   reads a bare identifier before a brace as a struct literal, so no macro can
   claim that syntax, and one crate cannot export `algebraic` as both an
   attribute and a function-like macro.
@@ -759,20 +759,20 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
 - `alg!` no longer descends into nested items, matching `#[algebraic]`'s
   default. Previously unreachable, since a bare expression cannot contain an
   item; it becomes reachable with the block form.
-- The test suite gained complex expressions — Horner, a 3x3 determinant,
-  bilinear interpolation, complex and matrix multiply, Catmull-Rom — checked
+- The test suite gained complex expressions (Horner, a 3x3 determinant,
+  bilinear interpolation, complex and matrix multiply, Catmull-Rom) checked
   three ways: exact equivalence against the plain form on exactly-representable
   inputs, compile-time dispatch proof via a type with no `std::ops`, and a
   hand-written `algebraic_*` reference. Mis-mapping one operator fails five of
   the six new tests; the previous `a + b` shaped tests caught none of it.
 
-## 0.2.3 — 2026-08-21
+## 0.2.3 - 2026-08-21
 
 ### Fixed
 
 - **`resolve-crate-name` generated an unresolvable path inside this package.**
   `proc-macro-crate` reports `FoundCrate::Itself` when expanding anywhere in
-  the `reassoc` package, and the generated path was `crate::ops` — but that
+  the `reassoc` package, and the generated path was `crate::ops`, but that
   package's examples, tests and doctests are each their own crate linking the
   library by name, so `crate::` resolved to the wrong root. Consumers were
   unaffected, since they always get `FoundCrate::Name`, which is why no
@@ -786,17 +786,17 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   default, and treats rustdoc warnings as errors. Feature-gated code is only
   linted when its feature is on, which is how the bug above went unseen.
 
-## 0.2.2 — 2026-08-21
+## 0.2.2 - 2026-08-21
 
 ### Changed
 
 - The README and crate docs now lead with a work-in-progress warning. The
   failure mode of a rewriting macro is not a compile error but code that
   compiles and quietly behaves differently, and every bug found so far has
-  had that shape — so the warning names them, and separates them from the
+  had that shape, so the warning names them, and separates them from the
   intended behaviour of changing results.
 
-## 0.2.1 — 2026-08-21
+## 0.2.1 - 2026-08-21
 
 ### Fixed
 
@@ -825,7 +825,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
 
 - `resolve-crate-name`, an off-by-default feature that makes the macros work
   when the dependency is renamed (`myalg = { package = "reassoc" }`). It is
-  opt-in because it pulls in a TOML parser — eight crates — which is a poor
+  opt-in because it pulls in a TOML parser (eight crates) which is a poor
   trade for everyone when renaming is rare.
 
 ### Changed
@@ -834,7 +834,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   own public `passthrough!`, so a gap in the user-facing macro breaks the
   crate's own tests.
 
-## 0.2.0 — 2026-08-21
+## 0.2.0 - 2026-08-21
 
 ### Changed (breaking)
 
@@ -846,7 +846,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
 ### Fixed
 
 - **Compound assignment rejected any RHS that read the place.** `s += s * k`
-  and `a[0] += a[1]` — an EMA accumulator and an FFT butterfly — failed to
+  and `a[0] += a[1]` (an EMA accumulator and an FFT butterfly) failed to
   borrow-check under `#[algebraic]` while compiling fine without it.
 - **Evaluation and drop order diverged from native.** The RHS is now bound
   first, and through a `match` rather than a `let`, so its temporaries live to
@@ -871,7 +871,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   for a type implementing only some operators.
 - `Wrapping<T>` and `Saturating<T>` are covered without any opt-in.
 
-## 0.1.1 — 2026-08-21
+## 0.1.1 - 2026-08-21
 
 ### Changed
 
@@ -879,7 +879,7 @@ Breaking, and entirely about diagnostics. A type error inside `alg!` or
   high floor forces downstream upgrades for no reason.
 - Dropped syn's unused `derive` default feature.
 
-## 0.1.0 — 2026-08-21
+## 0.1.0 - 2026-08-21
 
 First release. `alg!`, `#[algebraic]` with `closures`/`items`/`skip` scope
 parameters, `strict!`, and `passthrough!`, over Rust 1.98's algebraic float

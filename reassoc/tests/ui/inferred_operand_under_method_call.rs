@@ -2,8 +2,8 @@
 //! method receiver: native Rust normalizes `<U as Add<U>>::Output` as soon as
 //! the operands are known, but dispatch's output is a type parameter that
 //! only impl selection determines, so rustc cannot resolve the method and
-//! asks for annotations (`E0282`). The way out is to annotate the operand —
-//! `|s: U, d: U, ..|` — which is what the closure below is missing.
+//! asks for annotations (`E0282`). The way out is to annotate the operand,
+//! `|s: U, d: U, ..|`, which is what the closure below is missing.
 //! Found adopting tiny-skia, whose `blend_fn!(plus, ..)` has this shape.
 use reassoc::algebraic;
 
