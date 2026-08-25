@@ -30,14 +30,20 @@ Ordinary arithmetic syntax for Rust's algebraic float operators.
 
 Rust 1.98 stabilized `algebraic_add`, `algebraic_mul`, and friends. They let
 the compiler reassociate and contract float arithmetic, which unlocks
-vectorization and FMA — but writing them by hand is unreadable:
+vectorization and FMA. Calling them by hand is clunky, and gets clunkier the
+larger the expression:
 
 ```rust
-# let (a, b, i, mut sum) = ([1.0f32], [2.0f32], 0, 0.0f32);
-sum = sum.algebraic_add(a[i].algebraic_mul(b[i]));
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0f32;
+    for i in 0..a.len().min(b.len()) {
+        sum = sum.algebraic_add(a[i].algebraic_mul(b[i]));
+    }
+    sum
+}
 ```
 
-With `reassoc`:
+The same function with `reassoc`:
 
 ```rust
 use reassoc::algebraic;
