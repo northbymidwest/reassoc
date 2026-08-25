@@ -1,30 +1,14 @@
 #!/bin/sh
-# The README's codegen table, regenerated from this checkout.
-#
-# Compiles `reassoc/examples/codegen_matrix.rs` for the host and counts the
-# instructions in the f32 dot loop, written three ways in that fixture:
-#
-#   plain_dot_loop_f32    `sum += a[i] * b[i]`, ordinary IEEE operators
-#   sugar_dot_loop_f32    the same source under `#[algebraic]`
-#   direct_dot_loop_f32   `sum.algebraic_add(a[i].algebraic_mul(b[i]))`
-#
-# The claim has two halves and this prints both. That the macros *unlock* the
-# optimization: the plain loop keeps a serial chain of scalar adds, the
-# algebraic one vectorizes and contracts. And that they *cost nothing*: the
-# sugar and direct forms are one function by the time LLVM is done, which
-# shows up here as an assembler alias (`_sugar_.. = _direct_..`), the reason
-# the third column is usually reported as "merged".
+# The README's codegen table, regenerated from this checkout: counts the
+# float instructions in the f32 dot loop of `examples/codegen_matrix.rs`,
+# which carries it three ways (`plain_`, `sugar_`, `direct_`).
 #
 #   scripts/codegen-demo.sh            # -C opt-level=3, the default
 #   scripts/codegen-demo.sh 2          # some other level
 #
-# `tests/codegen_matrix.rs` is the *test*: it proves sugar == direct as
-# optimized IR at every level, and that the algebraic dot vectorizes where
-# the strict one does not, on whatever target CI runs. This script is for
-# putting numbers in the README, which are necessarily one host's.
-#
-# Mnemonics are the host's, so the histogram is not comparable across
-# architectures; the totals and the vector/scalar split are.
+# For putting a number in prose; `tests/codegen_matrix.rs` is the check that
+# runs in CI. Mnemonics are the host's, so the histogram does not compare
+# across architectures, though the totals and vector/scalar split do.
 set -eu
 cd "$(dirname "$0")/.."
 

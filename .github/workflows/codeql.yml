@@ -1,23 +1,9 @@
 name: codeql
 
-# Two languages, and honestly only one of them is expected to say anything.
-#
-# `actions` is the reason this workflow exists. Three workflows here run
-# unattended on a schedule and two of them hold `issues: write`, so the class
-# of bug that matters is a `${{ }}` substituted into the source of a `run:`
-# block, where the expression's *text* becomes shell code. `fuzz.yml` had
-# exactly that and it is fixed; this is what notices the next one, including
-# in a workflow nobody has re-read for a year.
-#
-# `rust` is close to free and expected to be quiet. Both crates are
-# `#![forbid(unsafe_code)]`, nothing here takes untrusted input at runtime
-# (the "input" to a proc macro is tokens from a build the user already
-# controls), and there is no network, no crypto and no filesystem work beyond
-# `trace.rs` appending to the path in `REASSOC_TRACE`. That last one is the
-# single plausible alert, as an environment variable reaching a file path, and
-# it would be a false positive: setting it means already controlling the
-# build. It is on anyway because the cost is one job and the day this crate
-# grows a surface, nobody will think to come back and turn it on.
+# `actions` is why this exists: three workflows run unattended on a schedule,
+# two hold `issues: write`, and the bug that matters is a `${{ }}` expanded
+# into the source of a `run:` block. `fuzz.yml` had one. Per-language notes
+# are on the matrix entries below.
 #
 # Off the hour, and after CI's own Monday run, for the reason `ci.yml` gives.
 on:
@@ -55,19 +41,11 @@ jobs:
           # Interpreted; `none` is the only build mode it has.
           - language: actions
             build-mode: none
-          # `none` is not a preference here, it is the only mode Rust has.
-          # CodeQL 2.26.3 refuses `autobuild` outright: "Rust does not support
-          # the autobuild build mode. Please try using one of the following
-          # build modes instead: none." Rust support shipped *as* buildless
-          # scanning, so there is no build to opt into. Do not try this again.
-          #
-          # The consequence is a standing "Low Rust analysis quality" warning
-          # on the tool status page: calls with a known target 41%, against a
-          # 50% threshold, because nothing resolves `syn`, `quote` or
-          # `proc-macro2` without a build. The other metric, expressions with
-          # a known type, passes at 50% against a threshold of 20%. That
-          # warning is a property of the extractor, not of this workflow, and
-          # cannot be configured away.
+          # Also the only mode Rust has: CodeQL 2.26.3 rejects `autobuild`
+          # with "Rust does not support the autobuild build mode". Hence the
+          # standing "Low Rust analysis quality" warning (call targets resolve
+          # at 41% against a 50% threshold, with no build to resolve `syn` and
+          # friends). A property of the extractor; not configurable away.
           - language: rust
             build-mode: none
     steps:

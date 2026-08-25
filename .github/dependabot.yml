@@ -1,10 +1,9 @@
 # Only the GitHub Actions this workflow pins, and only monthly.
 #
-# In practice that is `actions/checkout` and `github/codeql-action`. The point
-# is not freshness but the upgrades that arrive as deadlines: a runner's Node
-# version reaching end of life takes unattended workflows down with it. The
-# two pinned by commit (`release.yml`, `codeql.yml`) need it most: a SHA pin
-# is frozen by definition, so nothing else would ever move it.
+# In practice `actions/checkout` and `github/codeql-action`. The point is not
+# freshness but the upgrades that arrive as deadlines: a runner's Node version
+# reaching end of life takes unattended workflows down with it. It is also the
+# only thing that moves a SHA pin, which is frozen by definition.
 #
 # `dtolnay/rust-toolchain` is ignored. Its refs are not dependencies: `stable`
 # and `nightly` are branches that already follow each Rust release, and

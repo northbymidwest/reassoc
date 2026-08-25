@@ -33,28 +33,13 @@ f128 = []
 # which then enter `const fn` bodies instead of refusing them.
 const-fn = ["reassoc-macros/const-fn"]
 
-# docs.rs builds with default features unless told otherwise, and this crate
-# gates visible impls behind four of them. `--cfg docsrs` turns on `doc_cfg`
-# (see `lib.rs`), which is what puts "Available on crate feature `alloc`" on
-# the `String` operand impls and on `Instant`/`SystemTime`, so a `no_std`
-# reader can tell from the impl list alone which ones they get.
+# `--cfg docsrs` turns on `doc_cfg` (see `lib.rs`), which marks the `alloc`
+# and `std` impls with the feature they need. `f16`/`f128` are on because
+# `float_lefts!` emits one impl per concrete type, so without them those two
+# widths are absent from `AddRhs` and friends.
 #
-# `f16`/`f128` are on because they add impls that are actually rendered: the
-# float-left blankets (`impls/float.rs`, `float_lefts!`) are one per concrete
-# type, so without the features those two are simply absent from `AddRhs` and
-# friends. Both are nightly, and docs.rs builds on nightly; `nightly_floats`
-# in CI exercises the same combination weekly, so a break here is not found
-# first by a failed docs build.
-#
-# `const-fn` is deliberately off. It adds no item: it re-signs all ten
-# `ops::*` as `const fn` and, because the `konst` module is re-exported
-# rather than inlined, documents every one of them a second time under
-# `ops::konst`. The stable signature is the one nearly every reader wants,
-# and the feature is described in prose in `lib.rs`. (Measured, not assumed:
-# `cargo doc` with and without it, compared page by page.)
-#
-# `resolve-crate-name` changes nothing in this crate's surface; it is a
-# `reassoc-macros` feature about path resolution in generated code.
+# `const-fn` is deliberately off: it adds no item, re-signs all ten `ops::*`
+# as `const fn`, and documents each a second time under `ops::konst`.
 [package.metadata.docs.rs]
 features = ["f16", "f128"]
 rustdoc-args = ["--cfg", "docsrs"]
