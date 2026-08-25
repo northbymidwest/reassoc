@@ -12,16 +12,15 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Security
 
-- **CodeQL analyses Rust with `build-mode: autobuild` rather than `none`.**
-  Buildless analysis drew a "Low Rust analysis quality" warning on the tool
-  status page: calls with a known target 41%, against a 50% threshold,
-  because without a build nothing resolves `syn`, `quote` or `proc-macro2`
-  and most call targets stay unknown. The other metric, expressions with a
-  known type, passed at 50% against a threshold of 20%. Taint tracking
-  follows calls, so the degraded half is the one that matters. Building
-  first costs a toolchain and a slower job, which is what `none` was
-  avoiding; that trade is worth taking here, since CI already builds this
-  crate twelve ways and would go red before this job did.
+- **CodeQL's Rust analysis carries a standing "Low Rust analysis quality"
+  warning, and nothing can be done about it.** Calls with a known target sit
+  at 41% against a 50% threshold, because without a build nothing resolves
+  `syn`, `quote` or `proc-macro2`. The other metric, expressions with a known
+  type, passes at 50% against a threshold of 20%. `build-mode: autobuild` was
+  tried and CodeQL 2.26.3 rejects it outright: Rust support shipped *as*
+  buildless scanning, so `none` is the only mode the extractor accepts. The
+  warning is a property of CodeQL's Rust support, not of this repository's
+  configuration. Recorded in `codeql.yml` so it is not retried.
 
 ## 0.11.3 - 2026-08-25
 

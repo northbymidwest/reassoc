@@ -55,22 +55,21 @@ jobs:
           # Interpreted; `none` is the only build mode it has.
           - language: actions
             build-mode: none
-          # Was `none`, which analyses without a toolchain and cannot fail for
-          # a cargo reason. The tool status page then reported "Low Rust
-          # analysis quality": calls with a known target 41%, against a 50%
-          # threshold, because without a build nothing resolves `syn`,
-          # `quote` or `proc-macro2`, so most call targets are unknown. (The
-          # other metric, expressions with known type, passed at 50% against
-          # a threshold of 20%.) Taint tracking follows calls, so a database
-          # that cannot resolve them is weak at the one job this is here to
-          # do the day the crate grows a surface worth analysing.
+          # `none` is not a preference here, it is the only mode Rust has.
+          # CodeQL 2.26.3 refuses `autobuild` outright: "Rust does not support
+          # the autobuild build mode. Please try using one of the following
+          # build modes instead: none." Rust support shipped *as* buildless
+          # scanning, so there is no build to opt into. Do not try this again.
           #
-          # `autobuild` builds the crate and its dependencies first. The cost
-          # is what `none` was avoiding: a toolchain, a slower job, and a
-          # failure mode that is really about cargo. Acceptable, because CI
-          # already builds this crate twelve ways and would go red first.
+          # The consequence is a standing "Low Rust analysis quality" warning
+          # on the tool status page: calls with a known target 41%, against a
+          # 50% threshold, because nothing resolves `syn`, `quote` or
+          # `proc-macro2` without a build. The other metric, expressions with
+          # a known type, passes at 50% against a threshold of 20%. That
+          # warning is a property of the extractor, not of this workflow, and
+          # cannot be configured away.
           - language: rust
-            build-mode: autobuild
+            build-mode: none
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
