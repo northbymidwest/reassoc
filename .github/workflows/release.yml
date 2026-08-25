@@ -98,6 +98,17 @@ jobs:
           awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
           [ -s /tmp/notes.md ] || fail "CHANGELOG.md has no section for $VERSION"
 
+          # Entries accumulate under `## Unreleased` and releasing retitles
+          # that heading (RELEASING.md). Anything still under it here was
+          # written down and is about to ship outside the release notes, which
+          # is the one failure mode the convention introduces. Whitespace only
+          # is fine: it means the heading was left behind empty, not that a
+          # change was missed.
+          awk '/^## Unreleased[[:space:]]*$/{f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/unreleased.md
+          if grep -q '[^[:space:]]' /tmp/unreleased.md 2>/dev/null; then
+            fail "CHANGELOG.md still has entries under '## Unreleased'; retitle that heading to '## $VERSION - <date>'"
+          fi
+
           echo "preflight ok: $VERSION at $sha, CI green, neither crate published"
 
       # Assembles both archives and compiles the macros crate from its own

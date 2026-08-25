@@ -158,13 +158,18 @@ keep that at 0 ignored.
 ## Releasing
 
 `.github/workflows/release.yml`, dispatched by hand; `RELEASING.md` has the
-rest. Bump both `Cargo.toml`s, write the CHANGELOG section, push, wait for CI,
-then dispatch with the version and untick `dry_run` (on by default; it stops
-before the first upload). The `release` environment requires an approval.
+rest. Bump both `Cargo.toml`s, retitle `## Unreleased` to `## <version> -
+<date>`, push, wait for CI, then dispatch with the version and untick
+`dry_run` (on by default; it stops before the first upload). The `release`
+environment requires an approval.
+
+CHANGELOG entries go under `## Unreleased` as the change is made, not at
+release time; a release cuts that heading rather than writing one.
 
 Nothing uploads unless the version matches both manifests, the tag is free,
 neither crate has that version, CI is green on that commit, the CHANGELOG has
-a section, and both archives assemble. A failed preflight leaves no tag.
+a non-empty section for it and nothing left under `## Unreleased`, and both
+archives assemble. A failed preflight leaves no tag.
 
 `reassoc-macros` publishes first: the facade's `=<version>` pin resolves
 against the registry, not the workspace. The tag is last: `v*` tags have no

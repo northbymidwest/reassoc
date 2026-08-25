@@ -8,8 +8,14 @@ publishing; what is left to a person is the part that needs judgement.
 1. Bump the version in **both** manifests: `version` in the workspace
    `Cargo.toml`, and the facade's exact pin `reassoc-macros = { version =
    "=<version>" }` in `reassoc/Cargo.toml`. They move in lockstep.
-2. Write the `CHANGELOG.md` section for it. The workflow uses that section
-   verbatim as the release notes and refuses to run if it is empty.
+2. Cut the `CHANGELOG.md` section: retitle `## Unreleased` to `## <version> -
+   <publish date>`. Entries accumulate under `Unreleased` as the work is done,
+   so this is a retitle and a read-through, not a writing session. The
+   workflow uses that section verbatim as the release notes; it refuses to run
+   if the section is missing or empty, and also if anything is still left
+   under `Unreleased`, which would mean a change was written down and then
+   shipped outside the notes. Do not leave an empty `Unreleased` behind: the
+   next change adds it back.
 3. Commit, push, and **wait for CI to finish**. The workflow checks that CI is
    green on the exact commit; dispatching before it completes is refused.
 
@@ -35,7 +41,8 @@ instead of stopping there. Every other check still stops.
 - a version whose tag already exists
 - a version either crate already has on crates.io
 - a commit whose CI is not green
-- a version with no `CHANGELOG.md` section
+- a version with no `CHANGELOG.md` section, or one left empty
+- a `CHANGELOG.md` still carrying entries under `## Unreleased`
 - anything whose archives do not assemble (`cargo package`, both packages)
 
 A failed preflight leaves nothing behind: no tag, no burnt version number, one
