@@ -1,3 +1,8 @@
+// The rewriter reads tokens and writes tokens; it has never needed `unsafe`
+// and should not start. `forbid` rather than `deny` so a future `allow`
+// cannot quietly reopen it.
+#![forbid(unsafe_code)]
+
 mod build;
 mod krate;
 mod passthrough;

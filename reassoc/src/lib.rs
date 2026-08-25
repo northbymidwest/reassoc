@@ -197,6 +197,11 @@
 //! `default-features = false` for core-only builds, which keep every
 //! primitive, every reference combination, and `Duration`.
 #![no_std]
+// Nothing here needs `unsafe`, and the guarantee is worth stating: a crate
+// that rewrites arithmetic has to be trusted, and this removes one reason to
+// audit it. `forbid` rather than `deny` so a future `allow` cannot quietly
+// reopen it.
+#![forbid(unsafe_code)]
 #![cfg_attr(feature = "f16", feature(f16))]
 #![cfg_attr(feature = "f128", feature(f128))]
 #![cfg_attr(feature = "const-fn", feature(const_trait_impl, const_ops))]
