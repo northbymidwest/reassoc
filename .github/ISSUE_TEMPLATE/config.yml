@@ -1,0 +1,13 @@
+# Kept on deliberately. The bug form asks for a reproduction and a toolchain,
+# which is right for a bug and wrong for everything else — the first issue
+# this repository received was a design question, and a form demanding a
+# minimal reproduction would have turned it away.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Known gaps and non-goals
+    url: https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md
+    about: Some of what looks like a bug is deliberate and written down. Worth a look first.
+  - name: Where the diagnostics differ from plain Rust
+    url: https://github.com/northbymidwest/reassoc/blob/main/docs/diagnostics.md
+    about: Error messages the macros render differently from the operators they replace, and why.
