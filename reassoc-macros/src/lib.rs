@@ -73,7 +73,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             // The function is still emitted, unrewritten, so that its callers
             // resolve and the user reads one error rather than a cascade.
             if let Some(const_token) = func.sig.constness
-                && !cfg!(feature = "const-fn")
+                && cfg!(not(feature = "const-fn"))
             {
                 let err = syn::Error::new_spanned(
                     const_token,

@@ -189,7 +189,7 @@ impl VisitMut for Rewriter {
         }
         match item {
             syn::Item::Const(_) | syn::Item::Static(_) => {}
-            syn::Item::Fn(f) if f.sig.constness.is_some() && !cfg!(feature = "const-fn") => {
+            syn::Item::Fn(f) if f.sig.constness.is_some() && cfg!(not(feature = "const-fn")) => {
                 self.const_fn(f.sig.constness.unwrap(), &f.sig.ident, &mut f.block);
             }
             _ => visit_mut::visit_item_mut(self, item),
@@ -205,7 +205,7 @@ impl VisitMut for Rewriter {
         match item {
             syn::ImplItem::Const(_) => {}
             syn::ImplItem::Fn(f) => match f.sig.constness {
-                Some(c) if !cfg!(feature = "const-fn") => {
+                Some(c) if cfg!(not(feature = "const-fn")) => {
                     self.const_fn(c, &f.sig.ident, &mut f.block)
                 }
                 _ => self.visit_impl_item_fn_mut(f),
@@ -226,7 +226,7 @@ impl VisitMut for Rewriter {
                 // A required method has no body: nothing to rewrite, and
                 // nothing to warn about.
                 match (f.sig.constness, &mut f.default) {
-                    (Some(c), Some(body)) if !cfg!(feature = "const-fn") => {
+                    (Some(c), Some(body)) if cfg!(not(feature = "const-fn")) => {
                         self.const_fn(c, &f.sig.ident, body)
                     }
                     _ => self.visit_trait_item_fn_mut(f),
