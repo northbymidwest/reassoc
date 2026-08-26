@@ -32,7 +32,11 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   `tests/macros.rs` instead.
 
   `--tight N` sets the instances per context per fragment, default 2; both
-  corpora cost about 2.5s to compile in total.
+  corpora cost about 2.5s to compile in total. Two guards, since the cases
+  are generated and losing them would leave a smaller corpus that still
+  passes: the generator refuses to emit a context no fragment fits, and
+  `tests/suite_layout.rs` checks from outside the generated file that both
+  corpora still carry them.
 
 ### Fixed
 

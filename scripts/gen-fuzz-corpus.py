@@ -285,6 +285,13 @@ def gen_tight_cases(rng: random.Random, nodes: int, env: dict[str, Fraction],
                     continue
                 seen.add(src)
                 instances.append((frag["name"], src, literal(ctx["kind"], value)))
+        # A context whose tag matches no fragment is a disagreement between the
+        # two tables, and it would otherwise vanish in silence, leaving a
+        # smaller corpus that still passes and a position nothing exercises.
+        if not instances:
+            raise RuntimeError(
+                f"context {ctx['tag']}/{ctx['name']} has no fragment of its type"
+            )
         out.append(dict(ctx, instances=instances))
     return out
 
@@ -538,8 +545,6 @@ impl core::ops::Neg for &Disp {{
     emit("chain", chains, args.per_fn)
 
     for ctx in tight:
-        if not ctx["instances"]:
-            continue
         name = f"tight_{ctx['tag']}_{ctx['name']}"
         body = ctx["src"]
         for suffix, attr in (("alg", "#[reassoc::algebraic]\n            "), ("plain", "")):

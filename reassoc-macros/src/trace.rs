@@ -9,7 +9,11 @@
 //!
 //! `kind` is `fn` (a function body entered by `#[algebraic]`, directly or as a
 //! member of an annotated container), `const fn` (met in an algebraic scope and
-//! left as written, so always 0), or `alg` (one `alg!`, named `-`). Nothing in
+//! left as written, so always 0), or `alg` (one `alg!`, named `-`). A `const
+//! fn` line stays 0 even when something inside it was rewritten: a nested
+//! `fn`, `impl`, `mod` or `trait`, and a closure body, are runtime code and are
+//! entered, and a nested function gets a `fn` line of its own with its own
+//! count. The 0 is about the `const fn`'s own body, which is never rewritten. Nothing in
 //! the generated code changes; the log is for tooling that asks "which
 //! functions did the macro reach, and where did it find nothing to rewrite".
 //! `scripts/adopt/` in the repository uses it. Lines are appended, so a build

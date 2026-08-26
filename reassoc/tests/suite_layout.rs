@@ -3,6 +3,30 @@
 //! never compiled under 2021. This keeps the list complete, with the
 //! exclusions spelled out and reasoned.
 
+/// The fuzz corpora carry the tight-position cases (`scripts/gen-fuzz-corpus.py`),
+/// which is what pins `reparen_tight_positions`'s arms: deleting `Call`,
+/// `MethodCall`, `Field`, `Index`, `Cast`, `Unary` or `Reference` fails one of
+/// them. They are generated, so a half-finished regeneration, a truncated file
+/// or a hand edit would simply leave fewer of them and everything would still
+/// pass. This is the guard from outside the generated file; the generator has
+/// its own, refusing to emit a context no fragment fits.
+#[test]
+fn the_fuzz_corpora_carry_the_tight_position_cases() {
+    // Well below what the tables produce (24 contexts), so adding or removing
+    // one is not a test failure; losing most of them is.
+    const FLOOR: usize = 20;
+    for name in ["fuzz_corpus.rs", "fuzz_corpus_f32.rs"] {
+        let path = format!("{}/tests/{name}", env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(&path).expect(&path);
+        let cases = text.matches("\nfn tight_").count();
+        assert!(
+            cases >= FLOOR,
+            "{name} has {cases} tight-position cases, expected at least {FLOOR}: \
+             regenerate with scripts/gen-fuzz-corpus.py (its header has the command)"
+        );
+    }
+}
+
 #[test]
 fn every_test_file_is_included_in_the_edition_2021_twin() {
     // Not included, each for a stated reason.
