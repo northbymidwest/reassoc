@@ -584,6 +584,74 @@ fn nested_impl_consts_compile() {
     assert_eq!(const_positions_in_nested_impls(2.0), 6.0);
 }
 
+/// A `const fn` body is const context with *runtime islands* in it: a nested
+/// `fn`, `impl`, `mod` or `trait`, and a closure body, are ordinary runtime
+/// code and are rewritten like anything else. Only the expressions the
+/// `const fn` itself evaluates are out of reach.
+///
+/// The rewriter used to decide by rewriting a clone of the whole body and
+/// comparing, which could not tell the two apart: a `const fn` holding a
+/// nested `fn` with arithmetic, or returning a closure with some, was
+/// rejected for arithmetic it did not have, and the `#[algebraic(skip)]` the
+/// error asked for left that nested code strict without a word.
+///
+/// `Dispatched` is what makes this observable: it implements the dispatch
+/// traits and never `std::ops`, so each `*` below compiles only because the
+/// rewriter reached it. The must-fail direction, a `const fn` with arithmetic
+/// of its own, is `tests/ui/const_fn_member_with_arithmetic.rs`, and a `const
+/// fn` nested in one is `tests/ui/const_fn_nested_const_fn_with_arithmetic.rs`,
+/// which also pins that the nested one's arithmetic is reported against
+/// itself and does not condemn the function holding it.
+struct Island(Dispatched);
+
+#[algebraic]
+mod runtime_islands_inside_a_const_fn {
+    use super::{Dispatched, Island};
+
+    pub const fn holds_a_fn(w: Dispatched) -> Dispatched {
+        fn helper(a: Dispatched, b: Dispatched) -> Dispatched {
+            a * b
+        }
+        let _ = helper;
+        w
+    }
+
+    /// Called, so the nested `fn` is not merely compiled but exercised.
+    pub fn calls_the_same_helper(w: Dispatched) -> Dispatched {
+        fn helper(a: Dispatched, b: Dispatched) -> Dispatched {
+            a * b
+        }
+        helper(w, w)
+    }
+
+    /// The closure body runs when it is called, which a `const fn` cannot do,
+    /// so it is runtime code even here.
+    pub const fn scaler(k: Dispatched) -> impl Fn(Dispatched) -> Dispatched {
+        move |x| x * k
+    }
+
+    #[allow(non_local_definitions)]
+    pub const fn holds_an_impl() -> u8 {
+        impl Island {
+            pub fn scale(self, k: Dispatched) -> Island {
+                Island(self.0 * k)
+            }
+        }
+        0
+    }
+}
+
+#[test]
+fn runtime_islands_inside_a_const_fn_are_rewritten() {
+    use runtime_islands_inside_a_const_fn as m;
+    let two = Dispatched(2.0);
+    assert_eq!(m::holds_a_fn(two), two);
+    assert_eq!(m::calls_the_same_helper(two), Dispatched(4.0));
+    assert_eq!(m::scaler(Dispatched(3.0))(two), Dispatched(6.0));
+    assert_eq!(m::holds_an_impl(), 0);
+    assert_eq!(Island(two).scale(Dispatched(5.0)).0, Dispatched(10.0));
+}
+
 /// Compound assignment must keep native evaluation and drop order: the RHS's
 /// temporaries used to drop at the end of the generated `let`, before the
 /// place was evaluated.

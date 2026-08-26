@@ -36,6 +36,44 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Fixed
 
+- **A `const fn` in an algebraic scope was rejected for arithmetic it did not
+  have**, and the escape it offered made things worse. A `const fn` body is
+  not one indivisible region: it is const context with runtime islands in it,
+  a nested `fn`, `impl`, `mod` or `trait`, and a closure body, all of which
+  are ordinary runtime code. The rewriter decided by rewriting a clone of the
+  whole body and comparing, which cannot tell the two apart, so
+
+  ```rust
+  #[algebraic]
+  mod m {
+      pub const fn scaler(k: f32) -> impl Fn(f32) -> f32 { move |x| x * k }
+  }
+  ```
+
+  was an error saying the `const fn`'s arithmetic could not be rewritten,
+  when the `const fn` has none: `x * k` runs when the closure is called,
+  which a `const fn` cannot do. The same for a nested `fn` or `impl`. Taking
+  the `#[algebraic(skip)]` the error asked for then left that runtime code
+  strict without a word, which is the failure this crate is otherwise careful
+  never to have, so there was no way to get what the user wanted.
+
+  The clone-and-compare is gone. `Rewriter` carries a `const_context` flag
+  instead: set inside a `const fn`, where an operator is recorded rather than
+  rewritten, and cleared on entry to an item or a closure body, which are
+  rewritten like anything else. Both halves fall out of the one change, the
+  false errors and the silent gap behind them. The flag is saved per `const
+  fn`, so a nested one is reported against itself and neither condemns nor is
+  condemned by the function holding it.
+
+  A `const fn` with arithmetic of its own is still one error on its `const`
+  token, with the same wording, which is now true when it fires; the existing
+  `.stderr` snapshots are unchanged.
+  `tests/attribute.rs::runtime_islands_inside_a_const_fn_are_rewritten` pins
+  the rewrite over `Dispatched`, so it fails to compile if any island stops
+  being reached, and
+  `tests/ui/const_fn_nested_const_fn_with_arithmetic.rs` now carries both
+  nesting orders.
+
 - **`&$e` lost its grouping when a `$e:expr` fragment reached it through a
   rewritten function**, so `&(a < b)` read back as `&a < b` and stopped
   compiling. `reparen_tight_positions` re-parenthesises a grouped

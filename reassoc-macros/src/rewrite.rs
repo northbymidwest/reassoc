@@ -25,6 +25,17 @@ pub struct Rewriter {
     krate: String,
     /// Operators rewritten so far (binary and compound), for `REASSOC_TRACE`.
     pub ops: usize,
+    /// Set while visiting the parts of a `const fn` body that a `const fn`
+    /// actually evaluates. An operator met there cannot become a call
+    /// (`ops::*` are not `const fn`), so it is left as written and recorded
+    /// in `const_arith` instead. Cleared again on entry to a nested item or
+    /// a closure body, which are ordinary runtime code.
+    const_context: bool,
+    /// Whether the `const fn` currently being visited has an operator of its
+    /// own that would have been rewritten. Saved and restored per `const fn`,
+    /// so a nested one's arithmetic is reported against it and not against
+    /// the function that holds it.
+    const_arith: bool,
 }
 
 impl Rewriter {
@@ -37,6 +48,8 @@ impl Rewriter {
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
+            const_context: false,
+            const_arith: false,
         }
     }
 
@@ -47,6 +60,8 @@ impl Rewriter {
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
+            const_context: false,
+            const_arith: false,
         }
     }
 
@@ -64,12 +79,21 @@ impl Rewriter {
     }
 
     /// A `const fn` met in an algebraic scope. `ops::*` are not `const fn`,
-    /// so it cannot be rewritten; one the rewrite would not touch is skipped
-    /// silently, one it would touch is an error naming the way out, never
-    /// a member left strict without a word. "Would touch" is decided by
-    /// rewriting a clone of the body under the same scope and comparing, so
-    /// the literal rule, `strict!` and const positions all count exactly as
-    /// they do elsewhere.
+    /// so its own arithmetic cannot be rewritten; a `const fn` with none is
+    /// skipped in silence, one with some is an error naming the way out,
+    /// never a member left strict without a word.
+    ///
+    /// The body is entered rather than cloned and compared, because a
+    /// `const fn` body is not one indivisible region: it is const context
+    /// with runtime islands in it. A nested `fn`, `impl`, `mod` or `trait`,
+    /// and a closure body, are ordinary runtime code, are rewritten like any
+    /// other, and are none of this function's business. `const_context` says
+    /// which of the two the visitor is in; `visit_expr_mut` records rather
+    /// than rewrites while it is set, so the literal rule, `strict!` and
+    /// const positions all still count exactly as they do elsewhere.
+    ///
+    /// Both flags are saved and restored, so a `const fn` nested in this one
+    /// is reported against itself and does not also condemn its parent.
     fn const_fn(
         &mut self,
         const_token: syn::token::Const,
@@ -77,21 +101,11 @@ impl Rewriter {
         body: &mut syn::Block,
     ) {
         crate::trace::record("const fn", name.span(), &name.to_string(), 0);
-        let mut probe = Rewriter {
-            closures: self.closures,
-            macros: self.macros,
-            errors: Vec::new(),
-            krate: self.krate.clone(),
-            ops: 0,
-        };
-        let mut clone = body.clone();
-        probe.visit_block_mut(&mut clone);
-        // The body itself is never entered, so any `#[algebraic(skip)]`
-        // nested in it is stripped here, since otherwise rustc would meet it, and
-        // inside a `mod` the attribute is not even in scope. The probe strips
-        // the same attributes from the clone, so stripping is not a change.
-        StripSkip.visit_block_mut(body);
-        if clone.to_token_stream().to_string() != body.to_token_stream().to_string() {
+        let outer_context = core::mem::replace(&mut self.const_context, true);
+        let outer_arith = core::mem::replace(&mut self.const_arith, false);
+        self.visit_block_mut(body);
+        self.const_context = outer_context;
+        if core::mem::replace(&mut self.const_arith, outer_arith) {
             self.errors.push(syn::Error::new_spanned(
                 const_token,
                 "`#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch \
@@ -99,9 +113,15 @@ impl Rewriter {
                  `#[algebraic(skip)]` to leave it as written, or drop `const`",
             ));
         }
-        // A `const fn` nested in this one with arithmetic of its own is
-        // reported too, never left strict without a word.
-        self.errors.extend(probe.errors);
+    }
+
+    /// Visit something that is runtime code however it is nested: a closure
+    /// body, or the inside of an item. `const_context` is what separates a
+    /// `const fn`'s own expressions from the ordinary code written inside it.
+    fn in_runtime_context(&mut self, visit: impl FnOnce(&mut Self)) {
+        let outer = core::mem::replace(&mut self.const_context, false);
+        visit(self);
+        self.const_context = outer;
     }
 }
 
@@ -145,7 +165,9 @@ impl VisitMut for Rewriter {
 
     fn visit_expr_closure_mut(&mut self, closure: &mut syn::ExprClosure) {
         if self.closures {
-            visit_mut::visit_expr_closure_mut(self, closure);
+            // A closure body runs when the closure is called, which a `const
+            // fn` cannot do, so it is runtime code even inside one.
+            self.in_runtime_context(|this| visit_mut::visit_expr_closure_mut(this, closure));
         }
     }
 
@@ -192,7 +214,12 @@ impl VisitMut for Rewriter {
             syn::Item::Fn(f) if f.sig.constness.is_some() && cfg!(not(feature = "const-fn")) => {
                 self.const_fn(f.sig.constness.unwrap(), &f.sig.ident, &mut f.block);
             }
-            _ => visit_mut::visit_item_mut(self, item),
+            // Every other item begins a scope of its own, and an ordinary
+            // `fn`, `impl`, `mod` or `trait` written inside a `const fn` body
+            // is runtime code. This is the one way into a container's
+            // members, so clearing here covers `visit_impl_item_mut` and
+            // `visit_trait_item_mut` too.
+            _ => self.in_runtime_context(|this| visit_mut::visit_item_mut(this, item)),
         }
     }
 
@@ -269,6 +296,15 @@ impl VisitMut for Rewriter {
         // native: rustc's `arithmetic_overflow` lint keeps seeing it, and
         // integer counters and indices never enter dispatch at all.
         if is_non_float_constant(&binary.left) || is_non_float_constant(&binary.right) {
+            return;
+        }
+
+        // Const context: `ops::*` are not `const fn`, so this operator stays
+        // as written. `const_fn` turns the flag into one error for the whole
+        // function, the remedy (`skip`, or dropping `const`) being per
+        // function rather than per operator.
+        if self.const_context {
+            self.const_arith = true;
             return;
         }
 
@@ -719,8 +755,9 @@ fn claim(attrs: &mut Vec<Attribute>) -> Claim {
     }
 }
 
-/// Removes `#[algebraic(skip)]` from every item inside something the rewriter
-/// does not enter (a skipped item, a `const fn` body), stopping at items that
+/// Removes `#[algebraic(skip)]` from every item inside a skipped item, which
+/// the rewriter does not enter and so would otherwise leave for rustc to meet,
+/// and inside a `mod` the attribute is not even in scope. Stops at items that
 /// carry their own `#[algebraic(..)]`, whose expansion does the same for them.
 struct StripSkip;
 
