@@ -118,7 +118,9 @@ reverts to a worse result if undone.
 - A nested item carrying its own `#[algebraic(..)]` is left alone.
 - Everything lexically inside an annotated scope is entered: closures, nested
   items, and on a container every member and nested container. A `const fn` in
-  scope is skipped if the rewrite would not change it, an error otherwise.
+  scope is skipped if it has no arithmetic of its own, an error if it has;
+  nested items and closure bodies inside one are runtime code and are
+  rewritten (`const_context` in `rewrite.rs`, not a clone-and-compare).
   `mod foo;` and other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.

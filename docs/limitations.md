@@ -17,6 +17,44 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   their tokens as something else (a `vec!`-named DSL that `stringify!`s its
   input) would see the rewritten tokens; `#[algebraic(macros = false)]` turns
   the entry off.
+- Three of those std macros stringify their own arguments, so inside an
+  algebraic scope they print the rewritten source rather than what you wrote:
+  the *single-argument* form of `assert!` and `debug_assert!`, and `dbg!`.
+
+  ```text
+  assert!(a * b > 100.0)  ->  assertion failed: ::reassoc::ops::mul(a, b) > 100.0
+  dbg!(a * b)             ->  [src/main.rs:5:13] :: reassoc :: ops :: mul(a, b) = 6.0
+  ```
+
+  No value is affected, and no other listed macro is: `assert!` with a message
+  of your own, `assert_eq!` and `assert_ne!` (which print values, not source),
+  `panic!`, `unreachable!`, and the `print`/`format`/`write` families, `vec!`
+  and `matches!` are all clean.
+
+  Dropping those three from the list would be worse than the label. Not
+  entering them leaves the arithmetic inside them strict while the code around
+  it is algebraic, so wrapping an expression in `dbg!` would change its
+  numerics: the value you are shown would come from a different evaluation
+  than the one your program performs, in the one place you look when you do
+  not trust your floats. An `assert!` that computed strictly could likewise
+  pass where the code it guards fails. Entering them is what keeps them
+  honest; the stringify is what makes it visible.
+
+  Nor is it worth patching. Emitting `assert!(<rewritten>, "assertion failed:
+  <source>")` reproduces the stock message exactly, down to the `&'static str`
+  panic payload, but it must use the literal form (the formatting form is
+  `E0015` in a `const fn`, which the `const-fn` feature enters) and must
+  escape every brace in the source (a nested `format!` or a struct literal
+  otherwise becomes a format placeholder). Worse, it would hand a second
+  argument to a *user* macro whose last path segment is `assert`, which
+  compiles today and would then be `no rules expected \`,\``: a cosmetic gain
+  traded for a new way to break a build. And `dbg!` formats its own output, so
+  nothing reaches it at all.
+
+  To keep a message clean, give the assertion one of your own, or bind first:
+  `let v = a * b; assert!(v > 100.0);`. Both keep the arithmetic algebraic.
+  `#[algebraic(macros = false)]` also works and is the blunt instrument: it
+  makes every macro argument in the function strict.
 - Arithmetic written as method calls (`a.mul(b)`, `x.add_assign(y)`, the
   `core::ops` methods spelled out) is not rewritten; only the operator tokens
   `+ - * / %` and their `op=` forms are. A method named `mul` can be anything,
@@ -77,8 +115,12 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   repeat and type-array lengths, const generic arguments and parameter
   defaults, enum discriminants, and associated consts. For the same reason
   `#[algebraic]` on a `const fn` is rejected outright, and a `const fn` met
-  inside an algebraic scope is skipped if the rewrite would not touch it and
-  an error otherwise. The operators themselves are not the obstacle:
+  inside an algebraic scope is skipped if it has no arithmetic of its own and
+  an error if it has. Only its own expressions are out of reach: a `const fn`
+  body is const context with runtime islands in it, and a nested `fn`, `impl`,
+  `mod` or `trait`, and a closure body, are ordinary runtime code and are
+  rewritten like any other (a `const fn` may define all of those freely; what
+  it may not do is *call* a non-const function during const evaluation). The operators themselves are not the obstacle:
   `f32::algebraic_add` and friends are `const fn` since 1.98. The dispatch is
   the obstacle: `ops::*` reach them through a trait method, and calling a
   trait method in a `const fn` is still unstable (`const_trait_impl`). When

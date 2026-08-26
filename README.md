@@ -206,9 +206,10 @@ whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
 `write!`, `dbg!`, `vec!` and their relatives, and the scrutinee of
 `matches!`). Any other macro is opaque, which is what makes `strict!` work.
 `#[algebraic(skip)]` on any item (a nested item, a container member of any
-kind, a standalone `const fn`) excludes it. A `const fn` cannot be
-rewritten; one with nothing to rewrite is skipped, one with arithmetic is an
-error asking for `skip`.
+kind, a standalone `const fn`) excludes it. A `const fn`'s own arithmetic
+cannot be rewritten; one without any is skipped, one with some is an error
+asking for `skip`. Code merely written *inside* a `const fn`, a nested item
+or a closure body, is ordinary runtime code and is rewritten as usual.
 
 | parameter | default | effect |
 | --- | --- | --- |

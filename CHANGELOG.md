@@ -10,6 +10,28 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ## Unreleased
 
+### Documentation
+
+- **Three of the listed std macros stringify their own arguments**, so inside
+  an algebraic scope they print the rewritten source: the single-argument form
+  of `assert!` and `debug_assert!`, and `dbg!`. `docs/limitations.md` said only
+  that a *user* macro sharing a listed name would see rewritten tokens, and not
+  that three of the std ones on the list do it themselves, which is the case
+  anyone will actually meet. No value is affected and no other listed macro is.
+
+  Recorded rather than fixed, with the reasoning, since both obvious fixes are
+  worse: delisting them leaves their arithmetic strict inside an algebraic
+  scope, so `dbg!` would report a different evaluation than the program
+  performs, and passing the original source as an explicit message would hand a
+  second argument to a user macro named `assert` that takes one today.
+
+- **Four places still described the old `const fn` rule** ("skipped if the
+  rewrite would not touch it, an error otherwise"), which stopped being true
+  with the fix below: `README.md`, the crate docs, `docs/limitations.md` and
+  `CLAUDE.md`. All four now say that only a `const fn`'s *own* arithmetic is
+  out of reach, and that a nested item or a closure body inside one is
+  ordinary runtime code and is rewritten as usual.
+
 ### Added
 
 - **The fuzz corpus now generates tight-position cases**, which is what the

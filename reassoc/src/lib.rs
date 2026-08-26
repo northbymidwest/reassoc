@@ -82,9 +82,12 @@
 //! `mod`, or a `trait`, and rewrites every member body, as a function's
 //! annotation already covers every closure and nested item inside it.
 //! `#[algebraic(skip)]` excludes one member or nested item; a member with its
-//! own `#[algebraic(..)]` follows that instead. A `const fn` member is skipped if the rewrite would not touch it
-//! and is an error otherwise: `reassoc::ops::*` are not `const fn`, so
-//! rewriting it cannot compile, and leaving it strict silently would be worse.
+//! own `#[algebraic(..)]` follows that instead. A `const fn` member with no
+//! arithmetic of its own is skipped and one with some is an error:
+//! `reassoc::ops::*` are not `const fn`, so rewriting it cannot compile, and
+//! leaving it strict silently would be worse. Only its own expressions are out
+//! of reach; a nested item or a closure body inside it is runtime code and is
+//! rewritten as usual.
 //!
 //! ```
 //! use reassoc::algebraic;
