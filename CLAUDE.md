@@ -71,7 +71,11 @@ are generic over sealed `Float`/`Int` under private tags, so `{float}` and
 which those tags never implement. That is what makes coherence accept both. A
 primitive on the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per
 primitive bounded on the right type's marker (`float_left!`, `int_left!`).
-`String` and `uN / NonZero<uN>` are concrete.
+`String` and `uN / NonZero<uN>` are concrete. Generic code is reached by
+`#[algebraic_float]` on the user's float trait, which appends
+`::reassoc::__private::AlgebraicFloat`, a hidden, sealed, method-less alias
+of `Float`; nothing else changes, and the generic float impls already cover
+any `T: Float`.
 
 ## Invariants, one line each; the evidence is in `docs/design.md`
 
@@ -124,6 +128,11 @@ reverts to a worse result if undone.
   `mod foo;` and other item kinds are refused by name.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.
+- `AlgebraicFloat` stays under `__private` and out of every doc: the
+  attribute is the contract, and what it writes into a trait (the name, a
+  tag parameter, one bound or several) is free to change. The first adopter
+  typed the hidden name by hand, and `cargo-semver-checks` ignores hidden
+  items, so a change would have shipped in a patch with green CI.
 
 Gaps against plain Rust are documented in `docs/diagnostics.md` and
 `docs/limitations.md`; they are not oversights.

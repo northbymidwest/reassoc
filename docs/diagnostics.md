@@ -43,7 +43,7 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 | `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C`, *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
 | `&c + d`, `C: Add<C>` only | `E0369` cannot add `C` to `&C` | `E0277` cannot add `C` to `&C` |
 | `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |
-| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277`, *a generic type parameter is out of scope: mark the function `#[algebraic(skip)]`* |
+| `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277`, *put `#[reassoc::algebraic_float]` on the float trait it is bounded by, or mark the function `#[algebraic(skip)]`* |
 | `f64 + f64` in a fn returning `f32` | `E0308` expected `f32`, found `f64` | **identical** |
 
 ## What to read off it

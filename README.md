@@ -175,6 +175,11 @@ reassoc = "0.12"
   `op=` forms, references wherever the type implements them) is dispatched
   from then on, exactly as `std::ops` defines it. Nothing is listed.
 - `#[derive(Passthrough)]`: the same, at the type's definition.
+- `#[algebraic_float]`: on your own float trait, the one implemented for
+  `f32` and `f64` that a generic numeric crate writes everything against.
+  One line, in one place; every function generic over that trait is then
+  rewritten by `#[algebraic]` like concrete code. The bound it adds is
+  sealed to the primitive floats, which is what such a trait means.
 - `passthrough!(foreign glam::Vec3)`: a type from another crate. Rust's
   orphan rule forbids the plain form there; the prefix carries a private
   marker type of yours in the impl, which is what the rule asks for. Opt a
@@ -194,10 +199,13 @@ What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements
 `AddAssign<W>`, a dot product yields whatever its `Mul::Output` is. Nothing is
 synthesised and nothing is dereferenced for you, which is also why the
-errors read like Rust's own ([Diagnostics](#diagnostics)). Generic code,
-arithmetic on a type parameter, is out of scope: leave such a function out
-of the annotated scope (`#[algebraic(skip)]`), and use `alg!` on its concrete
-float parts if you want them.
+errors read like Rust's own ([Diagnostics](#diagnostics)). Generic code is
+reached through the trait it is written against: put `#[algebraic_float]` on
+your own float trait (the one implemented for `f32` and `f64`) and every
+function generic over it is rewritable, no signature touched. A function
+generic over a bare `T: Mul<Output = T>` has nothing to dispatch to and is
+out of scope: leave it out of the annotated scope (`#[algebraic(skip)]`), and
+use `alg!` on its concrete float parts if you want them.
 
 ### Scope
 
@@ -246,8 +254,8 @@ strict! {
 The short version: arithmetic inside a macro other than the std expression
 macros is left alone (which is also why `strict!` works); user types need a
 one-line opt-in, and types from other crates the `foreign` form of it, once
-per dependency tree; const positions and arithmetic on a generic type
-parameter are out; `+=` on a `#[repr(packed)]` field is rejected; debug
+per dependency tree; const positions, and arithmetic on a type parameter whose float trait is
+not marked `#[algebraic_float]`, are out; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 
 Almost all of the above is about code that is *not* float arithmetic but sits
@@ -259,7 +267,8 @@ types compiles and behaves as written. The opt-ins, the `+=` rules and the
 rest exist so that an annotated function which also happens to touch a vector
 type or a `String` keeps compiling, and they only come into play when such a
 type appears. The two that can reach a purely primitive routine are the ones
-named above: a `const fn` body, and arithmetic on a generic type parameter.
+named above: a `const fn` body, and arithmetic on a type parameter whose
+float trait does not carry `#[algebraic_float]`.
 
 **[docs/limitations.md](https://github.com/northbymidwest/reassoc/blob/main/docs/limitations.md)** has each of these in full, with
 the reason behind it.

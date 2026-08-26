@@ -8,6 +8,37 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Added
+
+- **`#[algebraic_float]`: generic code over a user's own float trait is
+  rewritten.** A crate generic over "some float" has a trait implemented for
+  `f32` and `f64` and writes everything against it, and until now every such
+  function was out of scope: dispatch is a trait, a bare `T` has only the
+  bounds it is given, and the bound that would satisfy it is this crate's
+  internals, not something to write into a signature. The attribute goes on
+  the trait instead and appends that bound there, once; every function
+  bounded by the trait is then rewritten by `#[algebraic]` like concrete code,
+  no signature touched. Sealed to the primitive floats, so a trait carrying it
+  cannot be implemented for a user type, which takes `passthrough!`.
+
+  What the attribute writes into the trait is `reassoc::__private::AlgebraicFloat`,
+  hidden and not a surface: the attribute is the contract, and the name, a
+  tag parameter, or the number of bounds may change. It is under `__private`
+  because the first adopter (light-curve-feature#327) typed the hidden name by
+  hand, and since `cargo-semver-checks` ignores hidden items a change would
+  have shipped in a patch release with green CI on both sides.
+
+  Zero-cost like the rest: `examples/codegen_matrix.rs` carries a
+  `generic_dot_f32` pair, a generic dot loop against the hand-written `f32`
+  one, identical as optimized IR at every level once the twins share a call
+  shape. (The prototype kept a separate IR test, claiming the matrix could
+  not strip some `noalias` metadata; measured on main the residual difference
+  was basic-block order from an unmatched call shape, and matching the twin
+  removed it.) The `E0277` notes for a type parameter now name the attribute
+  before `#[algebraic(skip)]`.
+
 ## 0.12.0 - 2026-08-26
 
 ### Tools

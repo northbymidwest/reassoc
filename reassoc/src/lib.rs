@@ -168,8 +168,43 @@
 //!
 //! `Wrapping<T>` and `Saturating<T>` are covered already and need no opt-in.
 //!
+//! # Generic code
+//!
+//! A crate generic over "some float" has a trait implemented for `f32` and
+//! `f64` and writes everything against it. Dispatch is a trait, so a bare
+//! `T` has nothing for `a * b` to resolve to; [`algebraic_float`] on that
+//! trait supplies it, once, and every function bounded by the trait is
+//! rewritten like concrete code with no signature touched:
+//!
+//! ```
+//! use reassoc::{algebraic, algebraic_float};
+//!
+//! #[algebraic_float]
+//! pub trait Float: Copy {
+//!     fn zero() -> Self;
+//! }
+//! impl Float for f32 { fn zero() -> f32 { 0.0 } }
+//! impl Float for f64 { fn zero() -> f64 { 0.0 } }
+//!
+//! #[algebraic]
+//! fn dot<T: Float>(a: &[T], b: &[T]) -> T {
+//!     let mut s = T::zero();
+//!     for i in 0..a.len().min(b.len()) {
+//!         s += a[i] * b[i];    // algebraic, at both widths
+//!     }
+//!     s
+//! }
+//! # assert_eq!(dot(&[1.0f32, 2.0], &[3.0, 4.0]), 11.0);
+//! # assert_eq!(dot(&[1.0f64, 2.0], &[3.0, 4.0]), 11.0);
+//! ```
+//!
+//! The bound is sealed to the primitive floats: a trait carrying it cannot
+//! be implemented for a type of your own, which takes [`passthrough!`]
+//! instead. What the attribute writes into the trait is implementation
+//! detail and may change; the attribute is the contract.
+//!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
-//! [`passthrough!`] and the derive. The `ops` functions and dispatch traits
+//! [`passthrough!`], [`algebraic_float`] and the derive. The `ops` functions and dispatch traits
 //! they expand to are implementation detail, visible because generated code
 //! has to name them, but not a surface to write against by hand.
 //!
@@ -246,10 +281,10 @@ pub mod ops;
 // than `reassoc::traits::AddRhs<..>` in every error this crate produces.
 pub mod traits;
 
-mod impls;
+pub(crate) mod impls;
 mod macros;
 
-pub use reassoc_macros::{Passthrough, alg, algebraic};
+pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
 
 // The README's code blocks, compiled as doctests so that they cannot drift
 // from the crate (the README is not the crate docs, so nothing else would
@@ -259,3 +294,28 @@ pub use reassoc_macros::{Passthrough, alg, algebraic};
 #[cfg(doctest)]
 #[doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"))]
 struct ReadmeDoctests;
+
+// What `#[algebraic_float]` expands to. Not a surface: the attribute is the
+// contract, and what it writes into a trait is free to change, whether that
+// is this bound's name, a tag parameter of the kind every dispatch trait
+// already carries, or more than one bound. `#[doc(hidden)]` alone did not say
+// that loudly enough: the first adopter typed `reassoc::AlgebraicFloat` by
+// hand rather than use the attribute, and a hidden item is outside what
+// `cargo-semver-checks` compares, so a change here would have reached them
+// from a patch release with green CI on both sides. Under `__private`, typing
+// the name looks like what it is.
+#[doc(hidden)]
+pub mod __private {
+    // Sealed through `Float`'s private supertrait, so no crate can implement
+    // it, and it carries no methods, so nothing can be called through it.
+    #[diagnostic::on_unimplemented(
+        message = "`{Self}` is not a primitive float, so it cannot be an algebraic one",
+        label = "not `f32` or `f64`",
+        note = "a trait marked `#[algebraic_float]` stands for \"some float\" and can only \
+                be implemented for `f32` and `f64` (and `f16`/`f128` under their features)",
+        note = "for a type of your own, opt it in with `reassoc::passthrough!({Self});` and \
+                drop `#[algebraic_float]` from the trait"
+    )]
+    pub trait AlgebraicFloat: crate::impls::float::Float {}
+    impl<F: crate::impls::float::Float> AlgebraicFloat for F {}
+}

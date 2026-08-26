@@ -14,7 +14,7 @@ help: the trait `AddRhs<&Vec3, _, _>` is not implemented for `Vec3`
    | ^^^^^^^^^^^
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
    = note: if these are numeric types, cast one of them; if `&Vec3` is a type of yours that is not opted in yet, add `reassoc::passthrough!(&Vec3);` where it is defined (`passthrough!(foreign &Vec3);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
-   = note: if `&Vec3` is a generic type parameter, the function is out of scope: mark it `#[algebraic(skip)]`
+   = note: if `&Vec3` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
              `&F` implements `AddRhs<F, F, FloatTag>`

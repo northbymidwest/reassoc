@@ -344,6 +344,52 @@ pub fn plain_dot_loop_f32(a: &[f32], b: &[f32]) -> f32 {
     }
     sum
 }
+// ---- generic code over a user float trait (`#[algebraic_float]`) ----
+//
+// The dispatch path is the same sealed-generic float impl the concrete
+// `f32` pairs above go through; what differs is that the body is written
+// against a type parameter and monomorphised. The twin is the hand-written
+// `f32` dot loop, so this pins that the generic wrapper adds nothing.
+
+#[reassoc::algebraic_float]
+pub trait UserFloat: Copy {
+    fn zero() -> Self;
+}
+impl UserFloat for f32 {
+    #[inline(always)]
+    fn zero() -> f32 {
+        0.0
+    }
+}
+#[algebraic]
+#[inline(always)]
+fn generic_dot<T: UserFloat>(a: &[T], b: &[T]) -> T {
+    let mut sum = T::zero();
+    for i in 0..a.len().min(b.len()) {
+        sum += a[i] * b[i];
+    }
+    sum
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_generic_dot_f32(a: &[f32], b: &[f32]) -> f32 {
+    generic_dot(a, b)
+}
+// The twin goes through the same always-inlined helper, so nothing but the
+// arithmetic differs.
+#[inline(always)]
+fn direct_dot_inner(a: &[f32], b: &[f32]) -> f32 {
+    let mut sum = 0.0f32;
+    for i in 0..a.len().min(b.len()) {
+        sum = sum.algebraic_add(a[i].algebraic_mul(b[i]));
+    }
+    sum
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_generic_dot_f32(a: &[f32], b: &[f32]) -> f32 {
+    direct_dot_inner(a, b)
+}
 #[algebraic]
 #[unsafe(no_mangle)]
 #[inline(never)]

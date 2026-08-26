@@ -1,0 +1,5 @@
+error: `#[algebraic_float]` takes no parameters
+ --> tests/ui/algebraic_float_takes_no_params.rs:7:19
+  |
+7 | #[algebraic_float(sealed = false)]
+  |                   ^^^^^^

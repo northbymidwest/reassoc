@@ -210,20 +210,33 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   their `;`, a `;;`, a `;` after an `if`, redundant parens, a `+=` tail
   without `;`, are untouched and keep every warning they deserve
   (`consumers/lints/` pins both directions under `cargo clippy`).
-- Arithmetic on a generic type parameter is out of scope: `fn g<T:
-  Mul<Output = T>>(a: T, b: T) -> T { a * b }` fails with `E0277` inside
-  `#[algebraic]`. Dispatch is a trait, a type parameter has only the bounds
-  it is given, and the bound that would satisfy it is this crate's internals,
-  not a contract to write into a signature. Leave such a function out of the
-  scope (`#[algebraic(skip)]`): its type-parameter operators go to the type's
-  own impls, which are rewritten where they are defined, and its concrete
-  float parts can use `alg!`. Measured on cgmath/libm/statrs
-  (`scripts/adopt/README.md`), this is what generic numeric crates run into.
+- Arithmetic on a generic type parameter is reached through the trait, not
+  the signature. Dispatch is a trait, a type parameter has only the bounds it
+  is given, and the bound that would satisfy it is this crate's internals, not
+  a contract to write into a signature. So the attribute goes on the trait: a
+  crate generic over "some float" has one, implemented for `f32` and `f64`,
+  that everything is written against, and `#[algebraic_float]` on it makes
+  every function bounded by it rewritable with no signature changed. What
+  the attribute writes into the trait is not a surface (it lives under
+  `reassoc::__private` and can change: its name, a tag parameter, more than
+  one bound); the attribute is. The bound is sealed to the primitive floats,
+  so a trait carrying it cannot be implemented for a type of the user's,
+  which is what such a trait means; a type of your own takes `passthrough!`.
+
+  A function generic over a bare `T: Mul<Output = T>`, with no such trait to
+  mark, is still out of scope: `fn g<T: Mul<Output = T>>(a: T, b: T) -> T {
+  a * b }` fails with `E0277` inside `#[algebraic]`. Leave it out of the scope
+  (`#[algebraic(skip)]`): its type-parameter operators go to the type's own
+  impls, which are rewritten where they are defined, and its concrete float
+  parts can use `alg!`. Measured on cgmath/libm/statrs
+  (`scripts/adopt/README.md`), that was what generic numeric crates ran into
+  before the attribute existed; light-curve-feature is where it came from.
 - A *generic* type from another crate is opted in one instantiation at a
   time: `passthrough!(foreign num_complex::Complex<f64>);` works, and there
   is no form meaning "every `T`". That only bites inside code which is itself
-  generic (`fn f<T: FftNum>(a: Complex<T>, ..)`) and arithmetic there is
-  out of scope for the reason above. A crate whose operands are concrete
+  generic (`fn f<T: FftNum>(a: Complex<T>, ..)`), and `Complex<T>` is a
+  foreign generic type, not a primitive float, so `#[algebraic_float]` does
+  not reach it and the arithmetic there is out of scope. A crate whose operands are concrete
   needs one line per instantiation and nothing else
   (`tests/foreign.rs::instantiations_of_a_generic_foreign_type_dispatch`).
   Measured on rustfft, which is generic throughout (`scripts/adopt/README.md`).

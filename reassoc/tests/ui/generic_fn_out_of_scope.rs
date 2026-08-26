@@ -1,7 +1,8 @@
-//! Dispatch resolves per concrete type, so arithmetic on a type parameter
-//! cannot be rewritten: generic code is out of scope. The error must say so
-//! (the way out is `#[algebraic(skip)]`) and not advise `passthrough!(T)`,
-//! which cannot be written for a parameter.
+//! Dispatch resolves per concrete type, so arithmetic on a bare type
+//! parameter has nothing to resolve to. The error must name the two ways
+//! out, `#[algebraic_float]` on the float trait the parameter is bounded by
+//! (`tests/generic_float.rs` is that direction) or `#[algebraic(skip)]`, and
+//! not advise `passthrough!(T)`, which cannot be written for a parameter.
 use reassoc::algebraic;
 
 #[algebraic]

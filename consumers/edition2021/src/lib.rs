@@ -31,6 +31,9 @@ mod foreign;
 #[path = "../../../reassoc/tests/fuzz_corpus_f32.rs"]
 mod fuzz_corpus_f32;
 #[rustfmt::skip]
+#[path = "../../../reassoc/tests/generic_float.rs"]
+mod generic_float;
+#[rustfmt::skip]
 #[path = "../../../reassoc/tests/macros.rs"]
 mod macros;
 #[rustfmt::skip]

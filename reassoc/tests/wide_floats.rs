@@ -52,3 +52,53 @@ mod quad {
         assert_eq!(s as f64, 3.0);
     }
 }
+
+/// `#[algebraic_float]` reaches whatever `Float` is implemented for, so a
+/// marked trait admits `f16` and `f128` under their features with nothing
+/// else said. `Wide` has no `std::ops` bounds: `a * b` on a `T: Wide`
+/// compiles only because the bound resolved and the operator was rewritten.
+mod generic {
+    use reassoc::{algebraic, algebraic_float};
+
+    #[algebraic_float]
+    pub trait Wide: Copy {
+        fn zero() -> Self;
+    }
+    #[cfg(feature = "f16")]
+    impl Wide for f16 {
+        fn zero() -> f16 {
+            0.0
+        }
+    }
+    #[cfg(feature = "f128")]
+    impl Wide for f128 {
+        fn zero() -> f128 {
+            0.0
+        }
+    }
+
+    #[algebraic]
+    fn dot<T: Wide>(a: &[T], b: &[T]) -> T {
+        let mut s = T::zero();
+        for i in 0..a.len().min(b.len()) {
+            s += a[i] * b[i];
+        }
+        s
+    }
+
+    #[cfg(feature = "f16")]
+    #[test]
+    fn generic_code_reaches_f16() {
+        let a: [f16; 2] = [1.0, 2.0];
+        let b: [f16; 2] = [3.0, 4.0];
+        assert_eq!(dot(&a, &b) as f32, 11.0);
+    }
+
+    #[cfg(feature = "f128")]
+    #[test]
+    fn generic_code_reaches_f128() {
+        let a: [f128; 2] = [1.0, 2.0];
+        let b: [f128; 2] = [3.0, 4.0];
+        assert_eq!(dot(&a, &b) as f64, 11.0);
+    }
+}

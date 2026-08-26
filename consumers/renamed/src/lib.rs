@@ -4,7 +4,7 @@
 
 #![cfg(test)]
 
-use myalg::{Passthrough, alg, algebraic, passthrough, strict};
+use myalg::{Passthrough, alg, algebraic, algebraic_float, passthrough, strict};
 
 /// Implements only the dispatch traits, so compiling at all proves the
 /// operators were rewritten, and that the generated path resolved.
@@ -61,4 +61,24 @@ fn derive_and_passthrough_resolve_through_the_renamed_crate() {
     assert_eq!(alg!(d + d), Derived(2.0));
     assert_eq!(alg!(q * q), 9.0);
     assert_eq!(alg!(q * q), 9.0);
+}
+
+/// `#[algebraic_float]` writes `::<crate>::__private::AlgebraicFloat` into
+/// the trait, and that path is the one that has to say `myalg` here. `Float`
+/// has no `std::ops` bounds, so `a * b` on a `T: Float` compiles only if the
+/// bound resolved and the operator was rewritten.
+#[algebraic_float]
+trait Float: Copy {}
+impl Float for f32 {}
+impl Float for f64 {}
+
+#[algebraic]
+fn generic<T: Float>(a: T, b: T) -> T {
+    a * b
+}
+
+#[test]
+fn algebraic_float_resolves_through_the_renamed_crate() {
+    assert_eq!(generic(2.0f32, 3.0), 6.0);
+    assert_eq!(generic(2.0f64, 3.0), 6.0);
 }

@@ -211,6 +211,29 @@ order that keeps it compiling is the one to have. The price is the other
 direction on an opted-in type, where native's `E0502` is not reproduced;
 `limitations.md` has both halves.
 
+**`#[algebraic_float]` goes on the trait, not the function, and writes a
+hidden bound.** Generic numeric code is written against one user trait
+implemented for `f32` and `f64`; a bare `T` has only its bounds, and the bound
+that satisfies dispatch is this crate's `Float`, which is sealed and not a
+contract. So the attribute appends `::reassoc::__private::AlgebraicFloat`, a
+sealed, method-less alias of `Float`, to the trait's supertraits and does
+nothing else: the generic float impls already cover any `T: Float`, so no impl
+is emitted per trait. Sealed, because an unsealed bound would promise
+algebraic dispatch for a user type that cannot have it (`passthrough!` is that
+type's path). Hidden and under `__private`, because the attribute is the
+contract and what it writes is not: the first adopter (light-curve-feature)
+typed `reassoc::AlgebraicFloat` by hand, and since `cargo-semver-checks`
+ignores hidden items, a rename, a tag parameter of the kind every dispatch
+trait already carries, or a second bound would have reached them from a patch
+release with green CI on both sides. The zero-cost claim is in the matrix
+like every other path: the prototype kept a separate IR test on the grounds
+that the matrix could not strip `noalias.scope.decl` metadata, and on main,
+which does strip it, the residual difference measured as basic-block order
+and one `range(..)` attribute, both from the sugar side going through an
+`#[inline(always)]` wrapper that the hand-written twin did not. Giving the
+twin the same wrapper made the pair identical at every level, which is the
+matrix's own rule (twins differ in nothing but the arithmetic) applied.
+
 **The dispatch traits carry a trailing tag parameter**, `AddRhs<Lhs, O, Tag =
 ()>`, that means nothing and is never named by a user. It exists for one
 reason: Rust's orphan rule lets a crate implement a foreign trait for a
