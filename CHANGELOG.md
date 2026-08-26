@@ -10,7 +10,32 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ## Unreleased
 
+### Tools
+
+- **`scripts/mutants.sh` selected only the facade crate**, so every mutant
+  caught solely by `reassoc-macros/tests/rewrite.rs` was reported as a
+  survivor; `unparen`'s attribute guard was one. The cargo wrapper now selects
+  both packages and the run includes that target, which turns it from a
+  survivor into a catch in both directions.
+
+- **Recorded what "unviable" means here**, in the same header. cargo-mutants
+  cannot tell its own mutant failing to build from the mutant making the
+  *test* crate fail to build, and this suite detects most breakage exactly
+  that way (`Dispatched` has the dispatch traits and no `std::ops`, so an
+  operator left unrewritten stops compiling; trybuild does the rest).
+  Classifying one run by where the error was: 11 of 15 unviable mutants had
+  failed only in `reassoc/tests/*`, three only in the mutated crate, one in
+  both. So the unviable count is mostly the suite working, not a gap, and
+  `missed` is the number that means what it says.
+
 ### Documentation
+
+- **The README listed `String` among the types covered without an opt-in**
+  alongside things that need no feature at all. `String` comes with `alloc`
+  and `Instant` / `SystemTime` with `std`; the primitives, `Duration`,
+  `uN / NonZero<uN>`, `Wrapping` and `Saturating` are there in a core-only
+  build too, which is what the `no_std` section three headings down already
+  said.
 
 - **Three of the listed std macros stringify their own arguments**, so inside
   an algebraic scope they print the rewritten source: the single-argument form

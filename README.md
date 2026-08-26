@@ -185,9 +185,10 @@ reassoc = "0.11"
   foreign type takes one line per instantiation:
   `passthrough!(foreign num_complex::Complex<f64>)`.
 
-Primitives, references to them, `Duration`, `String`, the std time types,
-`uN / NonZero<uN>`, and `Wrapping<T>` / `Saturating<T>` are covered already
-and need no opt-in.
+Primitives, references to them, `Duration`, `uN / NonZero<uN>` and
+`Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in, in a
+core-only build as much as any other. `String` comes with the `alloc` feature
+and `Instant` / `SystemTime` with `std`, both of which are on by default.
 
 What an opted-in type can do is exactly what it can do in plain Rust: `&v +
 w` works if the type implements `Add<W> for &V`, `v += w` if it implements
