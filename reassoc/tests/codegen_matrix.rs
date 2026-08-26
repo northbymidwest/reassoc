@@ -348,10 +348,62 @@ fn is_tail_call_to(body: &str, other: &str) -> bool {
 /// constants, so two functions with the same instructions in the same order
 /// compare equal whatever rustc named their locals (inlined callees get `.i`
 /// suffixes, for instance) and wherever in the file they were written.
+/// The phi nodes at the head of a block, in a name-independent order. LLVM
+/// defines a block's phis as simultaneous, so their order carries no meaning,
+/// but it is what alpha-renaming numbers values from: two phis swapped
+/// renames everything after them and turns a nothing into twenty changed
+/// lines. Sorted by the line with every value name erased, so `phi i64` and
+/// `phi float` of the same shape order the same on both sides whatever LLVM
+/// happened to call them. Needed by exactly one pair, `generic_dot_f32`,
+/// where the body resolves its operators through a supertrait projection
+/// rather than the concrete impl and LLVM emits the two loop-carried phis the
+/// other way round; every concrete pair was identical without it. Checked
+/// not to be over-broad: an IEEE twin still fails at every level, and a twin
+/// with a different call shape still fails on block order.
+fn phi_sorted(body: &str) -> Vec<&str> {
+    fn erase(l: &str) -> String {
+        let mut s = String::new();
+        let mut chars = l.chars().peekable();
+        while let Some(c) = chars.next() {
+            s.push(c);
+            if c == '%' {
+                while chars
+                    .peek()
+                    .is_some_and(|d| d.is_alphanumeric() || *d == '_' || *d == '.')
+                {
+                    chars.next();
+                }
+            }
+        }
+        s
+    }
+    fn flush<'a>(run: &mut Vec<&'a str>, out: &mut Vec<&'a str>) {
+        run.sort_by_key(|l| erase(l));
+        out.append(run);
+    }
+    let mut out = Vec::new();
+    let mut run: Vec<&str> = Vec::new();
+    for line in body.lines() {
+        if line
+            .trim_start()
+            .split(" = ")
+            .nth(1)
+            .is_some_and(|r| r.starts_with("phi "))
+        {
+            run.push(line);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(line);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
 fn canonical(body: &str) -> Vec<String> {
     let mut names: HashMap<String, String> = HashMap::new();
     let mut out = Vec::new();
-    for line in body.lines() {
+    for line in phi_sorted(body) {
         let line = line.split(';').next().unwrap().trim();
         if line.is_empty() {
             continue;

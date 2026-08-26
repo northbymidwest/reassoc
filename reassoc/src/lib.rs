@@ -198,10 +198,44 @@
 //! # assert_eq!(dot(&[1.0f64, 2.0], &[3.0, 4.0]), 11.0);
 //! ```
 //!
-//! The bound is sealed to the primitive floats: a trait carrying it cannot
-//! be implemented for a type of your own, which takes [`passthrough!`]
-//! instead. What the attribute writes into the trait is implementation
-//! detail and may change; the attribute is the contract.
+//! The primitive floats need nothing more. Any other implementor, a bignum
+//! from another crate say, takes the same attribute on its `impl`, which is
+//! that type's opt-in (it stands in for `passthrough!` for that type):
+//!
+//! ```
+//! # use reassoc::{algebraic, algebraic_float};
+//! # #[algebraic_float]
+//! # pub trait Float: Clone { fn zero() -> Self; }
+//! # impl Float for f64 { fn zero() -> f64 { 0.0 } }
+//! #[derive(Clone, Debug, PartialEq)]
+//! struct Big(Box<f64>);                 // heap-allocated, `Clone`, not `Copy`
+//! # macro_rules! ops { ($($t:ident $m:ident $op:tt $ta:ident $ma:ident $opa:tt;)*) => {$(
+//! #     impl core::ops::$t for Big { type Output = Big; fn $m(self, o: Big) -> Big { Big(Box::new(*self.0 $op *o.0)) } }
+//! #     impl core::ops::$ta for Big { fn $ma(&mut self, o: Big) { *self.0 $opa *o.0; } }
+//! # )*}; }
+//! # ops! { Add add + AddAssign add_assign +=; Sub sub - SubAssign sub_assign -=; Mul mul * MulAssign mul_assign *=;
+//! #        Div div / DivAssign div_assign /=; Rem rem % RemAssign rem_assign %=; }
+//! // .. its `+ - * / %` and `op=` impls ..
+//!
+//! #[algebraic_float]
+//! impl Float for Big { fn zero() -> Big { Big(Box::new(0.0)) } }
+//!
+//! #[algebraic]
+//! fn sum_sq<T: Float>(xs: &[T]) -> T {
+//!     let mut s = T::zero();
+//!     for x in xs { s += x.clone() * x.clone(); }
+//!     s
+//! }
+//! # assert_eq!(sum_sq(&[1.0f64, 2.0]), 5.0);
+//! # assert_eq!(sum_sq(&[Big(Box::new(1.0)), Big(Box::new(2.0))]), Big(Box::new(5.0)));
+//! ```
+//!
+//! The same generic body runs on `f64` and on `Big`; on `Big` the operators
+//! are its own, there being nothing algebraic about a bignum. Such a type
+//! needs all five operators with `Output = Self` and the five `op=` forms,
+//! and implements one marked trait. What the attribute writes into the
+//! trait and the `impl` is implementation detail and may change; the
+//! attribute is the contract.
 //!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
 //! [`passthrough!`], [`algebraic_float`] and the derive. The `ops` functions and dispatch traits
@@ -296,26 +330,70 @@ pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
 struct ReadmeDoctests;
 
 // What `#[algebraic_float]` expands to. Not a surface: the attribute is the
-// contract, and what it writes into a trait is free to change, whether that
-// is this bound's name, a tag parameter of the kind every dispatch trait
-// already carries, or more than one bound. `#[doc(hidden)]` alone did not say
-// that loudly enough: the first adopter typed `reassoc::AlgebraicFloat` by
-// hand rather than use the attribute, and a hidden item is outside what
-// `cargo-semver-checks` compares, so a change here would have reached them
-// from a patch release with green CI on both sides. Under `__private`, typing
-// the name looks like what it is.
+// contract, and what it writes into a trait is free to change. `#[doc(hidden)]`
+// alone did not say that loudly enough: the first adopter typed
+// `reassoc::AlgebraicFloat` by hand rather than use the attribute, and a
+// hidden item is outside what `cargo-semver-checks` compares, so a change
+// here would have reached them from a patch release with green CI on both
+// sides. Under `__private`, typing the name looks like what it is.
 #[doc(hidden)]
 pub mod __private {
-    // Sealed through `Float`'s private supertrait, so no crate can implement
-    // it, and it carries no methods, so nothing can be called through it.
+    use crate::traits::{
+        AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, FloatTag, MulAssignRhs, MulRhs, RemAssignRhs,
+        RemRhs, SubAssignRhs, SubRhs,
+    };
+
+    /// The bound `#[algebraic_float]` appends to a user's float trait:
+    /// "some type the dispatch layer can rewrite arithmetic on". Generic code
+    /// bounded on that trait reaches every operator through the supertraits
+    /// here, with the dispatch tag carried as an associated type so that each
+    /// implementor names the impls it already has: the primitive floats their
+    /// algebraic ones under `FloatTag`, an opted-in type the marker blankets
+    /// under its own tag. Nothing is implemented for `f32` that it did not
+    /// have, which is what keeps concrete float code at exactly one candidate.
+    ///
+    /// `X` is an orphan slot, never a dispatch tag. The attribute emits a
+    /// hidden type beside the trait it marks and writes `AlgebraicFloat<That>`
+    /// as the bound, so that the user's crate may implement this trait for a
+    /// type from another crate (a bignum), which the orphan rule permits only
+    /// when a local type appears in the trait's parameters. The primitive
+    /// impls are generic over `X` and serve every marked trait.
     #[diagnostic::on_unimplemented(
-        message = "`{Self}` is not a primitive float, so it cannot be an algebraic one",
-        label = "not `f32` or `f64`",
-        note = "a trait marked `#[algebraic_float]` stands for \"some float\" and can only \
-                be implemented for `f32` and `f64` (and `f16`/`f128` under their features)",
-        note = "for a type of your own, opt it in with `reassoc::passthrough!({Self});` and \
-                drop `#[algebraic_float]` from the trait"
+        message = "`{Self}` is not opted into this `#[algebraic_float]` trait",
+        label = "needs `#[reassoc::algebraic_float]` on its `impl`",
+        note = "a primitive float needs nothing; any other type is opted in by putting \
+                `#[reassoc::algebraic_float]` on its `impl` of the marked trait, which needs the \
+                type to have all five operators (`+ - * / %` and their `op=` forms)",
+        note = "a type can implement one marked trait; `passthrough!` is not used for it as well"
     )]
-    pub trait AlgebraicFloat: crate::impls::float::Float {}
-    impl<F: crate::impls::float::Float> AlgebraicFloat for F {}
+    pub trait AlgebraicFloat<X = ()>:
+        Sized
+        + AddRhs<Self, Self, Self::Tag>
+        + SubRhs<Self, Self, Self::Tag>
+        + MulRhs<Self, Self, Self::Tag>
+        + DivRhs<Self, Self, Self::Tag>
+        + RemRhs<Self, Self, Self::Tag>
+        + AddAssignRhs<Self, Self::Tag>
+        + SubAssignRhs<Self, Self::Tag>
+        + MulAssignRhs<Self, Self::Tag>
+        + DivAssignRhs<Self, Self::Tag>
+        + RemAssignRhs<Self, Self::Tag>
+    {
+        type Tag;
+    }
+
+    impl<X> AlgebraicFloat<X> for f32 {
+        type Tag = FloatTag;
+    }
+    impl<X> AlgebraicFloat<X> for f64 {
+        type Tag = FloatTag;
+    }
+    #[cfg(feature = "f16")]
+    impl<X> AlgebraicFloat<X> for f16 {
+        type Tag = FloatTag;
+    }
+    #[cfg(feature = "f128")]
+    impl<X> AlgebraicFloat<X> for f128 {
+        type Tag = FloatTag;
+    }
 }

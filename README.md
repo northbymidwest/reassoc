@@ -178,8 +178,11 @@ reassoc = "0.12"
 - `#[algebraic_float]`: on your own float trait, the one implemented for
   `f32` and `f64` that a generic numeric crate writes everything against.
   One line, in one place; every function generic over that trait is then
-  rewritten by `#[algebraic]` like concrete code. The bound it adds is
-  sealed to the primitive floats, which is what such a trait means.
+  rewritten by `#[algebraic]` like concrete code. The primitive floats need
+  nothing more; any other implementor, a bignum from another crate say,
+  takes the same attribute on its `impl` of the trait, which is that type's
+  opt-in. Such a type needs all five operators and implements one marked
+  trait.
 - `passthrough!(foreign glam::Vec3)`: a type from another crate. Rust's
   orphan rule forbids the plain form there; the prefix carries a private
   marker type of yours in the impl, which is what the rule asks for. Opt a

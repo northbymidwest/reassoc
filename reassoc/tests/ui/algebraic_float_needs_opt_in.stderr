@@ -1,0 +1,29 @@
+error[E0277]: `Mine` is not opted into this `#[algebraic_float]` trait
+  --> tests/ui/algebraic_float_needs_opt_in.rs:22:16
+   |
+22 | impl Float for Mine {
+   |                ^^^^ needs `#[reassoc::algebraic_float]` on its `impl`
+   |
+help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not implemented for `Mine`
+  --> tests/ui/algebraic_float_needs_opt_in.rs:20:1
+   |
+20 | struct Mine(f32);
+   | ^^^^^^^^^^^
+   = note: a primitive float needs nothing; any other type is opted in by putting `#[reassoc::algebraic_float]` on its `impl` of the marked trait, which needs the type to have all five operators (`+ - * / %` and their `op=` forms)
+   = note: a type can implement one marked trait; `passthrough!` is not used for it as well
+help: the following other types implement trait `reassoc::__private::AlgebraicFloat<X>`
+  --> src/lib.rs
+   |
+   |     impl<X> AlgebraicFloat<X> for f32 {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f32`
+...
+   |     impl<X> AlgebraicFloat<X> for f64 {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64`
+note: required by a bound in `Float`
+  --> tests/ui/algebraic_float_needs_opt_in.rs:8:1
+   |
+ 8 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
+ 9 | pub trait Float: Copy {
+   |           ----- required by a bound in this trait
+   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

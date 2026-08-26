@@ -82,3 +82,35 @@ fn algebraic_float_resolves_through_the_renamed_crate() {
     assert_eq!(generic(2.0f32, 3.0), 6.0);
     assert_eq!(generic(2.0f64, 3.0), 6.0);
 }
+
+/// The impl form writes `::<crate>::traits::*` and `::<crate>::__private::*`
+/// paths of its own, so it has to say `myalg` here as well.
+#[derive(Clone, Debug, PartialEq)]
+struct Big(Box<f64>);
+macro_rules! big_ops {
+    ($($t:ident $m:ident $op:tt $ta:ident $ma:ident $opa:tt;)*) => {$(
+        impl core::ops::$t for Big { type Output = Big; fn $m(self, o: Big) -> Big { Big(Box::new(*self.0 $op *o.0)) } }
+        impl core::ops::$ta for Big { fn $ma(&mut self, o: Big) { *self.0 $opa *o.0; } }
+    )*};
+}
+big_ops! {
+    Add add + AddAssign add_assign +=;
+    Sub sub - SubAssign sub_assign -=;
+    Mul mul * MulAssign mul_assign *=;
+    Div div / DivAssign div_assign /=;
+    Rem rem % RemAssign rem_assign %=;
+}
+#[algebraic_float]
+trait Wide: Clone {}
+#[algebraic_float]
+impl Wide for Big {}
+
+#[algebraic]
+fn generic_wide<T: Wide>(a: T, b: T) -> T {
+    a * b
+}
+
+#[test]
+fn algebraic_float_impl_form_resolves_through_the_renamed_crate() {
+    assert_eq!(generic_wide(Big(Box::new(2.0)), Big(Box::new(3.0))), Big(Box::new(6.0)));
+}

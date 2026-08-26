@@ -1,3 +1,3 @@
 mod ext;
-pub(crate) mod float;
+mod float;
 mod int;

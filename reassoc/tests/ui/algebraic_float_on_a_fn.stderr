@@ -1,4 +1,4 @@
-error: `#[algebraic_float]` applies to a trait: put it on the trait your generic code is written against, the one implemented for `f32` and `f64`
+error: `#[algebraic_float]` applies to a trait, or to an `impl` of a marked trait: put it on the trait your generic code is written against, the one implemented for `f32` and `f64`, and on an `impl` of that trait for any other type
  --> tests/ui/algebraic_float_on_a_fn.rs:6:1
   |
 6 | #[algebraic_float]

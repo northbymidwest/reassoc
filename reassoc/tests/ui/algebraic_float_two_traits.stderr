@@ -1,0 +1,55 @@
+error[E0283]: type annotations needed
+  --> tests/ui/algebraic_float_two_traits.rs:37:9
+   |
+35 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+36 | fn concrete(a: Big, b: Big) -> Big {
+37 |     a * b
+   |         ^ cannot infer type for type parameter `Tag`
+   |
+   = note: the type must implement `OptInTag`
+help: the following types implement trait `OptInTag`
+  --> tests/ui/algebraic_float_two_traits.rs:30:1
+   |
+30 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^ `_::__ReassocOptIn`
+31 | impl Float for Big {}
+32 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^ `_::__ReassocOptIn`
+   |
+  ::: src/traits.rs
+   |
+   | impl OptInTag for () {}
+   | ^^^^^^^^^^^^^^^^^^^^ `()`
+   = note: required for `Big` to implement `MulRhs<Big, Big, _>`
+note: required by a bound in `reassoc::ops::mul`
+  --> src/ops.rs
+   |
+   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
+   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0283]: type annotations needed
+  --> tests/ui/algebraic_float_two_traits.rs:37:9
+   |
+35 | #[algebraic]
+   | ------------ required by a bound introduced by this call
+36 | fn concrete(a: Big, b: Big) -> Big {
+37 |     a * b
+   |         ^ cannot infer type for type parameter `Tag`
+   |
+note: multiple `impl`s satisfying `Big: Passthrough<_>` found
+  --> tests/ui/algebraic_float_two_traits.rs:30:1
+   |
+30 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^
+31 | impl Float for Big {}
+32 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^
+   = note: required for `Big` to implement `MulRhs<Big, Big, _>`
+note: required by a bound in `reassoc::ops::mul`
+  --> src/ops.rs
+   |
+   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
+   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
+   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

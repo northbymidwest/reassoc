@@ -211,28 +211,50 @@ order that keeps it compiling is the one to have. The price is the other
 direction on an opted-in type, where native's `E0502` is not reproduced;
 `limitations.md` has both halves.
 
-**`#[algebraic_float]` goes on the trait, not the function, and writes a
-hidden bound.** Generic numeric code is written against one user trait
-implemented for `f32` and `f64`; a bare `T` has only its bounds, and the bound
-that satisfies dispatch is this crate's `Float`, which is sealed and not a
-contract. So the attribute appends `::reassoc::__private::AlgebraicFloat`, a
-sealed, method-less alias of `Float`, to the trait's supertraits and does
-nothing else: the generic float impls already cover any `T: Float`, so no impl
-is emitted per trait. Sealed, because an unsealed bound would promise
-algebraic dispatch for a user type that cannot have it (`passthrough!` is that
-type's path). Hidden and under `__private`, because the attribute is the
-contract and what it writes is not: the first adopter (light-curve-feature)
-typed `reassoc::AlgebraicFloat` by hand, and since `cargo-semver-checks`
-ignores hidden items, a rename, a tag parameter of the kind every dispatch
-trait already carries, or a second bound would have reached them from a patch
-release with green CI on both sides. The zero-cost claim is in the matrix
-like every other path: the prototype kept a separate IR test on the grounds
-that the matrix could not strip `noalias.scope.decl` metadata, and on main,
-which does strip it, the residual difference measured as basic-block order
-and one `range(..)` attribute, both from the sugar side going through an
-`#[inline(always)]` wrapper that the hand-written twin did not. Giving the
-twin the same wrapper made the pair identical at every level, which is the
-matrix's own rule (twins differ in nothing but the arithmetic) applied.
+**`#[algebraic_float]` goes on the trait, and on the `impl` of any type that
+is not a primitive float; the bound it writes is hidden and shaped by the
+orphan rule.** Generic numeric code is written against one user trait
+implemented for `f32` and `f64`; a bare `T` has only its bounds, and the
+bound that satisfies dispatch is this crate's internals, not a contract to
+write into a signature. So the trait form appends a supertrait,
+`__private::AlgebraicFloat<Tag>`, whose own supertraits are the ten dispatch
+traits with the dispatch tag as an associated type. The primitives implement
+it for every `Tag`, naming `FloatTag`: `f32` gains no impl, which is what
+keeps concrete float code at one candidate and the codegen matrix identical.
+Three shapes were measured and rejected on the way here. A sealed alias of
+`Float` (the prototype branch) admits nothing but the primitives, and a real
+bignum is a foreign type. Unsealing `Float`, with methods by reference or
+with `Copy` relaxed to `Clone`, reordered two phis in the three dot-loop
+pairs at opt 2 and 3: any change to the primitives' `+=` path does, so
+`float.rs` stays byte-identical and the marker only names what exists. A
+blanket `impl<T: Passthrough<()> + ops> AlgebraicFloat for T` on the marker
+compiles inside the crate (coherence knows no crate may implement
+`Passthrough` for a primitive) and serves local types, but a foreign type is
+opted in under a private tag, never `()`, and a downstream concrete impl for
+it would overlap the blanket (E0119); a conditional concrete impl is
+rejected at the impl. Hence the orphan slot: the trait form emits a hidden
+local type beside the trait and names it in the marker's parameters, so the
+impl form, which sees both the trait and the type, can emit
+`impl AlgebraicFloat<__Tag_Trait> for rug::Float` from the user's crate,
+which the orphan rule permits only with a local type in the trait's
+parameters. That block is `passthrough!(foreign ..)`'s plus the marker impl,
+so it is the type's opt-in and `passthrough!` is not written as well (two
+tags, E0283 at a concrete site, the foreign-diamond rule). One marked trait
+per type for the same reason; all five operators, since the bound names
+them; and the impl form resolves the hidden type through the trait's path,
+so a trait imported alone and implemented elsewhere must be written with its
+path. The generic pair in the matrix resolves its operators through the
+supertrait projection rather than the concrete impl, and LLVM emits the two
+loop-carried phis the other way round; a block's phis are simultaneous, so
+the matrix sorts them by name-erased text before alpha-renaming, checked not
+to be over-broad (an IEEE twin still fails at every level, a twin with a
+different call shape still fails on block order). A second pair, the same
+generic body monomorphised to an opted-in fixed-point type, was tried and is
+not in the matrix: it differs by two `phi i64` of identical shape swapped,
+which no name-erased key can order, and the path it would pin, the marker
+blankets under an opt-in's tag, is what the `passthrough!` pairs already
+cover. The opted-in path is pinned for correctness in `tests/generic_float.rs`
+and for cost by those pairs.
 
 **The dispatch traits carry a trailing tag parameter**, `AddRhs<Lhs, O, Tag =
 ()>`, that means nothing and is never named by a user. It exists for one

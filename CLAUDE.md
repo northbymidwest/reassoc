@@ -72,10 +72,14 @@ which those tags never implement. That is what makes coherence accept both. A
 primitive on the *left* of a marked type (`2.0 * v`, `n * v`) is a blanket per
 primitive bounded on the right type's marker (`float_left!`, `int_left!`).
 `String` and `uN / NonZero<uN>` are concrete. Generic code is reached by
-`#[algebraic_float]` on the user's float trait, which appends
-`::reassoc::__private::AlgebraicFloat`, a hidden, sealed, method-less alias
-of `Float`; nothing else changes, and the generic float impls already cover
-any `T: Float`.
+`#[algebraic_float]`: on the user's float trait it emits a hidden tag type
+beside the trait and appends `::reassoc::__private::AlgebraicFloat<Tag>`, a
+hidden marker whose supertraits are the ten dispatch traits with the
+dispatch tag as an associated type; the primitives implement it for every
+`Tag` naming `FloatTag`, so `f32` gains no impl. On an `impl` of a marked
+trait it is the type's opt-in: the `passthrough!(foreign ..)` block plus a
+marker impl under the trait's tag, which is the local type the orphan rule
+needs for a foreign bignum.
 
 ## Invariants, one line each; the evidence is in `docs/design.md`
 
@@ -129,10 +133,15 @@ reverts to a worse result if undone.
 - Generated code uses absolute paths, emits no parentheses, and is respanned
   onto the operator.
 - `AlgebraicFloat` stays under `__private` and out of every doc: the
-  attribute is the contract, and what it writes into a trait (the name, a
-  tag parameter, one bound or several) is free to change. The first adopter
-  typed the hidden name by hand, and `cargo-semver-checks` ignores hidden
-  items, so a change would have shipped in a patch with green CI.
+  attribute is the contract, and what it writes into a trait or an impl (the
+  name, the orphan slot, the tag, one bound or several) is free to change.
+  The first adopter typed the hidden name by hand, and `cargo-semver-checks`
+  ignores hidden items, so a change would have shipped in a patch with green
+  CI. No blanket over `Passthrough` on the marker: a downstream concrete
+  impl for a foreign type would then overlap it (E0119), and a conditional
+  concrete impl is rejected at the impl. `float.rs` is untouched by all of
+  this; any change to the primitives' `+=` path reorders phis in the dot
+  loops (measured), so the marker names their impls rather than adding any.
 
 Gaps against plain Rust are documented in `docs/diagnostics.md` and
 `docs/limitations.md`; they are not oversights.

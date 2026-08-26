@@ -90,3 +90,38 @@ impl<T: core::ops::AddAssign> core::ops::AddAssign for Pair<T> {
         self.1 += o.1;
     }
 }
+
+/// A bignum from another crate, the shape `rug::Float` has: heap-allocated,
+/// `Clone` and not `Copy`, every operator by value with `Output = Self`, and
+/// the in-place five. Nothing algebraic about it; its `*` is the only one it
+/// has, and generic code over a marked float trait still has to run on it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Big(pub Box<f64>);
+
+impl Big {
+    pub fn new(v: f64) -> Big {
+        Big(Box::new(v))
+    }
+}
+macro_rules! big_ops {
+    ($($t:ident $m:ident $op:tt $ta:ident $ma:ident $opa:tt;)*) => {$(
+        impl core::ops::$t for Big {
+            type Output = Big;
+            fn $m(self, o: Big) -> Big {
+                Big(Box::new(*self.0 $op *o.0))
+            }
+        }
+        impl core::ops::$ta for Big {
+            fn $ma(&mut self, o: Big) {
+                *self.0 $opa *o.0;
+            }
+        }
+    )*};
+}
+big_ops! {
+    Add add + AddAssign add_assign +=;
+    Sub sub - SubAssign sub_assign -=;
+    Mul mul * MulAssign mul_assign *=;
+    Div div / DivAssign div_assign /=;
+    Rem rem % RemAssign rem_assign %=;
+}

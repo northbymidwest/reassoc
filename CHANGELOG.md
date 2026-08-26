@@ -13,167 +13,51 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 ### Added
 
 - **`#[algebraic_float]`: generic code over a user's own float trait is
-  rewritten.** A crate generic over "some float" has a trait implemented for
-  `f32` and `f64` and writes everything against it, and until now every such
-  function was out of scope: dispatch is a trait, a bare `T` has only the
-  bounds it is given, and the bound that would satisfy it is this crate's
-  internals, not something to write into a signature. The attribute goes on
-  the trait instead and appends that bound there, once; every function
-  bounded by the trait is then rewritten by `#[algebraic]` like concrete code,
-  no signature touched. Sealed to the primitive floats, so a trait carrying it
-  cannot be implemented for a user type, which takes `passthrough!`.
+  rewritten, and a bignum can implement that trait.** A crate generic over
+  "some float" has a trait implemented for `f32` and `f64` and writes
+  everything against it, and until now every such function was out of scope:
+  dispatch is a trait, a bare `T` has only the bounds it is given, and the
+  bound that would satisfy it is this crate's internals, not something to
+  write into a signature. The attribute goes on the trait and appends that
+  bound there, once; every function bounded by the trait is then rewritten
+  by `#[algebraic]` like concrete code, no signature touched. The primitive
+  floats need nothing more. Any other implementor, `rug::Float` say, takes
+  the same attribute on its `impl` of the trait, which is that type's opt-in
+  (`passthrough!` is not written for it as well); the same generic body then
+  runs on `f32`, `f64` and the bignum, whose operators are its own.
 
-  What the attribute writes into the trait is `reassoc::__private::AlgebraicFloat`,
-  hidden and not a surface: the attribute is the contract, and the name, a
-  tag parameter, or the number of bounds may change. It is under `__private`
+  What the attribute writes is `reassoc::__private::AlgebraicFloat<Tag>`,
+  hidden and not a surface: the attribute is the contract. Under `__private`
   because the first adopter (light-curve-feature#327) typed the hidden name by
   hand, and since `cargo-semver-checks` ignores hidden items a change would
-  have shipped in a patch release with green CI on both sides.
+  have shipped in a patch release with green CI on both sides. The shape is
+  dictated by the orphan rule: a user's crate may implement this crate's
+  marker for a foreign bignum only with a type of its own in the marker's
+  parameters, so the trait form emits one beside the trait and the impl form
+  names it. `docs/design.md` has the three shapes measured and rejected on
+  the way, among them a sealed alias (admits no bignum) and a blanket over
+  `Passthrough` (serves local types only; a foreign type's concrete impl
+  would overlap it).
+
+  Limits, each pinned in `tests/ui/`: all five operators with `Output =
+  Self` and the five `op=` forms; one marked trait per non-primitive type
+  (two are two dispatch tags, `E0283` at the type's concrete sites, the
+  foreign-diamond rule); and the impl form resolves the trait's hidden type
+  through the trait's path, so a trait imported alone and implemented in
+  another module is written with its path. `&a * &b` on a bare `T` in
+  generic code stays `E0277`.
 
   Zero-cost like the rest: `examples/codegen_matrix.rs` carries a
-  `generic_dot_f32` pair, a generic dot loop against the hand-written `f32`
-  one, identical as optimized IR at every level once the twins share a call
-  shape. (The prototype kept a separate IR test, claiming the matrix could
-  not strip some `noalias` metadata; measured on main the residual difference
-  was basic-block order from an unmatched call shape, and matching the twin
-  removed it.) The `E0277` notes for a type parameter now name the attribute
-  before `#[algebraic(skip)]`.
-
-## 0.12.0 - 2026-08-26
-
-### Tools
-
-- **`scripts/diag-compare.py` measured whether an algebraic scope swallows an
-  error and could not fail.** It compiles every case as plain Rust and through
-  this checkout, and prints `compiles` when there is no error, so a case that
-  plain Rust rejects and the macros accept was already visible in its table:
-  the one comparison that matters most, sitting in a report nobody diffs, in a
-  CI step whose own comment called the output informational.
-
-  It now asserts that column. `DIVERGENT` names the three cases that disagree
-  on purpose, each with its reason, and anything else exits non-zero and fails
-  the `lint` job. A listed case that stops diverging fails it too, as does an
-  entry naming a case file that is gone, so the list cannot rot into a blanket
-  exemption. Wording still just prints; `docs/diagnostics.md` says where the
-  wording is allowed to differ and why.
-
-  Turning it on immediately failed CI, and not for a divergence: every case
-  read `compiles`, including the ones that are deliberately broken programs.
-  CI sets `CARGO_TERM_COLOR: always`, which wraps each `error:` in escape codes
-  so the summariser's regex matched nothing, and the table had therefore been
-  meaningless on CI for as long as the step had existed. Nobody could tell,
-  because the output was informational. The subprocesses now force
-  `CARGO_TERM_COLOR=never`, and a corpus of broken programs that reports no
-  error anywhere is now itself a failure, since that state would otherwise
-  pass every comparison.
-
-  Two of the three are `strict`, the macros rejecting what plain Rust accepts,
-  which can hide nothing: a type with `std::ops` and no opt-in, and arithmetic
-  on a type parameter. The third is the `lenient` one, `v[i] += v[j]` through a
-  trait-indexed container, added as `c15` so the direction this check exists
-  for is actually represented. Each of the four failure modes was checked by
-  provoking it.
-
-- **`scripts/mutants.sh` selected only the facade crate**, so every mutant
-  caught solely by `reassoc-macros/tests/rewrite.rs` was reported as a
-  survivor; `unparen`'s attribute guard was one. The cargo wrapper now selects
-  both packages and the run includes that target, which turns it from a
-  survivor into a catch in both directions.
-
-- **Recorded what "unviable" means here**, in the same header. cargo-mutants
-  cannot tell its own mutant failing to build from the mutant making the
-  *test* crate fail to build, and this suite detects most breakage exactly
-  that way (`Dispatched` has the dispatch traits and no `std::ops`, so an
-  operator left unrewritten stops compiling; trybuild does the rest).
-  Classifying one run by where the error was: 11 of 15 unviable mutants had
-  failed only in `reassoc/tests/*`, three only in the mutated crate, one in
-  both. So the unviable count is mostly the suite working, not a gap, and
-  `missed` is the number that means what it says.
-
-### Documentation
-
-- **The two compound-assignment divergences are one trade, and the section
-  never said so.** `docs/limitations.md` had them as separate bullets, a
-  `#[repr(packed)]` field rejected here and a `Vec` index accepted here, with
-  no hint they are the two halves of a single choice: plain Rust's `+=` is two
-  operations picked by type (a builtin taking no reference and evaluating the
-  right-hand side first, or `AddAssign::add_assign(&mut place, rhs)` taking one
-  and evaluating the place first), and a macro emitting before types exist must
-  pick one shape. The section now states that once and derives both from it,
-  and records that reversing either half was measured and is worse: place-first
-  introduces an `E0502` for `Vec<f32>` that plain Rust does not have, and
-  dropping the reference needs `Add` rather than `AddAssign`, moves out of a
-  non-`Copy` place, and makes the packed *overloaded* case compile where plain
-  Rust rejects it. `design.md` carries the measurement.
-
-  Two corrections in it. The `Vec` case needs indexing that goes through the
-  traits, which the old wording ("on an overloaded `Copy` type") did not say:
-  on a slice, and on a `Vec` of a primitive, plain Rust accepts it too. And it
-  admits nothing unsound, the program being correct either way with no aliasing
-  at any point, so plain Rust's rejection is an artifact of its evaluation
-  order rather than a conflict being hidden.
-
-  Both were documented and neither was tested: `E0793` appeared nowhere in the
-  suite. `tests/ui/packed_field_compound_assign.rs` pins the strict half with
-  `tests/ui/pass/packed_field_by_value.rs` for the way out it names, and
-  `compound.rs::overloaded_compound_assign_through_a_vec_index` pins the
-  permissive half, with the slice and `Vec<f32>` controls that plain Rust
-  accepts beside it.
-
-- **The README listed `String` among the types covered without an opt-in**
-  alongside things that need no feature at all. `String` comes with `alloc`
-  and `Instant` / `SystemTime` with `std`; the primitives, `Duration`,
-  `uN / NonZero<uN>`, `Wrapping` and `Saturating` are there in a core-only
-  build too, which is what the `no_std` section three headings down already
-  said.
-
-- **Three of the listed std macros stringify their own arguments**, so inside
-  an algebraic scope they print the rewritten source: the single-argument form
-  of `assert!` and `debug_assert!`, and `dbg!`. `docs/limitations.md` said only
-  that a *user* macro sharing a listed name would see rewritten tokens, and not
-  that three of the std ones on the list do it themselves, which is the case
-  anyone will actually meet. No value is affected and no other listed macro is.
-
-  Recorded rather than fixed, with the reasoning, since both obvious fixes are
-  worse: delisting them leaves their arithmetic strict inside an algebraic
-  scope, so `dbg!` would report a different evaluation than the program
-  performs, and passing the original source as an explicit message would hand a
-  second argument to a user macro named `assert` that takes one today.
-
-- **Four places still described the old `const fn` rule** ("skipped if the
-  rewrite would not touch it, an error otherwise"), which stopped being true
-  with the fix below: `README.md`, the crate docs, `docs/limitations.md` and
-  `CLAUDE.md`. All four now say that only a `const fn`'s *own* arithmetic is
-  out of reach, and that a nested item or a closure body inside one is
-  ordinary runtime code and is rewritten as usual.
-
-### Added
-
-- **The fuzz corpus now generates tight-position cases**, which is what the
-  `&` bug below needed and did not have. A tree is wrapped in something that
-  is still a low-precedence expression after the rewrite (a comparison, a
-  cast, a unary minus, a range, a slice reference, a closure), passed through
-  a `macro_rules!` `$e:expr` fragment, and dropped into a position of Rust's
-  expression grammar. Each case asserts the exact value and agreement with
-  the same source outside `#[algebraic]`.
-
-  The point is where the list of positions comes from. `reparen_tight_positions`
-  keeps one, written by hand, and an arm has gone missing from it three times
-  now: `Index`, `Cast`, and `&`. A test written from that list cannot see the
-  fourth. These contexts are enumerated from the grammar instead, including
-  positions that need no parentheses at all, so a position the rewriter
-  forgot is still generated; one that needs nothing simply passes and costs
-  an assertion. Deleting any of the `Call`, `MethodCall`, `Field`, `Index`,
-  `Cast`, `Unary` or `Reference` arms now fails the corpus. `Try` and `Await`
-  need a `Try` type and an `async` body, so they stay pinned by
-  `tests/macros.rs` instead.
-
-  `--tight N` sets the instances per context per fragment, default 2; both
-  corpora cost about 2.5s to compile in total. Two guards, since the cases
-  are generated and losing them would leave a smaller corpus that still
-  passes: the generator refuses to emit a context no fragment fits, and
-  `tests/suite_layout.rs` checks from outside the generated file that both
-  corpora still carry them.
+  `generic_dot_f32` pair, identical as optimized IR at every level. That
+  pair resolves its operators through a supertrait projection and LLVM emits
+  its two loop-carried phis the other way round from the hand-written twin;
+  a block's phis are simultaneous, so the matrix now sorts them by
+  name-erased text before alpha-renaming, and was checked not to be
+  over-broad. `float.rs` is untouched: every variant that changed the
+  primitives' `+=` path reordered phis in the concrete dot loops too, which
+  is why the marker names the primitives' existing impls rather than adding
+  any. The `E0277` notes for a type parameter now name the attribute before
+  `#[algebraic(skip)]`.
 
 ### Fixed
 

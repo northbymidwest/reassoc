@@ -219,9 +219,20 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   every function bounded by it rewritable with no signature changed. What
   the attribute writes into the trait is not a surface (it lives under
   `reassoc::__private` and can change: its name, a tag parameter, more than
-  one bound); the attribute is. The bound is sealed to the primitive floats,
-  so a trait carrying it cannot be implemented for a type of the user's,
-  which is what such a trait means; a type of your own takes `passthrough!`.
+  one bound); the attribute is. The primitive floats need nothing more. Any
+  other implementor, a bignum from another crate say, takes the same
+  attribute on its `impl` of the trait, and that is the type's opt-in: it
+  stands in for `passthrough!` for that type, which is not written as well
+  (two opt-ins are two dispatch tags, and a concrete operator on the type is
+  then `E0283`, the hazard `passthrough!(foreign ..)` already has). Three
+  limits follow. The type needs all five operators with `Output = Self` and
+  the five `op=` forms, since the bound names every one. It implements one
+  marked trait, for the same two-tags reason. And the impl form names a
+  hidden type the trait form put beside the trait, through the trait's own
+  path: `impl a::Float for Big` works anywhere, `impl Float for Big` beside
+  the trait or where `a::*` is in scope, and a trait brought in alone by
+  `use a::Float` and implemented in another module does not resolve it;
+  write the trait's path.
 
   A function generic over a bare `T: Mul<Output = T>`, with no such trait to
   mark, is still out of scope: `fn g<T: Mul<Output = T>>(a: T, b: T) -> T {

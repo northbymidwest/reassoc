@@ -39,14 +39,6 @@ macro_rules! float_trait {
 }
 macro_rules! float_trait_k {
     (($($c:tt)*) ($($b:tt)*)) => {
-        #[diagnostic::on_unimplemented(
-            message = "`{Self}` is not a primitive float, so it cannot be an algebraic one",
-            label = "not `f32` or `f64`",
-            note = "a trait marked `#[algebraic_float]` stands for \"some float\" and can only \
-                    be implemented for `f32` and `f64` (and `f16`/`f128` under their features)",
-            note = "for a type of your own, opt it in with `reassoc::passthrough!({Self});` and \
-                    drop `#[algebraic_float]` from the trait"
-        )]
         pub $($c)* trait Float: sealed::Sealed + Copy {
             fn alg_add(self, o: Self) -> Self;
             fn alg_sub(self, o: Self) -> Self;
