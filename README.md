@@ -170,28 +170,17 @@ reassoc = "0.12"
   block, every item of an inline `mod`, every default body of a `trait`.
 - `strict!(expr)` / `strict! { stmts.. }`: opt a subexpression, or a whole
   statement block such as a Kahan step, back out to strict IEEE.
-- `#[passthrough]`: opt a type in, on whichever item introduces it. On your
-  own type's definition; on the `use` that brings one in from another crate
-  (Rust's orphan rule forbids anything on the definition there, so the
-  attribute carries a private marker type of yours in the impl, which is what
-  the rule asks for; opt a foreign type in once, in the binary or one shared
-  crate, since two opt-ins give a third crate an ambiguity error); on a
-  `type` alias naming an instantiation of a generic foreign type
-  (`type C64 = num_complex::Complex<f64>`); and on a type's `impl` of an
-  `#[algebraic_float]` trait. One line: every operator the type implements
-  (`+ - * / %` with any right-hand type and any output, the `op=` forms,
-  references wherever the type implements them) is dispatched from then on,
-  exactly as `std::ops` defines it. Nothing is listed, with one exception: a
-  primitive on the *left* of a foreign type (`2.0 * v`, `n * v`) is named in
-  the attribute, `#[passthrough(f32 * Vec3 => Vec3)]`.
+- `#[passthrough]`: opt a type in, on whichever item introduces it: your own
+  type's definition, the `use` (or a `type` alias) that brings one in from
+  another crate, or its `impl` of an `#[algebraic_float]` trait. Every
+  operator the type implements is dispatched from then on, exactly as
+  `std::ops` defines it. Nothing is listed, except a primitive on the *left*
+  of a foreign type: `#[passthrough(f32 * Vec3 => Vec3)]`. Opt a foreign
+  type in once per dependency tree ([Limitations](#limitations)).
 - `#[algebraic_float]`: on your own float trait, the one implemented for
-  `f32` and `f64` that a generic numeric crate writes everything against.
-  One line, in one place; every function generic over that trait is then
-  rewritten by `#[algebraic]` like concrete code. The primitive floats need
-  nothing more; any other implementor, a bignum from another crate say,
-  takes `#[passthrough]` on its `impl` of the trait, which is that type's
-  opt-in. Such a type needs all five operators and implements one marked
-  trait.
+  `f32` and `f64`. Every function generic over it is then rewritten like
+  concrete code, no signature touched. Any other implementor, a bignum say,
+  takes `#[passthrough]` on its `impl` of the trait.
 
 Primitives, references to them, `Duration`, `uN / NonZero<uN>` and
 `Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in, in a
