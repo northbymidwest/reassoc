@@ -4,7 +4,8 @@
 //!
 //! ```text
 //! scripts/gen-fuzz-corpus.py --seed 2 --count 100 --chains 40 \
-//!     --nodes 24 --width 32 > reassoc/tests/fuzz_corpus_f32.rs
+//!     --nodes 24 --width 32 --tight 2 \
+//!     > reassoc/tests/fuzz_corpus_f32.rs
 //! rustfmt --edition 2024 reassoc/tests/fuzz_corpus_f32.rs
 //! ```
 //!
@@ -30,8 +31,22 @@
 //! `{ let mut acc = x; acc op= tree; ..; acc }`, which exercise the
 //! compound-assignment emitter on bare paths.
 //!
+//! The `tight_*` cases are a different shape. A `$e:expr` fragment arrives in
+//! an invisible group that rustc stops honouring once a proc macro has
+//! re-emitted the tokens, so the rewriter re-parenthesises a grouped
+//! low-precedence expression wherever the position binds tighter
+//! (`reparen_tight_positions`). Each case wraps a tree in something that is
+//! still an expression after the rewrite (a comparison, a cast, a unary minus,
+//! a range, a slice reference, a closure), passes it through a fragment, and
+//! puts it in one position of Rust's expression grammar: unary, `&`, receiver,
+//! cast, callee, index, field, and also positions that need no parentheses at
+//! all. The list is written from the grammar, not from the rewriter, so a
+//! position the rewriter forgot is still generated; one that needs nothing
+//! simply passes. Each asserts the exact value and agreement with the same
+//! source outside `#[algebraic]`.
+//!
 //! Seed 2, 100 trees of ~24 nodes and 40 chains, over `f32`.
-//! Generator sha256 6ce5af640dcf, run at commit b317775 (generator modified): the same seed under a
+//! Generator sha256 9d213c1f8f11, run at commit 1a4b0f8 (generator modified): the same seed under a
 //! different generator hash is a different corpus.
 #![allow(
     clippy::float_cmp,
@@ -42,6 +57,19 @@
 #![allow(clippy::op_ref, clippy::assign_op_pattern, clippy::double_parens)]
 #![allow(clippy::excessive_precision)] // exact dyadic literals clippy cannot round-trip in f32
 #![allow(unused_parens, unused_braces)]
+// The tight-position cases are deliberately written the long way round: the
+// shape is the point, so nothing here may be simplified into it.
+#![allow(
+    clippy::unnecessary_cast,
+    clippy::nonminimal_bool,
+    clippy::deref_addrof
+)]
+#![allow(
+    clippy::reversed_empty_ranges,
+    clippy::match_bool,
+    clippy::bool_comparison
+)]
+#![allow(clippy::bool_assert_comparison, clippy::neg_cmp_op_on_partial_ord)]
 
 use reassoc::{alg, algebraic, strict};
 
@@ -4654,4 +4682,1390 @@ fn chain_1() {
     );
     assert_eq!(attr[19], 0.5, "chain 39: attribute form");
     assert_eq!(disp[19], Disp(0.5), "chain 39: dispatched form");
+}
+
+macro_rules! tight_float_unary_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            -$e
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_unary_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            -$e
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_unary() {
+    // cast_float in unary position
+    assert_eq!(
+        tight_float_unary_alg!((((&C) + ((-(-1.0 % D)) / 2.0)) / 4.0) as f32),
+        -1.25,
+        "tight_float_unary/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_unary_alg!((((&C) + ((-(-1.0 % D)) / 2.0)) / 4.0) as f32),
+        tight_float_unary_plain!((((&C) + ((-(-1.0 % D)) / 2.0)) / 4.0) as f32),
+        "tight_float_unary/cast_float: differs from plain"
+    );
+    // cast_float in unary position
+    assert_eq!(
+        tight_float_unary_alg!(((G * E) / 8.0) as f32),
+        9.625,
+        "tight_float_unary/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_unary_alg!(((G * E) / 8.0) as f32),
+        tight_float_unary_plain!(((G * E) / 8.0) as f32),
+        "tight_float_unary/cast_float: differs from plain"
+    );
+    // neg in unary position
+    assert_eq!(
+        tight_float_unary_alg!(-(((A % C) * ((F - D) - 1.0)) - A)),
+        -6.75,
+        "tight_float_unary/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_unary_alg!(-(((A % C) * ((F - D) - 1.0)) - A)),
+        tight_float_unary_plain!(-(((A % C) * ((F - D) - 1.0)) - A)),
+        "tight_float_unary/neg: differs from plain"
+    );
+    // neg in unary position
+    assert_eq!(
+        tight_float_unary_alg!(-(((E * (D % 3.0)) * C) * ((&G) * E))),
+        1347.5,
+        "tight_float_unary/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_unary_alg!(-(((E * (D % 3.0)) * C) * ((&G) * E))),
+        tight_float_unary_plain!(-(((E * (D % 3.0)) * C) * ((&G) * E))),
+        "tight_float_unary/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_reference_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_reference_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_reference() {
+    // cast_float in reference position
+    assert_eq!(
+        tight_float_reference_alg!((A * ((H * D) * ((4.0 * E) + -2.0))) as f32),
+        5.625,
+        "tight_float_reference/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_reference_alg!((A * ((H * D) * ((4.0 * E) + -2.0))) as f32),
+        tight_float_reference_plain!((A * ((H * D) * ((4.0 * E) + -2.0))) as f32),
+        "tight_float_reference/cast_float: differs from plain"
+    );
+    // cast_float in reference position
+    assert_eq!(
+        tight_float_reference_alg!(((G - E) % strict!((-(3.0 * (H % (-(G - F))))))) as f32),
+        0.0,
+        "tight_float_reference/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_reference_alg!(((G - E) % strict!((-(3.0 * (H % (-(G - F))))))) as f32),
+        tight_float_reference_plain!(((G - E) % strict!((-(3.0 * (H % (-(G - F))))))) as f32),
+        "tight_float_reference/cast_float: differs from plain"
+    );
+    // neg in reference position
+    assert_eq!(
+        tight_float_reference_alg!(-((B % D) - strict!(((F - 2.0) + (1.0 + B))))),
+        -2.75,
+        "tight_float_reference/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_reference_alg!(-((B % D) - strict!(((F - 2.0) + (1.0 + B))))),
+        tight_float_reference_plain!(-((B % D) - strict!(((F - 2.0) + (1.0 + B))))),
+        "tight_float_reference/neg: differs from plain"
+    );
+    // neg in reference position
+    assert_eq!(
+        tight_float_reference_alg!(-((-(((C + E) + E) * 3.0)) + (3.0 / 4.0))),
+        -27.75,
+        "tight_float_reference/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_reference_alg!(-((-(((C + E) + E) * 3.0)) + (3.0 / 4.0))),
+        tight_float_reference_plain!(-((-(((C + E) + E) * 3.0)) + (3.0 / 4.0))),
+        "tight_float_reference/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_receiver_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e.abs()
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_receiver_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e.abs()
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_receiver() {
+    // cast_float in receiver position
+    assert_eq!(
+        tight_float_receiver_alg!((((&B) + (-((&A) % F))) * ((H * F) % D)) as f32),
+        0.0625,
+        "tight_float_receiver/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_receiver_alg!((((&B) + (-((&A) % F))) * ((H * F) % D)) as f32),
+        tight_float_receiver_plain!((((&B) + (-((&A) % F))) * ((H * F) % D)) as f32),
+        "tight_float_receiver/cast_float: differs from plain"
+    );
+    // cast_float in receiver position
+    assert_eq!(
+        tight_float_receiver_alg!((2.0 % ((-((A * (4.0 - B)) - H)) / 2.0)) as f32),
+        2.0,
+        "tight_float_receiver/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_receiver_alg!((2.0 % ((-((A * (4.0 - B)) - H)) / 2.0)) as f32),
+        tight_float_receiver_plain!((2.0 % ((-((A * (4.0 - B)) - H)) / 2.0)) as f32),
+        "tight_float_receiver/cast_float: differs from plain"
+    );
+    // neg in receiver position
+    assert_eq!(
+        tight_float_receiver_alg!(-((E + ((&B) / 4.0)) % (-(C % (-2.0 - 1.0))))),
+        1.5,
+        "tight_float_receiver/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_receiver_alg!(-((E + ((&B) / 4.0)) % (-(C % (-2.0 - 1.0))))),
+        tight_float_receiver_plain!(-((E + ((&B) / 4.0)) % (-(C % (-2.0 - 1.0))))),
+        "tight_float_receiver/neg: differs from plain"
+    );
+    // neg in receiver position
+    assert_eq!(
+        tight_float_receiver_alg!(-((-2.0 * (-((3.0 - (-(D + (&F)))) * 1.0))) - F)),
+        7.25,
+        "tight_float_receiver/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_receiver_alg!(-((-2.0 * (-((3.0 - (-(D + (&F)))) * 1.0))) - F)),
+        tight_float_receiver_plain!(-((-2.0 * (-((3.0 - (-(D + (&F)))) * 1.0))) - F)),
+        "tight_float_receiver/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_cast_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> i64 {
+            $e as i64
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_cast_plain {
+    ($e:expr) => {{
+        fn go() -> i64 {
+            $e as i64
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_cast() {
+    // cast_float in cast position
+    assert_eq!(
+        tight_float_cast_alg!((((C / 8.0) + (B * 4.0)) - (D / 2.0)) as f32),
+        -7,
+        "tight_float_cast/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_cast_alg!((((C / 8.0) + (B * 4.0)) - (D / 2.0)) as f32),
+        tight_float_cast_plain!((((C / 8.0) + (B * 4.0)) - (D / 2.0)) as f32),
+        "tight_float_cast/cast_float: differs from plain"
+    );
+    // cast_float in cast position
+    assert_eq!(
+        tight_float_cast_alg!(strict!((D - (C / 2.0))) as f32),
+        -2,
+        "tight_float_cast/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_cast_alg!(strict!((D - (C / 2.0))) as f32),
+        tight_float_cast_plain!(strict!((D - (C / 2.0))) as f32),
+        "tight_float_cast/cast_float: differs from plain"
+    );
+    // neg in cast position
+    assert_eq!(
+        tight_float_cast_alg!(-((((-(-2.0 - H)) * (&A)) / 8.0) / 4.0)),
+        0,
+        "tight_float_cast/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_cast_alg!(-((((-(-2.0 - H)) * (&A)) / 8.0) / 4.0)),
+        tight_float_cast_plain!(-((((-(-2.0 - H)) * (&A)) / 8.0) / 4.0)),
+        "tight_float_cast/neg: differs from plain"
+    );
+    // neg in cast position
+    assert_eq!(
+        tight_float_cast_alg!(-((3.0 - (-(3.0 - strict!(((G / 4.0) / 4.0))))) + 1.0)),
+        -6,
+        "tight_float_cast/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_cast_alg!(-((3.0 - (-(3.0 - strict!(((G / 4.0) / 4.0))))) + 1.0)),
+        tight_float_cast_plain!(-((3.0 - (-(3.0 - strict!(((G / 4.0) / 4.0))))) + 1.0)),
+        "tight_float_cast/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_binary_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e * 2.0
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_binary_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e * 2.0
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_binary() {
+    // cast_float in binary position
+    assert_eq!(
+        tight_float_binary_alg!((((G + -1.0) % 3.0) + (A + (D / 2.0))) as f32),
+        8.5,
+        "tight_float_binary/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_binary_alg!((((G + -1.0) % 3.0) + (A + (D / 2.0))) as f32),
+        tight_float_binary_plain!((((G + -1.0) % 3.0) + (A + (D / 2.0))) as f32),
+        "tight_float_binary/cast_float: differs from plain"
+    );
+    // cast_float in binary position
+    assert_eq!(
+        tight_float_binary_alg!((F * (-(-2.0 - (-((E - A) - (1.0 - E)))))) as f32),
+        10.0,
+        "tight_float_binary/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_binary_alg!((F * (-(-2.0 - (-((E - A) - (1.0 - E)))))) as f32),
+        tight_float_binary_plain!((F * (-(-2.0 - (-((E - A) - (1.0 - E)))))) as f32),
+        "tight_float_binary/cast_float: differs from plain"
+    );
+    // neg in binary position
+    assert_eq!(
+        tight_float_binary_alg!(-(-((E - ((D / 8.0) - 2.0)) - ((&D) + -2.0)))),
+        -7.125,
+        "tight_float_binary/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_binary_alg!(-(-((E - ((D / 8.0) - 2.0)) - ((&D) + -2.0)))),
+        tight_float_binary_plain!(-(-((E - ((D / 8.0) - 2.0)) - ((&D) + -2.0)))),
+        "tight_float_binary/neg: differs from plain"
+    );
+    // neg in binary position
+    assert_eq!(
+        tight_float_binary_alg!(-(((G / 8.0) / 4.0) / 4.0)),
+        -0.171875,
+        "tight_float_binary/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_binary_alg!(-(((G / 8.0) / 4.0) / 4.0)),
+        tight_float_binary_plain!(-(((G / 8.0) / 4.0) / 4.0)),
+        "tight_float_binary/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_range_end_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            (0.0..$e).end
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_range_end_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            (0.0..$e).end
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_range_end() {
+    // cast_float in range_end position
+    assert_eq!(
+        tight_float_range_end_alg!((((-((G % E) * (-2.0 + E))) + C) - C) as f32),
+        36.0,
+        "tight_float_range_end/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_range_end_alg!((((-((G % E) * (-2.0 + E))) + C) - C) as f32),
+        tight_float_range_end_plain!((((-((G % E) * (-2.0 + E))) + C) - C) as f32),
+        "tight_float_range_end/cast_float: differs from plain"
+    );
+    // cast_float in range_end position
+    assert_eq!(
+        tight_float_range_end_alg!((-2.0 * (strict!((3.0 / 8.0)) - (3.0 * (A * 3.0)))) as f32),
+        53.25,
+        "tight_float_range_end/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_range_end_alg!((-2.0 * (strict!((3.0 / 8.0)) - (3.0 * (A * 3.0)))) as f32),
+        tight_float_range_end_plain!((-2.0 * (strict!((3.0 / 8.0)) - (3.0 * (A * 3.0)))) as f32),
+        "tight_float_range_end/cast_float: differs from plain"
+    );
+    // neg in range_end position
+    assert_eq!(
+        tight_float_range_end_alg!(-(F / 4.0)),
+        -0.0625,
+        "tight_float_range_end/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_range_end_alg!(-(F / 4.0)),
+        tight_float_range_end_plain!(-(F / 4.0)),
+        "tight_float_range_end/neg: differs from plain"
+    );
+    // neg in range_end position
+    assert_eq!(
+        tight_float_range_end_alg!(-(D + ((E * B) / 4.0))),
+        -4.0,
+        "tight_float_range_end/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_range_end_alg!(-(D + ((E * B) / 4.0))),
+        tight_float_range_end_plain!(-(D + ((E * B) / 4.0))),
+        "tight_float_range_end/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_tuple_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            ($e, 0.0).0
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_tuple_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            ($e, 0.0).0
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_tuple() {
+    // cast_float in tuple position
+    assert_eq!(
+        tight_float_tuple_alg!(((D / 4.0) - ((3.0 - (3.0 + G)) - G)) as f32),
+        22.125,
+        "tight_float_tuple/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_tuple_alg!(((D / 4.0) - ((3.0 - (3.0 + G)) - G)) as f32),
+        tight_float_tuple_plain!(((D / 4.0) - ((3.0 - (3.0 + G)) - G)) as f32),
+        "tight_float_tuple/cast_float: differs from plain"
+    );
+    // cast_float in tuple position
+    assert_eq!(
+        tight_float_tuple_alg!((-((H - (B + (&G))) * ((D + 4.0) * 3.0))) as f32),
+        123.1875,
+        "tight_float_tuple/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_tuple_alg!((-((H - (B + (&G))) * ((D + 4.0) * 3.0))) as f32),
+        tight_float_tuple_plain!((-((H - (B + (&G))) * ((D + 4.0) * 3.0))) as f32),
+        "tight_float_tuple/cast_float: differs from plain"
+    );
+    // neg in tuple position
+    assert_eq!(
+        tight_float_tuple_alg!(-((C / 2.0) * ((F / 8.0) % -1.0))),
+        -0.078125,
+        "tight_float_tuple/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_tuple_alg!(-((C / 2.0) * ((F / 8.0) % -1.0))),
+        tight_float_tuple_plain!(-((C / 2.0) * ((F / 8.0) % -1.0))),
+        "tight_float_tuple/neg: differs from plain"
+    );
+    // neg in tuple position
+    assert_eq!(
+        tight_float_tuple_alg!(-(((B % -1.0) / 4.0) * (-(C - (-(F % (&A))))))),
+        0.0,
+        "tight_float_tuple/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_tuple_alg!(-(((B % -1.0) / 4.0) * (-(C - (-(F % (&A))))))),
+        tight_float_tuple_plain!(-(((B % -1.0) / 4.0) * (-(C - (-(F % (&A))))))),
+        "tight_float_tuple/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_float_array_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            [$e, 0.0][0]
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_float_array_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            [$e, 0.0][0]
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_float_array() {
+    // cast_float in array position
+    assert_eq!(
+        tight_float_array_alg!(((G + (-(-2.0 / 2.0))) * B) as f32),
+        -24.0,
+        "tight_float_array/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_array_alg!(((G + (-(-2.0 / 2.0))) * B) as f32),
+        tight_float_array_plain!(((G + (-(-2.0 / 2.0))) * B) as f32),
+        "tight_float_array/cast_float: differs from plain"
+    );
+    // cast_float in array position
+    assert_eq!(
+        tight_float_array_alg!(strict!(((3.0 % (4.0 / 8.0)) % ((H % H) - -2.0))) as f32),
+        0.0,
+        "tight_float_array/cast_float: exact value"
+    );
+    assert_eq!(
+        tight_float_array_alg!(strict!(((3.0 % (4.0 / 8.0)) % ((H % H) - -2.0))) as f32),
+        tight_float_array_plain!(strict!(((3.0 % (4.0 / 8.0)) % ((H % H) - -2.0))) as f32),
+        "tight_float_array/cast_float: differs from plain"
+    );
+    // neg in array position
+    assert_eq!(
+        tight_float_array_alg!(-(-((&D) + (((-(G + F)) * (G / 2.0)) * D)))),
+        -30.4375,
+        "tight_float_array/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_array_alg!(-(-((&D) + (((-(G + F)) * (G / 2.0)) * D)))),
+        tight_float_array_plain!(-(-((&D) + (((-(G + F)) * (G / 2.0)) * D)))),
+        "tight_float_array/neg: differs from plain"
+    );
+    // neg in array position
+    assert_eq!(
+        tight_float_array_alg!(-((((F * F) % E) * (&H)) + strict!((D + (&G))))),
+        -11.4921875,
+        "tight_float_array/neg: exact value"
+    );
+    assert_eq!(
+        tight_float_array_alg!(-((((F * F) % E) * (&H)) + strict!((D + (&G))))),
+        tight_float_array_plain!(-((((F * F) % E) * (&H)) + strict!((D + (&G))))),
+        "tight_float_array/neg: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_unary_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> bool {
+            !$e
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_unary_plain {
+    ($e:expr) => {{
+        fn go() -> bool {
+            !$e
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_unary() {
+    // cmp in unary position
+    assert_eq!(
+        tight_bool_unary_alg!(
+            (((G - A) + strict!((-((D / 4.0) - -2.0)))) - E)
+                < (-(((-2.0 % 3.0) * (-((H - F) - G))) / 2.0))
+        ),
+        true,
+        "tight_bool_unary/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_unary_alg!(
+            (((G - A) + strict!((-((D / 4.0) - -2.0)))) - E)
+                < (-(((-2.0 % 3.0) * (-((H - F) - G))) / 2.0))
+        ),
+        tight_bool_unary_plain!(
+            (((G - A) + strict!((-((D / 4.0) - -2.0)))) - E)
+                < (-(((-2.0 % 3.0) * (-((H - F) - G))) / 2.0))
+        ),
+        "tight_bool_unary/cmp: differs from plain"
+    );
+    // cmp in unary position
+    assert_eq!(
+        tight_bool_unary_alg!(
+            (((C - -1.0) * G) * ((2.0 * 2.0) % H)) < (((-1.0 * F) - (B % 1.0)) / 8.0)
+        ),
+        true,
+        "tight_bool_unary/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_unary_alg!(
+            (((C - -1.0) * G) * ((2.0 * 2.0) % H)) < (((-1.0 * F) - (B % 1.0)) / 8.0)
+        ),
+        tight_bool_unary_plain!(
+            (((C - -1.0) * G) * ((2.0 * 2.0) % H)) < (((-1.0 * F) - (B % 1.0)) / 8.0)
+        ),
+        "tight_bool_unary/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_reference_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> bool {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_reference_plain {
+    ($e:expr) => {{
+        fn go() -> bool {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_reference() {
+    // cmp in reference position
+    assert_eq!(
+        tight_bool_reference_alg!(
+            strict!(((-(1.0 % F)) / 4.0)) < ((((E * F) - 1.0) % (1.0 / 4.0)) + G)
+        ),
+        true,
+        "tight_bool_reference/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_reference_alg!(
+            strict!(((-(1.0 % F)) / 4.0)) < ((((E * F) - 1.0) % (1.0 / 4.0)) + G)
+        ),
+        tight_bool_reference_plain!(
+            strict!(((-(1.0 % F)) / 4.0)) < ((((E * F) - 1.0) % (1.0 / 4.0)) + G)
+        ),
+        "tight_bool_reference/cmp: differs from plain"
+    );
+    // cmp in reference position
+    assert_eq!(
+        tight_bool_reference_alg!(
+            (((-2.0 + (&F)) - G) - (-2.0 + (B + -2.0))) < (F % (-((G + ((-2.0 % E) * D)) - D)))
+        ),
+        true,
+        "tight_bool_reference/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_reference_alg!(
+            (((-2.0 + (&F)) - G) - (-2.0 + (B + -2.0))) < (F % (-((G + ((-2.0 % E) * D)) - D)))
+        ),
+        tight_bool_reference_plain!(
+            (((-2.0 + (&F)) - G) - (-2.0 + (B + -2.0))) < (F % (-((G + ((-2.0 % E) * D)) - D)))
+        ),
+        "tight_bool_reference/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_cast_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> u8 {
+            $e as u8
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_cast_plain {
+    ($e:expr) => {{
+        fn go() -> u8 {
+            $e as u8
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_cast() {
+    // cmp in cast position
+    assert_eq!(
+        tight_bool_cast_alg!(
+            ((-1.0 * (E - G)) - (2.0 + (-(C + G)))) < strict!(((1.0 + (-(3.0 % B))) / 4.0))
+        ),
+        0,
+        "tight_bool_cast/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_cast_alg!(
+            ((-1.0 * (E - G)) - (2.0 + (-(C + G)))) < strict!(((1.0 + (-(3.0 % B))) / 4.0))
+        ),
+        tight_bool_cast_plain!(
+            ((-1.0 * (E - G)) - (2.0 + (-(C + G)))) < strict!(((1.0 + (-(3.0 % B))) / 4.0))
+        ),
+        "tight_bool_cast/cmp: differs from plain"
+    );
+    // cmp in cast position
+    assert_eq!(
+        tight_bool_cast_alg!((strict!((((-(H * E)) * B) % H)) - (2.0 + 3.0)) < ((E + G) / 4.0)),
+        1,
+        "tight_bool_cast/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_cast_alg!((strict!((((-(H * E)) * B) % H)) - (2.0 + 3.0)) < ((E + G) / 4.0)),
+        tight_bool_cast_plain!((strict!((((-(H * E)) * B) % H)) - (2.0 + 3.0)) < ((E + G) / 4.0)),
+        "tight_bool_cast/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_condition_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            if $e { 1.0 } else { 2.0 }
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_condition_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            if $e { 1.0 } else { 2.0 }
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_condition() {
+    // cmp in condition position
+    assert_eq!(
+        tight_bool_condition_alg!(
+            (((C / 8.0) + strict!(((&E) * C))) * (-(3.0 - H))) < (((F + D) - (D / 4.0)) / 4.0)
+        ),
+        2.0,
+        "tight_bool_condition/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_condition_alg!(
+            (((C / 8.0) + strict!(((&E) * C))) * (-(3.0 - H))) < (((F + D) - (D / 4.0)) / 4.0)
+        ),
+        tight_bool_condition_plain!(
+            (((C / 8.0) + strict!(((&E) * C))) * (-(3.0 - H))) < (((F + D) - (D / 4.0)) / 4.0)
+        ),
+        "tight_bool_condition/cmp: differs from plain"
+    );
+    // cmp in condition position
+    assert_eq!(
+        tight_bool_condition_alg!(
+            (((-1.0 % C) % H) - (((&G) + D) * F)) < ((H + ((A * (G - 4.0)) % 2.0)) * C)
+        ),
+        1.0,
+        "tight_bool_condition/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_condition_alg!(
+            (((-1.0 % C) % H) - (((&G) + D) * F)) < ((H + ((A * (G - 4.0)) % 2.0)) * C)
+        ),
+        tight_bool_condition_plain!(
+            (((-1.0 % C) % H) - (((&G) + D) * F)) < ((H + ((A * (G - 4.0)) % 2.0)) * C)
+        ),
+        "tight_bool_condition/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_scrutinee_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            match $e {
+                true => 1.0,
+                false => 2.0,
+            }
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_scrutinee_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            match $e {
+                true => 1.0,
+                false => 2.0,
+            }
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_scrutinee() {
+    // cmp in scrutinee position
+    assert_eq!(
+        tight_bool_scrutinee_alg!(
+            (-2.0 * (((H * F) % B) * (E % (&G)))) < ((-(H - (F - H))) + (-(1.0 / 2.0)))
+        ),
+        1.0,
+        "tight_bool_scrutinee/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_scrutinee_alg!(
+            (-2.0 * (((H * F) % B) * (E % (&G)))) < ((-(H - (F - H))) + (-(1.0 / 2.0)))
+        ),
+        tight_bool_scrutinee_plain!(
+            (-2.0 * (((H * F) % B) * (E % (&G)))) < ((-(H - (F - H))) + (-(1.0 / 2.0)))
+        ),
+        "tight_bool_scrutinee/cmp: differs from plain"
+    );
+    // cmp in scrutinee position
+    assert_eq!(
+        tight_bool_scrutinee_alg!(
+            (A * (((A * G) + 1.0) + (3.0 % D))) < (-(((3.0 - (-(E + A))) - G) - (G % (&A))))
+        ),
+        2.0,
+        "tight_bool_scrutinee/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_scrutinee_alg!(
+            (A * (((A * G) + 1.0) + (3.0 % D))) < (-(((3.0 - (-(E + A))) - G) - (G % (&A))))
+        ),
+        tight_bool_scrutinee_plain!(
+            (A * (((A * G) + 1.0) + (3.0 % D))) < (-(((3.0 - (-(E + A))) - G) - (G % (&A))))
+        ),
+        "tight_bool_scrutinee/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_bool_logical_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> bool {
+            $e && true
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_bool_logical_plain {
+    ($e:expr) => {{
+        fn go() -> bool {
+            $e && true
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_bool_logical() {
+    // cmp in logical position
+    assert_eq!(
+        tight_bool_logical_alg!((E % ((F - H) / 4.0)) < (-((B * (G + (((&C) * 2.0) - E))) % F))),
+        true,
+        "tight_bool_logical/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_logical_alg!((E % ((F - H) / 4.0)) < (-((B * (G + (((&C) * 2.0) - E))) % F))),
+        tight_bool_logical_plain!((E % ((F - H) / 4.0)) < (-((B * (G + (((&C) * 2.0) - E))) % F))),
+        "tight_bool_logical/cmp: differs from plain"
+    );
+    // cmp in logical position
+    assert_eq!(
+        tight_bool_logical_alg!((-1.0 / 4.0) < ((-((F * -2.0) / 2.0)) % (-((A % 3.0) - (&H))))),
+        true,
+        "tight_bool_logical/cmp: exact value"
+    );
+    assert_eq!(
+        tight_bool_logical_alg!((-1.0 / 4.0) < ((-((F * -2.0) / 2.0)) % (-((A % 3.0) - (&H))))),
+        tight_bool_logical_plain!((-1.0 / 4.0) < ((-((F * -2.0) / 2.0)) % (-((A % 3.0) - (&H))))),
+        "tight_bool_logical/cmp: differs from plain"
+    );
+}
+
+macro_rules! tight_int_unary_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> i64 {
+            -$e
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_int_unary_plain {
+    ($e:expr) => {{
+        fn go() -> i64 {
+            -$e
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_int_unary() {
+    // cast_int in unary position
+    assert_eq!(
+        tight_int_unary_alg!((strict!(((F - H) * (-(G - A)))) - (D % C)) as i64),
+        3,
+        "tight_int_unary/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_unary_alg!((strict!(((F - H) * (-(G - A)))) - (D % C)) as i64),
+        tight_int_unary_plain!((strict!(((F - H) * (-(G - A)))) - (D % C)) as i64),
+        "tight_int_unary/cast_int: differs from plain"
+    );
+    // cast_int in unary position
+    assert_eq!(
+        tight_int_unary_alg!((-((G / 2.0) + (G % (-(F + H))))) as i64),
+        5,
+        "tight_int_unary/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_unary_alg!((-((G / 2.0) + (G % (-(F + H))))) as i64),
+        tight_int_unary_plain!((-((G / 2.0) + (G % (-(F + H))))) as i64),
+        "tight_int_unary/cast_int: differs from plain"
+    );
+}
+
+macro_rules! tight_int_reference_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> i64 {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_int_reference_plain {
+    ($e:expr) => {{
+        fn go() -> i64 {
+            *(&$e)
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_int_reference() {
+    // cast_int in reference position
+    assert_eq!(
+        tight_int_reference_alg!((B / 8.0) as i64),
+        0,
+        "tight_int_reference/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_reference_alg!((B / 8.0) as i64),
+        tight_int_reference_plain!((B / 8.0) as i64),
+        "tight_int_reference/cast_int: differs from plain"
+    );
+    // cast_int in reference position
+    assert_eq!(
+        tight_int_reference_alg!(((-(A + (&G))) - (-(1.0 % strict!((B / 4.0))))) as i64),
+        -14,
+        "tight_int_reference/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_reference_alg!(((-(A + (&G))) - (-(1.0 % strict!((B / 4.0))))) as i64),
+        tight_int_reference_plain!(((-(A + (&G))) - (-(1.0 % strict!((B / 4.0))))) as i64),
+        "tight_int_reference/cast_int: differs from plain"
+    );
+}
+
+macro_rules! tight_int_receiver_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> i64 {
+            $e.abs()
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_int_receiver_plain {
+    ($e:expr) => {{
+        fn go() -> i64 {
+            $e.abs()
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_int_receiver() {
+    // cast_int in receiver position
+    assert_eq!(
+        tight_int_receiver_alg!(strict!((((-(-1.0 - H)) - (2.0 - C)) * (4.0 - (&G)))) as i64),
+        27,
+        "tight_int_receiver/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_receiver_alg!(strict!((((-(-1.0 - H)) - (2.0 - C)) * (4.0 - (&G)))) as i64),
+        tight_int_receiver_plain!(strict!((((-(-1.0 - H)) - (2.0 - C)) * (4.0 - (&G)))) as i64),
+        "tight_int_receiver/cast_int: differs from plain"
+    );
+    // cast_int in receiver position
+    assert_eq!(
+        tight_int_receiver_alg!(strict!((B % ((F / 4.0) * E))) as i64),
+        0,
+        "tight_int_receiver/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_receiver_alg!(strict!((B % ((F / 4.0) * E))) as i64),
+        tight_int_receiver_plain!(strict!((B % ((F / 4.0) * E))) as i64),
+        "tight_int_receiver/cast_int: differs from plain"
+    );
+}
+
+macro_rules! tight_int_cast_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e as f32
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_int_cast_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e as f32
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_int_cast() {
+    // cast_int in cast position
+    assert_eq!(
+        tight_int_cast_alg!((-((G + ((&C) / 8.0)) / 4.0)) as i64),
+        -2.0,
+        "tight_int_cast/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_cast_alg!((-((G + ((&C) / 8.0)) / 4.0)) as i64),
+        tight_int_cast_plain!((-((G + ((&C) / 8.0)) / 4.0)) as i64),
+        "tight_int_cast/cast_int: differs from plain"
+    );
+    // cast_int in cast position
+    assert_eq!(
+        tight_int_cast_alg!(strict!((((B - (F % 3.0)) % 3.0) - (-2.0 - A))) as i64),
+        2.0,
+        "tight_int_cast/cast_int: exact value"
+    );
+    assert_eq!(
+        tight_int_cast_alg!(strict!((((B - (F % 3.0)) % 3.0) - (-2.0 - A))) as i64),
+        tight_int_cast_plain!(strict!((((B - (F % 3.0)) % 3.0) - (-2.0 - A))) as i64),
+        "tight_int_cast/cast_int: differs from plain"
+    );
+}
+
+macro_rules! tight_range_field_start_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e.start
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_range_field_start_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e.start
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_range_field_start() {
+    // range in field_start position
+    assert_eq!(
+        tight_range_field_start_alg!(
+            (4.0 * (strict!((3.0 - 3.0)) / 2.0))..(((3.0 % 2.0) + ((B - D) / 2.0)) * (&A))
+        ),
+        0.0,
+        "tight_range_field_start/range: exact value"
+    );
+    assert_eq!(
+        tight_range_field_start_alg!(
+            (4.0 * (strict!((3.0 - 3.0)) / 2.0))..(((3.0 % 2.0) + ((B - D) / 2.0)) * (&A))
+        ),
+        tight_range_field_start_plain!(
+            (4.0 * (strict!((3.0 - 3.0)) / 2.0))..(((3.0 % 2.0) + ((B - D) / 2.0)) * (&A))
+        ),
+        "tight_range_field_start/range: differs from plain"
+    );
+    // range in field_start position
+    assert_eq!(
+        tight_range_field_start_alg!(
+            strict!((1.0 + ((-(D - (E + D))) + (-(G / 8.0)))))
+                ..(strict!(((strict!((-(3.0 * F))) * 2.0) / 2.0)) % -2.0)
+        ),
+        -7.375,
+        "tight_range_field_start/range: exact value"
+    );
+    assert_eq!(
+        tight_range_field_start_alg!(
+            strict!((1.0 + ((-(D - (E + D))) + (-(G / 8.0)))))
+                ..(strict!(((strict!((-(3.0 * F))) * 2.0) / 2.0)) % -2.0)
+        ),
+        tight_range_field_start_plain!(
+            strict!((1.0 + ((-(D - (E + D))) + (-(G / 8.0)))))
+                ..(strict!(((strict!((-(3.0 * F))) * 2.0) / 2.0)) % -2.0)
+        ),
+        "tight_range_field_start/range: differs from plain"
+    );
+}
+
+macro_rules! tight_range_field_end_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e.end
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_range_field_end_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e.end
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_range_field_end() {
+    // range in field_end position
+    assert_eq!(
+        tight_range_field_end_alg!(
+            (E % (-(1.0 + (strict!((A - A)) / 8.0))))..(((B / 4.0) * (&C)) % (-(E - (B * -2.0))))
+        ),
+        -2.5,
+        "tight_range_field_end/range: exact value"
+    );
+    assert_eq!(
+        tight_range_field_end_alg!(
+            (E % (-(1.0 + (strict!((A - A)) / 8.0))))..(((B / 4.0) * (&C)) % (-(E - (B * -2.0))))
+        ),
+        tight_range_field_end_plain!(
+            (E % (-(1.0 + (strict!((A - A)) / 8.0))))..(((B / 4.0) * (&C)) % (-(E - (B * -2.0))))
+        ),
+        "tight_range_field_end/range: differs from plain"
+    );
+    // range in field_end position
+    assert_eq!(
+        tight_range_field_end_alg!(
+            (E + (((4.0 * -2.0) + F) * (H % D)))..(A * (-(4.0 * (((4.0 + (&D)) % 4.0) % -1.0))))
+        ),
+        -6.0,
+        "tight_range_field_end/range: exact value"
+    );
+    assert_eq!(
+        tight_range_field_end_alg!(
+            (E + (((4.0 * -2.0) + F) * (H % D)))..(A * (-(4.0 * (((4.0 + (&D)) % 4.0) % -1.0))))
+        ),
+        tight_range_field_end_plain!(
+            (E + (((4.0 * -2.0) + F) * (H % D)))..(A * (-(4.0 * (((4.0 + (&D)) % 4.0) % -1.0))))
+        ),
+        "tight_range_field_end/range: differs from plain"
+    );
+}
+
+macro_rules! tight_range_receiver_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> bool {
+            $e.is_empty()
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_range_receiver_plain {
+    ($e:expr) => {{
+        fn go() -> bool {
+            $e.is_empty()
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_range_receiver() {
+    // range in receiver position
+    assert_eq!(
+        tight_range_receiver_alg!((((&G) / 4.0) / 8.0)..(-((4.0 + (-2.0 + (F + H))) * (B / 8.0)))),
+        false,
+        "tight_range_receiver/range: exact value"
+    );
+    assert_eq!(
+        tight_range_receiver_alg!((((&G) / 4.0) / 8.0)..(-((4.0 + (-2.0 + (F + H))) * (B / 8.0)))),
+        tight_range_receiver_plain!(
+            (((&G) / 4.0) / 8.0)..(-((4.0 + (-2.0 + (F + H))) * (B / 8.0)))
+        ),
+        "tight_range_receiver/range: differs from plain"
+    );
+    // range in receiver position
+    assert_eq!(
+        tight_range_receiver_alg!(
+            (B / 8.0)..strict!(((F * -2.0) * ((G - strict!((B / 8.0))) - (&G))))
+        ),
+        false,
+        "tight_range_receiver/range: exact value"
+    );
+    assert_eq!(
+        tight_range_receiver_alg!(
+            (B / 8.0)..strict!(((F * -2.0) * ((G - strict!((B / 8.0))) - (&G))))
+        ),
+        tight_range_receiver_plain!(
+            (B / 8.0)..strict!(((F * -2.0) * ((G - strict!((B / 8.0))) - (&G))))
+        ),
+        "tight_range_receiver/range: differs from plain"
+    );
+}
+
+macro_rules! tight_slice_index_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e[1]
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_slice_index_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e[1]
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_slice_index() {
+    // slice in index position
+    assert_eq!(
+        tight_slice_index_alg!(&[
+            (((D % E) % (H + G)) + (-(D / 2.0))),
+            ((((&A) + 3.0) - H) % ((&E) % (2.0 * 3.0)))
+        ]),
+        0.125,
+        "tight_slice_index/slice: exact value"
+    );
+    assert_eq!(
+        tight_slice_index_alg!(&[
+            (((D % E) % (H + G)) + (-(D / 2.0))),
+            ((((&A) + 3.0) - H) % ((&E) % (2.0 * 3.0)))
+        ]),
+        tight_slice_index_plain!(&[
+            (((D % E) % (H + G)) + (-(D / 2.0))),
+            ((((&A) + 3.0) - H) % ((&E) % (2.0 * 3.0)))
+        ]),
+        "tight_slice_index/slice: differs from plain"
+    );
+    // slice in index position
+    assert_eq!(
+        tight_slice_index_alg!(&[
+            (((A - G) - B) + strict!((D % (F % A)))),
+            ((D * A) * (-((4.0 * (&E)) - (H % E))))
+        ]),
+        41.8125,
+        "tight_slice_index/slice: exact value"
+    );
+    assert_eq!(
+        tight_slice_index_alg!(&[
+            (((A - G) - B) + strict!((D % (F % A)))),
+            ((D * A) * (-((4.0 * (&E)) - (H % E))))
+        ]),
+        tight_slice_index_plain!(&[
+            (((A - G) - B) + strict!((D % (F % A)))),
+            ((D * A) * (-((4.0 * (&E)) - (H % E))))
+        ]),
+        "tight_slice_index/slice: differs from plain"
+    );
+}
+
+macro_rules! tight_slice_receiver_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+            fn go() -> usize { $e.len() }
+        go()
+    }};
+}
+
+macro_rules! tight_slice_receiver_plain {
+    ($e:expr) => {{
+        fn go() -> usize { $e.len() }
+        go()
+    }};
+}
+
+#[test]
+fn tight_slice_receiver() {
+    // slice in receiver position
+    assert_eq!(
+        tight_slice_receiver_alg!(&[
+            ((-1.0 * D) + (((&E) * C) + (D - H))),
+            ((((F * (&B)) - (B * B)) - (&H)) - E)
+        ]),
+        2,
+        "tight_slice_receiver/slice: exact value"
+    );
+    assert_eq!(
+        tight_slice_receiver_alg!(&[
+            ((-1.0 * D) + (((&E) * C) + (D - H))),
+            ((((F * (&B)) - (B * B)) - (&H)) - E)
+        ]),
+        tight_slice_receiver_plain!(&[
+            ((-1.0 * D) + (((&E) * C) + (D - H))),
+            ((((F * (&B)) - (B * B)) - (&H)) - E)
+        ]),
+        "tight_slice_receiver/slice: differs from plain"
+    );
+    // slice in receiver position
+    assert_eq!(
+        tight_slice_receiver_alg!(&[
+            ((-2.0 + (D + 4.0)) - (-((B * H) * 1.0))),
+            ((strict!((F % A)) % (3.0 * A)) - (-2.0 + (&A)))
+        ]),
+        2,
+        "tight_slice_receiver/slice: exact value"
+    );
+    assert_eq!(
+        tight_slice_receiver_alg!(&[
+            ((-2.0 + (D + 4.0)) - (-((B * H) * 1.0))),
+            ((strict!((F % A)) % (3.0 * A)) - (-2.0 + (&A)))
+        ]),
+        tight_slice_receiver_plain!(&[
+            ((-2.0 + (D + 4.0)) - (-((B * H) * 1.0))),
+            ((strict!((F % A)) % (3.0 * A)) - (-2.0 + (&A)))
+        ]),
+        "tight_slice_receiver/slice: differs from plain"
+    );
+}
+
+macro_rules! tight_closure_callee_alg {
+    ($e:expr) => {{
+        #[reassoc::algebraic]
+        fn go() -> f32 {
+            $e(3.0)
+        }
+        go()
+    }};
+}
+
+macro_rules! tight_closure_callee_plain {
+    ($e:expr) => {{
+        fn go() -> f32 {
+            $e(3.0)
+        }
+        go()
+    }};
+}
+
+#[test]
+fn tight_closure_callee() {
+    // closure in callee position
+    assert_eq!(
+        tight_closure_callee_alg!(|z: f32| z * strict!((-(((((&B) % H) + 3.0) * E) / 8.0)))),
+        7.875,
+        "tight_closure_callee/closure: exact value"
+    );
+    assert_eq!(
+        tight_closure_callee_alg!(|z: f32| z * strict!((-(((((&B) % H) + 3.0) * E) / 8.0)))),
+        tight_closure_callee_plain!(|z: f32| z * strict!((-(((((&B) % H) + 3.0) * E) / 8.0)))),
+        "tight_closure_callee/closure: differs from plain"
+    );
+    // closure in callee position
+    assert_eq!(
+        tight_closure_callee_alg!(|z: f32| z * (-((((&A) * E) + (H + D)) * (-((&F) + (&H)))))),
+        -7.734375,
+        "tight_closure_callee/closure: exact value"
+    );
+    assert_eq!(
+        tight_closure_callee_alg!(|z: f32| z * (-((((&A) * E) + (H + D)) * (-((&F) + (&H)))))),
+        tight_closure_callee_plain!(|z: f32| z * (-((((&A) * E) + (H + D)) * (-((&F) + (&H)))))),
+        "tight_closure_callee/closure: differs from plain"
+    );
 }

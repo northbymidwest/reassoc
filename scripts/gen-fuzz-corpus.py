@@ -11,17 +11,20 @@ Values are tracked as exact `Fraction`s while the tree is built, and a node is
 rejected if it would leave the safe zone, so the guarantee holds by
 construction rather than by hoping.
 
-Two kinds of case: expression trees, and compound-assignment chains
+Three kinds of case: expression trees; compound-assignment chains
 (`{ let mut acc = a; acc += tree; acc *= tree; acc }`), which exercise the
-`+=` emitter. Leaves are variables, `&`-references to variables, or unsuffixed
-literals; a subtree is sometimes wrapped in `strict!(..)`, which must not change
-an exact value either.
+`+=` emitter; and tight-position cases, which put a tree inside a
+low-precedence expression, pass that through a `macro_rules!` `$e:expr`
+fragment, and drop it into each position of Rust's expression grammar that
+could bind tighter than it. Leaves are variables, `&`-references to variables,
+or unsuffixed literals; a subtree is sometimes wrapped in `strict!(..)`, which
+must not change an exact value either.
 
 Usage:
     gen-fuzz-corpus.py --seed 1 --count 200 --chains 80 --nodes 40 --width 64 \\
-        > reassoc/tests/fuzz_corpus.rs
+        --tight 2 > reassoc/tests/fuzz_corpus.rs
     gen-fuzz-corpus.py --seed 2 --count 100 --chains 40 --nodes 24 --width 32 \\
-        > reassoc/tests/fuzz_corpus_f32.rs
+        --tight 2 > reassoc/tests/fuzz_corpus_f32.rs
 Then run `rustfmt` on the output.
 """
 
@@ -139,6 +142,161 @@ def gen_chain(rng: random.Random, nodes: int, env: dict[str, Fraction]):
     return "{ " + " ".join(stmts) + " acc }", value
 
 
+# --- tight positions ------------------------------------------------------
+#
+# A `$e:expr` fragment arrives in an invisible group, and rustc stops honouring
+# that grouping once a proc macro has re-emitted the tokens, so the rewriter
+# re-parenthesises a grouped low-precedence expression wherever the position
+# binds tighter (`reparen_tight_positions`). That list of positions is written
+# by hand and an arm has gone missing from it three times: `Index`, `Cast`,
+# and `&`. These cases exist to catch the fourth.
+#
+# The contexts below are enumerated from Rust's expression grammar rather than
+# from the rewriter's list, which is the whole point: a position the rewriter
+# forgot is still generated here. One that needs no parentheses simply passes,
+# and costs an assertion.
+#
+# Each fragment has to still *be* low-precedence by the time the
+# re-parenthesising runs. An arithmetic tree on its own does not qualify: it
+# becomes a call, which is self-delimiting and proves nothing. So every
+# fragment wraps its trees in something the rewriter leaves as an expression,
+# and the tree supplies the value.
+
+
+def trunc(v: Fraction) -> int:
+    """Rust's float-to-integer cast: truncate toward zero."""
+    return int(v)
+
+
+def fragment_templates(ty: str) -> list[dict]:
+    return [
+        dict(name="cmp", arity=2, tag="bool",
+             src=lambda t: f"{t[0]} < {t[1]}", value=lambda v: v[0] < v[1]),
+        dict(name="cast_int", arity=1, tag="int",
+             src=lambda t: f"{t[0]} as i64", value=lambda v: trunc(v[0])),
+        dict(name="cast_float", arity=1, tag="float",
+             src=lambda t: f"{t[0]} as {ty}", value=lambda v: v[0]),
+        dict(name="neg", arity=1, tag="float",
+             src=lambda t: f"-{t[0]}", value=lambda v: -v[0]),
+        dict(name="range", arity=2, tag="range",
+             src=lambda t: f"{t[0]}..{t[1]}", value=lambda v: (v[0], v[1])),
+        dict(name="slice", arity=2, tag="slice",
+             src=lambda t: f"&[{t[0]}, {t[1]}]", value=lambda v: (v[0], v[1])),
+        dict(name="closure", arity=1, tag="closure",
+             src=lambda t: f"|z: {ty}| z * {t[0]}", value=lambda v: v[0]),
+    ]
+
+
+def context_templates(ty: str) -> list[dict]:
+    """`$e` is the hole. `tag` is the type it must hold, `kind` the type the
+    context yields. Positions that bind tighter than a low-precedence
+    expression need an arm in `reparen_tight_positions`; the rest are here so
+    that a missing arm has somewhere to show up."""
+    return [
+        # The hole holds a float.
+        dict(tag="float", name="unary", src="-$e", ret=ty, kind="float",
+             value=lambda v: -v),
+        dict(tag="float", name="reference", src="*(&$e)", ret=ty, kind="float",
+             value=lambda v: v),
+        dict(tag="float", name="receiver", src="$e.abs()", ret=ty, kind="float",
+             value=abs),
+        dict(tag="float", name="cast", src="$e as i64", ret="i64", kind="int",
+             value=trunc),
+        dict(tag="float", name="binary", src="$e * 2.0", ret=ty, kind="float",
+             value=lambda v: v * 2),
+        dict(tag="float", name="range_end", src="(0.0..$e).end", ret=ty,
+             kind="float", value=lambda v: v),
+        dict(tag="float", name="tuple", src="($e, 0.0).0", ret=ty, kind="float",
+             value=lambda v: v),
+        dict(tag="float", name="array", src="[$e, 0.0][0]", ret=ty, kind="float",
+             value=lambda v: v),
+        # The hole holds a bool.
+        dict(tag="bool", name="unary", src="!$e", ret="bool", kind="bool",
+             value=lambda v: not v),
+        dict(tag="bool", name="reference", src="*(&$e)", ret="bool", kind="bool",
+             value=lambda v: v),
+        dict(tag="bool", name="cast", src="$e as u8", ret="u8", kind="int",
+             value=lambda v: 1 if v else 0),
+        dict(tag="bool", name="condition", src="if $e { 1.0 } else { 2.0 }",
+             ret=ty, kind="float", value=lambda v: Fraction(1 if v else 2)),
+        dict(tag="bool", name="scrutinee",
+             src="match $e { true => 1.0, false => 2.0 }", ret=ty, kind="float",
+             value=lambda v: Fraction(1 if v else 2)),
+        dict(tag="bool", name="logical", src="$e && true", ret="bool",
+             kind="bool", value=lambda v: v),
+        # The hole holds an i64.
+        dict(tag="int", name="unary", src="-$e", ret="i64", kind="int",
+             value=lambda v: -v),
+        dict(tag="int", name="reference", src="*(&$e)", ret="i64", kind="int",
+             value=lambda v: v),
+        dict(tag="int", name="receiver", src="$e.abs()", ret="i64", kind="int",
+             value=abs),
+        dict(tag="int", name="cast", src=f"$e as {ty}", ret=ty, kind="float",
+             value=Fraction),
+        # The hole holds a `Range`.
+        dict(tag="range", name="field_start", src="$e.start", ret=ty,
+             kind="float", value=lambda v: v[0]),
+        dict(tag="range", name="field_end", src="$e.end", ret=ty, kind="float",
+             value=lambda v: v[1]),
+        dict(tag="range", name="receiver", src="$e.is_empty()", ret="bool",
+             kind="bool", value=lambda v: not v[0] < v[1]),
+        # The hole holds a `&[T; 2]`.
+        dict(tag="slice", name="index", src="$e[1]", ret=ty, kind="float",
+             value=lambda v: v[1]),
+        dict(tag="slice", name="receiver", src="$e.len()", ret="usize",
+             kind="int", value=lambda v: 2),
+        # The hole holds a closure.
+        dict(tag="closure", name="callee", src="$e(3.0)", ret=ty, kind="float",
+             value=lambda v: v * 3),
+    ]
+
+
+def operand_tree(rng: random.Random, budget: int, env: dict[str, Fraction]):
+    """A tree guaranteed to be an *operation*, not a bare leaf: `(&A) as i64`
+    is E0606, and a leaf would also leave the fragment with no arithmetic for
+    the rewriter to touch."""
+    for _ in range(64):
+        src, value = gen(rng, budget, env)
+        if any(f" {op} " in src for op in "+-*/%"):
+            return src, value
+    raise RuntimeError("no operation tree within the safe zone")
+
+
+def gen_tight_cases(rng: random.Random, nodes: int, env: dict[str, Fraction],
+                    ty: str, per_context: int) -> list[dict]:
+    """One entry per context, each holding the instantiations of every
+    fragment whose type fits its hole."""
+    fragments = fragment_templates(ty)
+    budget = max(3, nodes // 4)
+    out = []
+    for ctx in context_templates(ty):
+        instances = []
+        for frag in (f for f in fragments if f["tag"] == ctx["tag"]):
+            seen: set[str] = set()
+            while len(seen) < per_context:
+                trees = [operand_tree(rng, budget, env) for _ in range(frag["arity"])]
+                src = frag["src"]([t[0] for t in trees])
+                if src in seen:
+                    continue
+                value = ctx["value"](frag["value"]([t[1] for t in trees]))
+                if ctx["kind"] == "float" and not is_safe(value):
+                    continue
+                if ctx["kind"] == "int" and abs(int(value)) >= 2**62:
+                    continue
+                seen.add(src)
+                instances.append((frag["name"], src, literal(ctx["kind"], value)))
+        out.append(dict(ctx, instances=instances))
+    return out
+
+
+def literal(kind: str, value) -> str:
+    if kind == "float":
+        return rust_lit(value)
+    if kind == "bool":
+        return "true" if value else "false"
+    return str(int(value))
+
+
 def rust_lit(v: Fraction) -> str:
     f = float(v)
     return f"{f!r}" + ("" if "." in repr(f) or "e" in repr(f) else ".0")
@@ -190,6 +348,10 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--count", type=int, default=200)
     p.add_argument("--chains", type=int, default=80)
+    # Per context *per fragment*, and there are 24 contexts: each instance is
+    # two macro expansions holding a `#[algebraic]` function, so this is the
+    # knob that decides what these cases cost to compile.
+    p.add_argument("--tight", type=int, default=2)
     p.add_argument("--nodes", type=int, default=40)
     p.add_argument("--width", type=int, default=64, choices=[32, 64])
     p.add_argument("--per-fn", type=int, default=20)
@@ -216,6 +378,12 @@ def main() -> None:
             continue
         chains.append((src, value))
 
+    # The tight-position cases name the consts directly: a `macro_rules!`
+    # argument is written at the call site, where a function's parameters are
+    # not in scope, so `a` there would not resolve to the `a` inside `go`.
+    tight = gen_tight_cases(rng, args.nodes, {k.upper(): v for k, v in env.items()},
+                            ty, args.tight)
+
     out = []
     out.append(f'''//! Randomly generated expression trees. Do not edit by hand.
 //!
@@ -223,7 +391,8 @@ def main() -> None:
 //!
 //! ```text
 //! scripts/gen-fuzz-corpus.py --seed {args.seed} --count {args.count} --chains {args.chains} \\
-//!     --nodes {args.nodes} --width {args.width} > reassoc/tests/{"fuzz_corpus" if args.width == 64 else "fuzz_corpus_f32"}.rs
+//!     --nodes {args.nodes} --width {args.width} --tight {args.tight} \\
+//!     > reassoc/tests/{"fuzz_corpus" if args.width == 64 else "fuzz_corpus_f32"}.rs
 //! rustfmt --edition 2024 reassoc/tests/{"fuzz_corpus" if args.width == 64 else "fuzz_corpus_f32"}.rs
 //! ```
 //!
@@ -249,6 +418,20 @@ def main() -> None:
 //! `{{ let mut acc = x; acc op= tree; ..; acc }}`, which exercise the
 //! compound-assignment emitter on bare paths.
 //!
+//! The `tight_*` cases are a different shape. A `$e:expr` fragment arrives in
+//! an invisible group that rustc stops honouring once a proc macro has
+//! re-emitted the tokens, so the rewriter re-parenthesises a grouped
+//! low-precedence expression wherever the position binds tighter
+//! (`reparen_tight_positions`). Each case wraps a tree in something that is
+//! still an expression after the rewrite (a comparison, a cast, a unary minus,
+//! a range, a slice reference, a closure), passes it through a fragment, and
+//! puts it in one position of Rust's expression grammar: unary, `&`, receiver,
+//! cast, callee, index, field, and also positions that need no parentheses at
+//! all. The list is written from the grammar, not from the rewriter, so a
+//! position the rewriter forgot is still generated; one that needs nothing
+//! simply passes. Each asserts the exact value and agreement with the same
+//! source outside `#[algebraic]`.
+//!
 //! Seed {args.seed}, {args.count} trees of ~{args.nodes} nodes and {args.chains} chains, over `{ty}`.
 //! Generator sha256 {script_hash}, run at commit {commit}: the same seed under a
 //! different generator hash is a different corpus.
@@ -256,6 +439,11 @@ def main() -> None:
 #![allow(clippy::op_ref, clippy::assign_op_pattern, clippy::double_parens)]
 #![allow(clippy::excessive_precision)] // exact dyadic literals clippy cannot round-trip in f32
 #![allow(unused_parens, unused_braces)]
+// The tight-position cases are deliberately written the long way round: the
+// shape is the point, so nothing here may be simplified into it.
+#![allow(clippy::unnecessary_cast, clippy::nonminimal_bool, clippy::deref_addrof)]
+#![allow(clippy::reversed_empty_ranges, clippy::match_bool, clippy::bool_comparison)]
+#![allow(clippy::bool_assert_comparison, clippy::neg_cmp_op_on_partial_ord)]
 
 use reassoc::{{alg, algebraic, strict}};
 
@@ -348,6 +536,31 @@ impl core::ops::Neg for &Disp {{
 
     emit("tree", cases, args.per_fn)
     emit("chain", chains, args.per_fn)
+
+    for ctx in tight:
+        if not ctx["instances"]:
+            continue
+        name = f"tight_{ctx['tag']}_{ctx['name']}"
+        body = ctx["src"]
+        for suffix, attr in (("alg", "#[reassoc::algebraic]\n            "), ("plain", "")):
+            out.append(f"macro_rules! {name}_{suffix} {{")
+            out.append("    ($e:expr) => {{")
+            out.append(f"        {attr}fn go() -> {ctx['ret']} {{ {body} }}")
+            out.append("        go()")
+            out.append("    }};\n}\n")
+        out.append(f"#[test]\nfn {name}() {{")
+        for frag, src, expected in ctx["instances"]:
+            out.append(f"    // {frag} in {ctx['name']} position")
+            out.append(
+                f"    assert_eq!({name}_alg!({src}), {expected}, "
+                f'"{name}/{frag}: exact value");'
+            )
+            out.append(
+                f"    assert_eq!({name}_alg!({src}), {name}_plain!({src}), "
+                f'"{name}/{frag}: differs from plain");'
+            )
+        out.append("}\n")
+
     print("\n".join(out))
 
 

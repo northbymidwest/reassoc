@@ -10,6 +10,30 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ## Unreleased
 
+### Added
+
+- **The fuzz corpus now generates tight-position cases**, which is what the
+  `&` bug below needed and did not have. A tree is wrapped in something that
+  is still a low-precedence expression after the rewrite (a comparison, a
+  cast, a unary minus, a range, a slice reference, a closure), passed through
+  a `macro_rules!` `$e:expr` fragment, and dropped into a position of Rust's
+  expression grammar. Each case asserts the exact value and agreement with
+  the same source outside `#[algebraic]`.
+
+  The point is where the list of positions comes from. `reparen_tight_positions`
+  keeps one, written by hand, and an arm has gone missing from it three times
+  now: `Index`, `Cast`, and `&`. A test written from that list cannot see the
+  fourth. These contexts are enumerated from the grammar instead, including
+  positions that need no parentheses at all, so a position the rewriter
+  forgot is still generated; one that needs nothing simply passes and costs
+  an assertion. Deleting any of the `Call`, `MethodCall`, `Field`, `Index`,
+  `Cast`, `Unary` or `Reference` arms now fails the corpus. `Try` and `Await`
+  need a `Try` type and an `async` body, so they stay pinned by
+  `tests/macros.rs` instead.
+
+  `--tight N` sets the instances per context per fragment, default 2; both
+  corpora cost about 2.5s to compile in total.
+
 ### Fixed
 
 - **`&$e` lost its grouping when a `$e:expr` fragment reached it through a
