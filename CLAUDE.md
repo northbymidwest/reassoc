@@ -102,7 +102,7 @@ reverts to a worse result if undone.
   `consumers/foreign-types/` is the foreign crate the tests use.
 - The operand bound hangs off `B`. Nothing is synthesised for `Copy` types and
   references follow the type's own impls: native parity over convenience.
-- A `#[passthrough(A op B => O)]` pair is only for a foreign opt-in (a `use`,
+- A `#[passthrough(A op B)]` pair is only for a foreign opt-in (a `use`,
   `type` or `impl`); under the default tag, on a definition, it would overlap
   the primitive-left blankets (`E0119`), so the attribute refuses it there.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.

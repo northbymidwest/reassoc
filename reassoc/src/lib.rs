@@ -157,7 +157,7 @@
 //! is the one pair that has to be named:
 //!
 //! ```text
-//! #[passthrough(f32 * Vec3 => Vec3)]
+//! #[passthrough(f32 * Vec3)]
 //! use glam::Vec3;
 //!
 //! #[passthrough]                          // an instantiation of a generic foreign type

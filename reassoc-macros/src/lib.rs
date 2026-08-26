@@ -237,7 +237,7 @@ pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[passthrough]                          // a type from another crate: the `use`
 /// use glam::Vec3;
 ///
-/// #[passthrough(f32 * Vec3 => Vec3)]      // a primitive on the *left* of a foreign type
+/// #[passthrough(f32 * Vec3)]      // a primitive on the *left* of a foreign type
 /// use glam::Vec3;                         // is the one pair that has to be named
 ///
 /// #[passthrough]                          // an instantiation of a generic foreign type
@@ -249,9 +249,10 @@ pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// A foreign type is opted in **once** per dependency tree: two opt-ins are
 /// two dispatch impls, and every concrete operator on the type is then an
-/// ambiguity error. The pairs (`A op B => O`, or `A op= B`) are for a
-/// primitive on the left of a foreign type only; a type of yours has that
-/// automatically. See `reassoc`'s crate docs for the compiled examples.
+/// ambiguity error. The pairs (`A op B`, or `A op= B`, one per operator) are
+/// for a primitive on the left of a foreign type only; a type of yours has
+/// that automatically. The output is the type's own, resolved for you;
+/// `A op B => O` spells it out and has to agree. See `reassoc`'s crate docs for the compiled examples.
 #[proc_macro_attribute]
 pub fn passthrough(attr: TokenStream, item: TokenStream) -> TokenStream {
     match opt_in::expand(attr.into(), item.into()) {

@@ -670,7 +670,7 @@ pub fn direct_non_copy(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, f64) {
 
 // ---- a type from another crate, through the foreign tag ----
 
-#[passthrough(f32 * Vec3 => Vec3)]
+#[passthrough(f32 * Vec3)]
 use foreign_types::Vec3;
 #[algebraic]
 #[unsafe(no_mangle)]

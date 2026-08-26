@@ -24,7 +24,7 @@ pub fn trait_tag(trait_ident: &syn::Ident) -> syn::Ident {
     format_ident!("__ReassocTag_{}", trait_ident)
 }
 
-/// `A op B => O` or `A op= B`: one dispatch impl, written out.
+/// `A op B`, `A op B => O`, or `A op= B`: one dispatch impl, written out.
 struct Pair {
     lhs: syn::Type,
     op: syn::BinOp,
@@ -52,17 +52,17 @@ impl Pair {
     /// The dispatch impl for this pair under `tag`.
     fn emit(&self, krate: &syn::Ident, tag: &syn::Ident) -> syn::Result<TokenStream> {
         use syn::BinOp::*;
-        let (trait_, method, assign) = match self.op {
-            Add(_) => ("AddRhs", "add_rhs", false),
-            Sub(_) => ("SubRhs", "sub_rhs", false),
-            Mul(_) => ("MulRhs", "mul_rhs", false),
-            Div(_) => ("DivRhs", "div_rhs", false),
-            Rem(_) => ("RemRhs", "rem_rhs", false),
-            AddAssign(_) => ("AddAssignRhs", "add_assign_rhs", true),
-            SubAssign(_) => ("SubAssignRhs", "sub_assign_rhs", true),
-            MulAssign(_) => ("MulAssignRhs", "mul_assign_rhs", true),
-            DivAssign(_) => ("DivAssignRhs", "div_assign_rhs", true),
-            RemAssign(_) => ("RemAssignRhs", "rem_assign_rhs", true),
+        let (trait_, method, std, assign) = match self.op {
+            Add(_) => ("AddRhs", "add_rhs", "Add", false),
+            Sub(_) => ("SubRhs", "sub_rhs", "Sub", false),
+            Mul(_) => ("MulRhs", "mul_rhs", "Mul", false),
+            Div(_) => ("DivRhs", "div_rhs", "Div", false),
+            Rem(_) => ("RemRhs", "rem_rhs", "Rem", false),
+            AddAssign(_) => ("AddAssignRhs", "add_assign_rhs", "AddAssign", true),
+            SubAssign(_) => ("SubAssignRhs", "sub_assign_rhs", "SubAssign", true),
+            MulAssign(_) => ("MulAssignRhs", "mul_assign_rhs", "MulAssign", true),
+            DivAssign(_) => ("DivAssignRhs", "div_assign_rhs", "DivAssign", true),
+            RemAssign(_) => ("RemAssignRhs", "rem_assign_rhs", "RemAssign", true),
             _ => {
                 return Err(syn::Error::new(
                     self.op.span(),
@@ -72,6 +72,7 @@ impl Pair {
         };
         let trait_ = syn::Ident::new(trait_, self.op.span());
         let method = syn::Ident::new(method, self.op.span());
+        let std = syn::Ident::new(std, self.op.span());
         let (
             Pair {
                 lhs: a,
@@ -96,11 +97,12 @@ impl Pair {
                 }
             });
         }
-        let Some(out) = out else {
-            return Err(syn::Error::new(
-                op.span(),
-                "a binary pair names its output: `A op B => O`",
-            ));
+        // The output is whatever the type's own impl says it is, which the
+        // projection resolves; `=> O` is accepted for the reader's sake and
+        // has to agree, since the body is checked against it.
+        let out = match out {
+            Some(out) => out.to_token_stream(),
+            None => quote!(<#a as ::core::ops::#std<#b>>::Output),
         };
         Ok(quote! {
             impl ::#krate::traits::#trait_<#a, #out, #tag> for #b {

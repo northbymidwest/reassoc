@@ -175,7 +175,7 @@ reassoc = "0.13"
   another crate, or its `impl` of an `#[algebraic_float]` trait. Every
   operator the type implements is dispatched from then on, exactly as
   `std::ops` defines it. Nothing is listed, except a primitive on the *left*
-  of a foreign type: `#[passthrough(f32 * Vec3 => Vec3)]`. Opt a foreign
+  of a foreign type: `#[passthrough(f32 * Vec3)]`. Opt a foreign
   type in once per dependency tree ([Limitations](#limitations)).
 - `#[algebraic_float]`: on your own float trait, the one implemented for
   `f32` and `f64`. Every function generic over it is then rewritten like

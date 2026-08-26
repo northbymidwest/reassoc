@@ -98,9 +98,14 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   a leaf library, which would export its opt-in to every dependant, and
   never for a type this crate already covers. A primitive on the *left* of a
   foreign type (`2.0 * v`, `n * v`) is the one pair that is named,
-  `#[passthrough(f32 * Vec3 => Vec3)]`: for a type of your own it is
-  automatic, but the impl that makes it so is only provably distinct from the
-  general one under the default tag, which a foreign opt-in never has.
+  `#[passthrough(f32 * Vec3)]`, one entry per operator: for a type of your
+  own it is automatic, but the impl that makes it so is only provably
+  distinct from the general one under the default tag, which a foreign
+  opt-in never has, and the attribute can emit a pair only for an operator
+  it is told exists, since an impl bounded on an operator the type lacks is
+  an error at the impl rather than an absent impl. The pair's output is the
+  type's own, resolved through `<f32 as Mul<Vec3>>::Output`; `=> O` may
+  spell it out and must agree.
 
 - Integer arithmetic whose operands are *both* compile-time-known non-literals
   (`let x: u8 = 255; let y: u8 = 1; x + y`) is not seen by rustc's

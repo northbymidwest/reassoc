@@ -1,11 +1,11 @@
-error: a binary pair names its output: `A op B => O`
- --> tests/ui/passthrough_bad_pair.rs:5:19
-  |
-5 | #[passthrough(f32 * Matrix)]
-  |                   ^
-
 error: an in-place pair (`A op= B`) has no output; drop the `=> O`
- --> tests/ui/passthrough_bad_pair.rs:8:32
+ --> tests/ui/passthrough_bad_pair.rs:6:32
   |
-8 | #[passthrough(f32 *= Vector => Vector)]
+6 | #[passthrough(f32 *= Vector => Vector)]
   |                                ^^^^^^
+
+error: a `#[passthrough(..)]` pair is one of `+ - * / %`, or `+= -= *= /= %=`
+ --> tests/ui/passthrough_bad_pair.rs:9:19
+  |
+9 | #[passthrough(f32 & Matrix)]
+  |                   ^

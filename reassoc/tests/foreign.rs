@@ -129,13 +129,15 @@ fn instantiations_of_a_generic_foreign_type_dispatch() {
 
 // ---- every pair a foreign opt-in can name ----
 
-/// One pair per operator, binary and in place, on one `use`. A foreign type
+/// One pair per operator, binary and in place, on one `use`. The output is
+/// the type's own, resolved by projection; `=> O` may spell it out (one
+/// does here) and has to agree. A foreign type
 /// has no blanket for a primitive on its left (the blankets are keyed on the
 /// default tag, which a foreign opt-in never has), so each expression below
 /// compiles only through the pair that names it: an arm missing from the
 /// attribute's operator table is a compile error here, not a silent gap.
 #[passthrough(
-    f64 + Q => Q, f64 - Q => Q, f64 * Q => Q, f64 / Q => Q, f64 % Q => Q,
+    f64 + Q, f64 - Q, f64 * Q => Q, f64 / Q, f64 % Q, // one with its output spelled out
     f64 += Q, f64 -= Q, f64 *= Q, f64 /= Q, f64 %= Q
 )]
 use foreign_types::Q;

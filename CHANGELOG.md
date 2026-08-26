@@ -8,6 +8,19 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Changed
+
+- **A pair's output is resolved, not named.** `#[passthrough(f32 * Vec3)]` is
+  enough: the impl's output is `<f32 as Mul<Vec3>>::Output`, whatever the
+  type's own operator says. `=> O` is still accepted and has to agree, since
+  the impl's body is checked against it (`tests/ui/passthrough_pair_wrong_output.rs`).
+  The old `passthrough!` needed the output spelled out only because a
+  `macro_rules!` cannot write a projection. One entry per operator stays:
+  an impl bounded on an operator the type lacks is an error at the impl, so
+  the attribute can emit a pair only for one it is told exists.
+
 ## 0.13.0 - 2026-08-26
 
 ### Changed (breaking)
