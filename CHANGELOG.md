@@ -26,6 +26,16 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   exemption. Wording still just prints; `docs/diagnostics.md` says where the
   wording is allowed to differ and why.
 
+  Turning it on immediately failed CI, and not for a divergence: every case
+  read `compiles`, including the ones that are deliberately broken programs.
+  CI sets `CARGO_TERM_COLOR: always`, which wraps each `error:` in escape codes
+  so the summariser's regex matched nothing, and the table had therefore been
+  meaningless on CI for as long as the step had existed. Nobody could tell,
+  because the output was informational. The subprocesses now force
+  `CARGO_TERM_COLOR=never`, and a corpus of broken programs that reports no
+  error anywhere is now itself a failure, since that state would otherwise
+  pass every comparison.
+
   Two of the three are `strict`, the macros rejecting what plain Rust accepts,
   which can hide nothing: a type with `std::ops` and no opt-in, and arithmetic
   on a type parameter. The third is the `lenient` one, `v[i] += v[j]` through a

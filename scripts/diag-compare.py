@@ -34,6 +34,7 @@ Usage:
 """
 
 import argparse
+import os
 import pathlib
 import re
 import subprocess
@@ -83,6 +84,19 @@ def divergence(native: str, local: str) -> str | None:
 
 def check_divergences(cells: dict[str, dict[str, str]], every_case: bool) -> int:
     """Compare each case's `native` against its `local`. Returns an exit code."""
+    # Nearly every case is a deliberately broken program, so if not one of them
+    # produced an error the harness is not reading rustc's output rather than
+    # the crate being flawless. That is what `CARGO_TERM_COLOR=always` did, and
+    # in that state the comparison below would pass everything.
+    if all(row["native"] == "compiles" for row in cells.values()):
+        print()
+        print(
+            "Every case compiles under plain Rust, which cannot be right: the cases are"
+            " broken programs. The harness is not seeing rustc's output. Check that"
+            " nothing is colourising it (`CARGO_TERM_COLOR`) and that `summarize` still"
+            " matches what cargo prints."
+        )
+        return 1
     problems = []
     for name, by_variant in cells.items():
         found = divergence(by_variant["native"], by_variant["local"])
@@ -189,10 +203,17 @@ def generate(variant: str, against: str | None, cases: list[pathlib.Path]) -> pa
     return crate
 
 
+# `summarize` reads rustc's plain text, and CI sets `CARGO_TERM_COLOR=always`,
+# which wraps every `error:` in escape codes so nothing matches and every case
+# reports `compiles`. The table was meaningless on CI for as long as the step
+# existed, and said so only once the divergence check started asserting it.
+CARGO_ENV = {**os.environ, "CARGO_TERM_COLOR": "never"}
+
+
 def check(crate: pathlib.Path, case: str) -> str:
     p = subprocess.run(
         ["cargo", "check", "-q", "--bin", case],
-        cwd=crate, capture_output=True, text=True,
+        cwd=crate, capture_output=True, text=True, env=CARGO_ENV,
     )
     return p.stderr
 
@@ -229,7 +250,7 @@ def main() -> int:
     crates = {v: generate(v, args.against, cases) for v in variants}
     # Build dependencies once per variant so the per-case checks are quick.
     for v, crate in crates.items():
-        subprocess.run(["cargo", "build", "-q"], cwd=crate, capture_output=True)
+        subprocess.run(["cargo", "build", "-q"], cwd=crate, capture_output=True, env=CARGO_ENV)
 
     full = pathlib.Path(args.full) if args.full else None
     if full:
