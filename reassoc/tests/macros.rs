@@ -186,17 +186,22 @@ fn matches_enters_its_scrutinee_and_leaves_the_pattern_alone() {
 /// parentheses at all, and an index whose base is a literal array never holds
 /// a group. Both were once written that way, and the `Index` and `Cast` arms
 /// went unpinned for it: deleting either changed nothing any test could see.
+/// `&$cond` is the same story: `&` binds tighter than every low-precedence
+/// expression, so without parentheses `&(1.0 < 2.0)` reads back as
+/// `&1.0 < 2.0` and stops compiling. Its `&mut` and `&raw` twins need no
+/// arm, both requiring a place, which binds tighter than `&` already.
 macro_rules! apply_to {
     ($call:expr, $x:expr, $range:expr, $arr:expr, $cond:expr) => {{
         #[reassoc::algebraic]
-        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, u8, bool) {
+        fn go(a: f32, b: f32) -> (f32, usize, usize, f32, u8, bool, bool) {
             let called = $call(a * b); // callee
             let len = $range.len(); // method receiver
             let start = $range.start; // field base
             let idx = $arr[1]; // index base: `&arr[1]` is a reference, not f32
             let cast = $cond as u8; // cast operand: `2.0 as u8` would bind first
             let not = !$cond; // unary operand
-            (called, len, start, idx, cast, not)
+            let borrowed = *(&$cond); // `&` operand: `&2.0 < 1.0` would bind first
+            (called, len, start, idx, cast, not, borrowed)
         }
         go($x, 2.0)
     }};
@@ -204,7 +209,7 @@ macro_rules! apply_to {
 
 #[test]
 fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
-    let (called, len, start, idx, cast, not) =
+    let (called, len, start, idx, cast, not, borrowed) =
         apply_to!(|v: f32| v + 3.0, 4.0, 0..2usize, &[1.0f32, 2.0], 1.0 < 2.0);
     assert_eq!(called, 11.0);
     assert_eq!(len, 2);
@@ -212,6 +217,7 @@ fn grouped_low_precedence_expressions_survive_rewriting_in_tight_positions() {
     assert_eq!(idx, 2.0);
     assert_eq!(cast, 1);
     assert!(!not);
+    assert!(borrowed);
 }
 
 /// `?` and `.await` bind tighter as well, and neither was reachable from the

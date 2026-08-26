@@ -506,8 +506,11 @@ fn dispatch_fn(op: &BinOp) -> Option<Dispatch> {
 /// `|..| body(x)`. Any attribute macro on such a function breaks it; this one
 /// gives a grouped low-precedence expression real parentheses wherever the
 /// position binds tighter (callee, receiver, base of a field, index, `?` or
-/// `.await`, operand of a cast or unary). Nothing else is touched: the
+/// `.await`, operand of a cast, unary or `&`). Nothing else is touched: the
 /// operands the rewriter itself consumes go through `unparen`.
+///
+/// `&mut $e` and `&raw const $e` need no arm of their own: both require a
+/// place expression, and every place binds tighter than `&` already.
 fn reparen_tight_positions(expr: &mut Expr) {
     let slot = match expr {
         Expr::Call(c) => &mut *c.func,
@@ -518,6 +521,7 @@ fn reparen_tight_positions(expr: &mut Expr) {
         Expr::Await(a) => &mut *a.base,
         Expr::Cast(c) => &mut *c.expr,
         Expr::Unary(u) => &mut *u.expr,
+        Expr::Reference(r) => &mut *r.expr,
         _ => return,
     };
     if !matches!(slot, Expr::Group(_)) {

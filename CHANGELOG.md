@@ -10,6 +10,19 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ## Unreleased
 
+### Fixed
+
+- **`&$e` lost its grouping when a `$e:expr` fragment reached it through a
+  rewritten function**, so `&(a < b)` read back as `&a < b` and stopped
+  compiling. `reparen_tight_positions` re-parenthesises a grouped
+  low-precedence expression wherever the position binds tighter, and `&` was
+  missing from the list beside the callee, receiver, field base, index, `?`,
+  `.await`, cast and unary arms. Its `&mut` and `&raw` twins need no arm:
+  both require a place, which binds tighter than `&` already. Pinned by the
+  `&$cond` case in
+  `tests/macros.rs::grouped_low_precedence_expressions_survive_rewriting_in_tight_positions`,
+  which fails to compile with the arm deleted.
+
 ### Security
 
 - **CodeQL's Rust analysis carries a standing "Low Rust analysis quality"
