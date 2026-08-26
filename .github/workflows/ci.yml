@@ -193,8 +193,12 @@ jobs:
       # The offline expander shares the rewriter by `#[path]` but mirrors
       # `krate` by hand; this catches the mirror drifting.
       - run: cargo build --release --manifest-path scripts/compile-bench/expander/Cargo.toml
-      # The diagnostics comparison must keep running (its cases track the
-      # current macro surface); its output is informational.
+      # The diagnostics comparison. Most of its table is wording and stays
+      # informational, but it now asserts the column that is not: a case plain
+      # Rust rejects and the macros accept means an algebraic scope swallowing
+      # an error, so an unlisted disagreement about whether the code compiles
+      # exits non-zero and fails this job. `DIVERGENT` in the script names the
+      # three that disagree on purpose.
       - run: python3 scripts/diag-compare.py
       # The repository is ASCII only. `.githooks/pre-commit` runs the same
       # script, but hooks are per-clone and `--no-verify` skips them, so this

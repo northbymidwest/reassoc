@@ -12,6 +12,27 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Tools
 
+- **`scripts/diag-compare.py` measured whether an algebraic scope swallows an
+  error and could not fail.** It compiles every case as plain Rust and through
+  this checkout, and prints `compiles` when there is no error, so a case that
+  plain Rust rejects and the macros accept was already visible in its table:
+  the one comparison that matters most, sitting in a report nobody diffs, in a
+  CI step whose own comment called the output informational.
+
+  It now asserts that column. `DIVERGENT` names the three cases that disagree
+  on purpose, each with its reason, and anything else exits non-zero and fails
+  the `lint` job. A listed case that stops diverging fails it too, as does an
+  entry naming a case file that is gone, so the list cannot rot into a blanket
+  exemption. Wording still just prints; `docs/diagnostics.md` says where the
+  wording is allowed to differ and why.
+
+  Two of the three are `strict`, the macros rejecting what plain Rust accepts,
+  which can hide nothing: a type with `std::ops` and no opt-in, and arithmetic
+  on a type parameter. The third is the `lenient` one, `v[i] += v[j]` through a
+  trait-indexed container, added as `c15` so the direction this check exists
+  for is actually represented. Each of the four failure modes was checked by
+  provoking it.
+
 - **`scripts/mutants.sh` selected only the facade crate**, so every mutant
   caught solely by `reassoc-macros/tests/rewrite.rs` was reported as a
   survivor; `unparen`'s attribute guard was one. The cargo wrapper now selects

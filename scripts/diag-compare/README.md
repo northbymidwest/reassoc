@@ -7,6 +7,17 @@ plain Rust (the macros stripped), through this checkout, and, with
 side by side. The table in `docs/diagnostics.md` is its output; re-run it
 before editing that page, and add a case here instead of in a scratch crate.
 
+Most of that table is wording, and wording is allowed to differ. One column is
+not: whether the code compiles at all. A case plain Rust rejects and the macros
+accept means an algebraic scope swallowing an error, so `native` against
+`local` is asserted rather than printed, and the script exits non-zero on a
+disagreement it does not expect. `DIVERGENT` at the top of the script lists the
+three that disagree on purpose, each with its reason: two `strict` (the macros
+rejecting what plain Rust accepts, which can hide nothing) and one `lenient`.
+An entry that stops diverging, or that names a case file no longer present,
+fails the run too, so the list cannot rot into a blanket exemption. Adding a
+`lenient` entry should take some justifying.
+
 ```bash
 python3 scripts/diag-compare.py                     # native vs local
 python3 scripts/diag-compare.py --against 0.6.0     # .. vs a release (needs the network)
