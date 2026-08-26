@@ -237,6 +237,10 @@
 //! trait and the `impl` is implementation detail and may change; the
 //! attribute is the contract.
 //!
+//! For a crate with no float trait of its own, [`AlgebraicFloat`] is a bound
+//! over the primitive floats alone. It is unstable and warns as such on
+//! every use; see its docs.
+//!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
 //! [`passthrough!`], [`algebraic_float`] and the derive. The `ops` functions and dispatch traits
 //! they expand to are implementation detail, visible because generated code
@@ -320,6 +324,50 @@ mod macros;
 
 pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
 
+/// A bound for code generic over the primitive floats and nothing else, for
+/// a crate with no float trait of its own. **Unstable**, and deprecated from
+/// birth so that every use says so: not covered by semver, may change or
+/// disappear in any release. `#[allow(deprecated)]` accepts that.
+///
+/// ```
+/// # #![allow(deprecated)]
+/// use reassoc::{algebraic, AlgebraicFloat};
+///
+/// #[algebraic]
+/// fn dot<T: AlgebraicFloat + Copy + Default>(a: &[T], b: &[T]) -> T {
+///     let mut s = T::default();
+///     for i in 0..a.len().min(b.len()) { s += a[i] * b[i]; }
+///     s
+/// }
+/// # assert_eq!(dot(&[1.0f32, 2.0], &[3.0, 4.0]), 11.0);
+/// # assert_eq!(dot(&[1.0f64, 2.0], &[3.0, 4.0]), 11.0);
+/// ```
+///
+/// The supported spelling is [`algebraic_float`] on a float trait of your
+/// own, which this is an alias of at its default: that trait also admits
+/// other types through the attribute on their `impl`s, and what it writes
+/// can change behind it. This bound cannot be extended that way, by
+/// construction, so a trait that needs a bignum one day has to move to the
+/// attribute then. Whether keeping this alias is worth its cost is an open
+/// question; `tests/generic_float.rs` says where.
+#[deprecated(
+    since = "0.13.0",
+    note = "unstable: `reassoc::AlgebraicFloat` is not covered by semver and may change or \
+            disappear in any release. It is the primitive floats only; the supported spelling \
+            is `#[algebraic_float]` on a float trait of your own, which also admits other \
+            types. `#[allow(deprecated)]` accepts the risk"
+)]
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a primitive float",
+    label = "`reassoc::AlgebraicFloat` is `f32` and `f64` only",
+    note = "this bound cannot be extended to another type: put `#[reassoc::algebraic_float]` on \
+            a float trait of your own and on the type's `impl` of it, and bound on that trait \
+            instead"
+)]
+pub trait AlgebraicFloat: __private::AlgebraicFloat {}
+#[allow(deprecated)]
+impl<T: __private::AlgebraicFloat> AlgebraicFloat for T {}
+
 // The README's code blocks, compiled as doctests so that they cannot drift
 // from the crate (the README is not the crate docs, so nothing else would
 // compile them). `cfg(doctest)` only: never an item of the library, and the
@@ -359,12 +407,16 @@ pub mod __private {
     /// when a local type appears in the trait's parameters. The primitive
     /// impls are generic over `X` and serve every marked trait.
     #[diagnostic::on_unimplemented(
-        message = "`{Self}` is not opted into this `#[algebraic_float]` trait",
-        label = "needs `#[reassoc::algebraic_float]` on its `impl`",
+        message = "`{Self}` is not a primitive float, and is not opted into this \
+                   `#[algebraic_float]` trait",
+        label = "not `f32` or `f64`, and no `#[reassoc::algebraic_float]` on its `impl`",
         note = "a primitive float needs nothing; any other type is opted in by putting \
                 `#[reassoc::algebraic_float]` on its `impl` of the marked trait, which needs the \
                 type to have all five operators (`+ - * / %` and their `op=` forms)",
-        note = "a type can implement one marked trait; `passthrough!` is not used for it as well"
+        note = "a type can implement one marked trait; `passthrough!` is not used for it as well",
+        note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
+                only and cannot be extended: bound on a float trait of your own carrying \
+                `#[algebraic_float]` instead"
     )]
     pub trait AlgebraicFloat<X = ()>:
         Sized

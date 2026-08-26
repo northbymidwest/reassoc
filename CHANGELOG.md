@@ -59,6 +59,19 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   any. The `E0277` notes for a type parameter now name the attribute before
   `#[algebraic(skip)]`.
 
+- **`reassoc::AlgebraicFloat`, an unstable bound over the primitive floats.**
+  For a crate with no float trait of its own, asked for by the first adopter.
+  An alias of the hidden marker at its default slot, so it reaches `f32` and
+  `f64` (and `f16`/`f128` under their features) and, by construction, no
+  opted-in type; a trait that needs a bignum one day moves to the attribute.
+  Deprecated from birth: every use warns that it is not covered by semver and
+  may change or disappear in any release, and `#[allow(deprecated)]` accepts
+  that. A UI case pins that the warning fires, another that a non-primitive
+  is refused with a message naming the way out. Whether carrying a second
+  spelling of the same thing is worth it is an open question, recorded in
+  `tests/generic_float.rs`; dropping it is the alias, one test and two UI
+  cases.
+
 ### Fixed
 
 - **An attribute on a parenthesised operand was dropped in silence.**

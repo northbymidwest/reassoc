@@ -207,3 +207,62 @@ fn the_bound_reaches_both_floats() {
     assert_eq!(takes(1.0f32), 1.0);
     assert_eq!(takes(1.0f64), 1.0);
 }
+
+/// `reassoc::AlgebraicFloat`, the public alias of the marker at its default
+/// slot: a bound for code generic over the primitive floats with no trait of
+/// its own, which is what the first adopter asked for. **Not a supported
+/// surface.** It is deprecated from birth so that every use warns (the
+/// `algebraic_float_alias_warns.rs` UI case pins that the warning fires),
+/// it is the primitive floats only by construction (the alias is the marker
+/// at `X = ()`, which an opted-in type never implements;
+/// `algebraic_float_alias_primitives_only.rs` pins that), and it may change
+/// or disappear in any release. Whether the convenience is worth carrying a
+/// second public spelling of the same thing is up for discussion; if the
+/// trade-off turns out poor, dropping it means deleting the alias, this test
+/// and those two UI cases, and nothing else.
+#[allow(deprecated)]
+mod alias {
+    use reassoc::{AlgebraicFloat, algebraic};
+
+    /// The bound straight on a function, no trait of the user's.
+    #[algebraic]
+    fn dot<T: AlgebraicFloat + Copy + Default>(a: &[T], b: &[T]) -> T {
+        let mut s = T::default();
+        for i in 0..a.len().min(b.len()) {
+            s += a[i] * b[i];
+        }
+        s
+    }
+
+    /// As a supertrait of the user's own trait, the spelling
+    /// light-curve-feature#327 used before the attribute existed.
+    pub trait Float: Copy + AlgebraicFloat {
+        fn zero() -> Self;
+    }
+    impl Float for f32 {
+        fn zero() -> f32 {
+            0.0
+        }
+    }
+    impl Float for f64 {
+        fn zero() -> f64 {
+            0.0
+        }
+    }
+    #[algebraic]
+    fn horner<T: Float>(coeffs: &[T], x: T) -> T {
+        let mut acc = T::zero();
+        for &c in coeffs {
+            acc = acc * x + c;
+        }
+        acc
+    }
+
+    #[test]
+    fn the_alias_bounds_the_primitive_floats() {
+        assert_eq!(dot(&[1.0f32, 2.0], &[3.0, 4.0]), 11.0);
+        assert_eq!(dot(&[1.0f64, 2.0], &[3.0, 4.0]), 11.0);
+        assert_eq!(horner(&[1.0f32, 2.0, 3.0], 2.0), 11.0);
+        assert_eq!(horner(&[1.0f64, 2.0, 3.0], 2.0), 11.0);
+    }
+}
