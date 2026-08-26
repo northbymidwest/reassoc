@@ -323,6 +323,16 @@ impl VisitMut for Rewriter {
         };
         let left = unparen(*binary.left);
         let right = unparen(*binary.right);
+        // `binary.attrs` is dropped with the node, and is empty. syn descends
+        // the left spine when it places attributes, so they land on the
+        // leftmost leaf and travel into the call with it, which is where rustc
+        // reads them too: `#[allow(..)] a + b` becomes
+        // `ops::add(#[allow(..)] a, b)`, the same attribute on the same
+        // expression. Measured over every shape and every entry point rather
+        // than read off syn's source, and the measurement is a test, so a syn
+        // release that changes it fails rather than silently losing the
+        // attributes: `tests/rewrite.rs::syn_never_puts_attributes_on_a_binary_node`.
+        // Noted because the empty vectors below otherwise read like a leak.
 
         self.ops += 1;
         let assign = match func {
@@ -596,16 +606,28 @@ fn reparen_tight_positions(expr: &mut Expr) {
 /// the call's own delimiters make redundant; any further layers were already
 /// redundant in the source and are left for `unused_parens` to report. By
 /// value: the operand is moved into the replacement, not copied.
+///
+/// A layer carrying attributes is kept instead. `x * #[allow(..)] (y + z)`
+/// puts them on the parentheses, and dropping the layer would drop them in
+/// silence; they cannot be moved onto the expression inside, syn's
+/// `replace_attrs` being private, and enumerating every `Expr` variant to do
+/// it by hand is a poor trade for a shape only `stmt_expr_attributes`
+/// (nightly) can write. Keeping the layer costs the parentheses the user
+/// wrote, which `unused_parens` may then call redundant; a warning it does
+/// not deserve beats an attribute that vanishes.
 fn unparen(expr: Expr) -> Expr {
     let expr = ungroup(expr);
     match expr {
-        Expr::Paren(inner) => ungroup(*inner.expr),
+        Expr::Paren(inner) if inner.attrs.is_empty() => ungroup(*inner.expr),
         expr => expr,
     }
 }
 
 fn ungroup(mut expr: Expr) -> Expr {
     while let Expr::Group(inner) = expr {
+        if !inner.attrs.is_empty() {
+            return Expr::Group(inner);
+        }
         expr = *inner.expr;
     }
     expr

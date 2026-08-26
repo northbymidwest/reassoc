@@ -62,6 +62,35 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Fixed
 
+- **An attribute on a parenthesised operand was dropped in silence.**
+  `x * #[allow(..)] (y + z)` puts the attribute on the parentheses, and
+  `unparen` removed that layer along with them, so the expansion held no trace
+  of it. Plain Rust honours it. `unparen` and `ungroup` now keep a layer that
+  carries attributes rather than stripping it; the attributes cannot be moved
+  onto the expression inside (syn's `replace_attrs` is private) and
+  enumerating every `Expr` variant to do it by hand is a poor trade, so the
+  cost is one pair of parentheses the user wrote anyway, which
+  `unused_parens` may call redundant. A warning it does not deserve beats an
+  attribute that vanishes. An unattributed layer is still stripped exactly as
+  before.
+
+  Reachable only under `stmt_expr_attributes` (nightly): attributes on
+  expressions are `E0658` on stable, in every position checked. syn parses the
+  shape regardless of the gate and the shape is all the rewriter sees, so this
+  is pinned by `reassoc-macros/tests/rewrite.rs`, which drives the rewriter on
+  syn trees directly. It reaches it by including the source with `#[path]`,
+  since a `proc-macro = true` crate exports nothing but proc macros;
+  `scripts/compile-bench/expander` does the same for the same reason.
+
+  The binary node's own `attrs` are unaffected and stay discarded: syn descends
+  the left spine when it places attributes, so they land on the leftmost leaf
+  and travel into the call with it, which is where rustc reads them too.
+  `#[allow(..)] a + b` becomes `ops::add(#[allow(..)] a, b)`, the same
+  attribute on the same expression. Measured over fifteen shapes and all three
+  entry points rather than read off syn's source, and kept as a test, so a syn
+  release that starts attaching attributes to the binary node fails instead of
+  silently dropping them.
+
 - **A `const fn` in an algebraic scope was rejected for arithmetic it did not
   have**, and the escape it offered made things worse. A `const fn` body is
   not one indivisible region: it is const context with runtime islands in it,
