@@ -136,22 +136,54 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   showed two things no feature reaches: arithmetic inlined from `core`
   (`Iterator::sum::<f64>()`) and from a dependency that is not adopted, stay
   strict.)
-- Compound assignment on a **non-primitive** type evaluates its right-hand side
-  before the place, whereas native `+=` on an overloaded type evaluates the
-  place first. Distinguishing the two needs type information a macro does not
-  have. Primitive `+=` is RHS-first natively and matches. Observable only when
-  both sides have effects or can panic (`v[idx()] += rhs()` runs `rhs()` first
-  here, `idx()` first natively), and in one direction of leniency: `v[i] +=
-  v[j]` on an overloaded `Copy` type compiles here and is `E0502` natively,
-  since native borrows the place before reading the right-hand side.
-- Compound assignment borrows the place: `place += rhs` becomes
-  `ops::add_assign(&mut place, rhs)`. Two things follow. A field of a
-  `#[repr(packed)]` struct cannot be borrowed (`E0793`), so `p.x += 1.0` on
-  one is rejected where native `+=` copies; write `p.x = p.x + 1.0`, which is
-  rewritten fine. And a `&mut` right operand is *moved* into the call rather
-  than implicitly reborrowed as native `+=` would (`s += m` with `m: &mut
-  String` consumes `m`); reborrow it, `s += &mut *m` or `s += &*m`, to use it
-  again.
+- Compound assignment is one emitted shape, where plain Rust's `+=` is two
+  operations chosen by type. On a primitive it is a builtin read-modify-write:
+  no reference is taken, and the right-hand side is evaluated first. On an
+  overloaded type it is `AddAssign::add_assign(&mut place, rhs)`: a reference
+  is taken, and the place is evaluated first. A macro emits before any type is
+  known, so it picks one shape for both. `place += rhs` becomes
+  `ops::add_assign(&mut place, rhs)` with the right-hand side bound first,
+  which takes a reference like the overloaded form and evaluates in the
+  primitive one's order (`design.md` for why that mix rather than either pure
+  form). Four things follow, and the first two are the halves where the mix
+  does not match:
+
+  **A `#[repr(packed)]` field of a primitive type is rejected.** `p.x += 1.0`
+  on a packed struct is `E0793`, the reference not being one that can be
+  taken, where native `+=` on a primitive field copies instead. Write
+  `p.x = p.x + 1.0`, which is rewritten normally. A packed field of an
+  *overloaded* type is `E0793` natively too, so only primitive fields differ,
+  and the difference is in the strict direction: it rejects code plain Rust
+  accepts, and can hide nothing.
+
+  **An overloaded `+=` through a trait-indexed container is accepted where
+  plain Rust rejects it.** `v[i] += v[j]` with `v: Vec<V>` and `V` opted in is
+  `E0502` natively, `index_mut` running before `index`; here the right-hand
+  side is read first, that borrow ends, and the place is borrowed after, so it
+  compiles. The program is correct either way, there being no aliasing at any
+  point, so plain Rust's rejection is an artifact of its evaluation order
+  rather than a conflict, and nothing unsound is admitted by not reproducing
+  it. It also needs indexing that goes through the traits: on a slice, and on
+  a `Vec` of a primitive, plain Rust accepts it too.
+
+  Reversing either half was measured and is worse. Evaluating the place first
+  reproduces native's `E0502` for `Vec<V>` and *introduces* it for
+  `Vec<f32>`, which plain Rust accepts and which is the arithmetic this crate
+  exists for. Dropping the reference (`place = ops::add(place, rhs)`) needs
+  `Add` rather than `AddAssign`, so a type with only the in-place form loses
+  `+=`; it moves out of a non-`Copy` place; and it would make the packed
+  *overloaded* case compile, turning a case that currently matches plain Rust
+  into one that does not. The only reference form a packed field accepts is
+  `&raw mut`, which needs `unsafe` to write through, and both crates are
+  `forbid(unsafe_code)`.
+
+  **Evaluation order is observable when both sides have effects or can
+  panic**: `v[idx()] += rhs()` runs `rhs()` first here, and `idx()` first for
+  an overloaded type natively. For a primitive it matches.
+
+  **A `&mut` right operand is moved into the call** rather than implicitly
+  reborrowed as native `+=` would (`s += m` with `m: &mut String` consumes
+  `m`); reborrow it, `s += &mut *m` or `s += &*m`, to use it again.
 - Operands are never coerced, so a right operand native `+=` would
   deref-coerce needs an impl of its own. `String` has them for every
   reference that deref-coerces to `&str` (`&String`, `&Cow<str>`,

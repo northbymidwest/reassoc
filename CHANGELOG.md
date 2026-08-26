@@ -30,6 +30,34 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Documentation
 
+- **The two compound-assignment divergences are one trade, and the section
+  never said so.** `docs/limitations.md` had them as separate bullets, a
+  `#[repr(packed)]` field rejected here and a `Vec` index accepted here, with
+  no hint they are the two halves of a single choice: plain Rust's `+=` is two
+  operations picked by type (a builtin taking no reference and evaluating the
+  right-hand side first, or `AddAssign::add_assign(&mut place, rhs)` taking one
+  and evaluating the place first), and a macro emitting before types exist must
+  pick one shape. The section now states that once and derives both from it,
+  and records that reversing either half was measured and is worse: place-first
+  introduces an `E0502` for `Vec<f32>` that plain Rust does not have, and
+  dropping the reference needs `Add` rather than `AddAssign`, moves out of a
+  non-`Copy` place, and makes the packed *overloaded* case compile where plain
+  Rust rejects it. `design.md` carries the measurement.
+
+  Two corrections in it. The `Vec` case needs indexing that goes through the
+  traits, which the old wording ("on an overloaded `Copy` type") did not say:
+  on a slice, and on a `Vec` of a primitive, plain Rust accepts it too. And it
+  admits nothing unsound, the program being correct either way with no aliasing
+  at any point, so plain Rust's rejection is an artifact of its evaluation
+  order rather than a conflict being hidden.
+
+  Both were documented and neither was tested: `E0793` appeared nowhere in the
+  suite. `tests/ui/packed_field_compound_assign.rs` pins the strict half with
+  `tests/ui/pass/packed_field_by_value.rs` for the way out it names, and
+  `compound.rs::overloaded_compound_assign_through_a_vec_index` pins the
+  permissive half, with the slice and `Vec<f32>` controls that plain Rust
+  accepts beside it.
+
 - **The README listed `String` among the types covered without an opt-in**
   alongside things that need no feature at all. `String` comes with `alloc`
   and `Instant` / `SystemTime` with `std`; the primitives, `Duration`,

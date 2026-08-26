@@ -202,7 +202,14 @@ blanket for a downstream type. Native place-first
 evaluation for overloaded `+=` is still not reproduced, by choice: native has
 two orders, RHS first for primitives and place first for overloaded types, and
 a macro that cannot see types must pick one for all. RHS first matches the
-primitives, which is what this crate is for.
+primitives, which is what this crate is for, and the other order was measured
+rather than assumed to be worse: `ops::add_assign(&mut v[0], v[1])`, which is
+what place-first emits, reproduces native's `E0502` for a `Vec` of an opted-in
+type and *introduces* one for `Vec<f32>`, where native compiles. `v[i] +=
+v[j]` over a vector of floats is the arithmetic this crate exists for, so the
+order that keeps it compiling is the one to have. The price is the other
+direction on an opted-in type, where native's `E0502` is not reproduced;
+`limitations.md` has both halves.
 
 **The dispatch traits carry a trailing tag parameter**, `AddRhs<Lhs, O, Tag =
 ()>`, that means nothing and is never named by a user. It exists for one

@@ -889,3 +889,55 @@ fn a_doubly_parenthesised_place_is_still_a_place() {
     alg! { (((x))) -= 0.5; }
     assert_eq!((x, v), (2.5, [1.0, 3.0]));
 }
+
+/// The RHS is bound before the place, so an overloaded `+=` through a
+/// trait-indexed container compiles here where plain Rust is `E0502`: native
+/// runs `index_mut` before `index`, and this reads the right-hand side first,
+/// lets that borrow end, and borrows the place after. The program is correct
+/// either way, there being no aliasing at any point.
+///
+/// Pinned because it is a documented divergence (`docs/limitations.md`), and
+/// because the alternative was measured: emitting the place first reproduces
+/// native's `E0502` here and introduces one for `Vec<f32>`, which native
+/// accepts. `slice_of_an_opted_in_type` is the control, native accepting that
+/// one too, since built-in indexing takes no such borrow.
+#[test]
+fn overloaded_compound_assign_through_a_vec_index() {
+    use core::ops::AddAssign;
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct V(f64);
+    impl AddAssign for V {
+        fn add_assign(&mut self, o: V) {
+            self.0 += o.0;
+        }
+    }
+    reassoc::passthrough!(V);
+
+    #[algebraic]
+    fn vec_index(v: &mut Vec<V>) {
+        v[0] += v[1]; // `E0502` without the attribute
+    }
+
+    #[algebraic]
+    fn slice_of_an_opted_in_type(v: &mut [V]) {
+        v[0] += v[1]; // native accepts this one as well
+    }
+
+    #[algebraic]
+    fn vec_of_a_primitive(v: &mut Vec<f64>) {
+        v[0] += v[1]; // and this one: the case the RHS-first order protects
+    }
+
+    let mut owned = vec![V(1.0), V(2.0)];
+    vec_index(&mut owned);
+    assert_eq!(owned, [V(3.0), V(2.0)]);
+
+    let mut slice = [V(1.0), V(2.0)];
+    slice_of_an_opted_in_type(&mut slice);
+    assert_eq!(slice, [V(3.0), V(2.0)]);
+
+    let mut floats = vec![1.0f64, 2.0];
+    vec_of_a_primitive(&mut floats);
+    assert_eq!(floats, [3.0, 2.0]);
+}
