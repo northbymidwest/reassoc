@@ -1,0 +1,5 @@
+error: `#[passthrough]` on an `impl` opts the type into an `#[algebraic_float]` trait, and this `impl` block implements no trait
+  --> tests/ui/passthrough_on_inherent_impl.rs:10:6
+   |
+10 | impl Mine {
+   |      ^^^^

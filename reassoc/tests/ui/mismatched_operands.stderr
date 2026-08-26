@@ -1,7 +1,7 @@
 error[E0277]: cannot add `f64` to `f32`
-  --> tests/ui/mismatched_operands.rs:22:14
+  --> tests/ui/mismatched_operands.rs:23:14
    |
-22 |     alg!(a + b)
+23 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        cannot add `f64` to `f32`
@@ -9,7 +9,7 @@ error[E0277]: cannot add `f64` to `f32`
    |
    = help: the trait `AddRhs<f32, _, _>` is not implemented for `f64`
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `f32` is a type of yours that is not opted in yet, add `reassoc::passthrough!(f32);` where it is defined (`passthrough!(foreign f32);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `f32` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `f32` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
@@ -25,9 +25,9 @@ note: required by a bound in `reassoc::ops::add`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot multiply `&f64` by `&f32`
-  --> tests/ui/mismatched_operands.rs:26:14
+  --> tests/ui/mismatched_operands.rs:27:14
    |
-26 |     alg!(a * b)
+27 |     alg!(a * b)
    |     ---------^-
    |     |        |
    |     |        no implementation for `&f64 * &f32`
@@ -62,16 +62,16 @@ note: required by a bound in `reassoc::ops::mul`
    = note: this error originates in the macro `mul_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: no `reassoc` dispatch for `f64` with this operand
-  --> tests/ui/mismatched_operands.rs:26:14
+  --> tests/ui/mismatched_operands.rs:27:14
    |
-26 |     alg!(a * b)
+27 |     alg!(a * b)
    |     ---------^-
    |     |        |
    |     |        no dispatch for `f64`
    |     required by a bound introduced by this call
    |
    = help: the trait `Passthrough<_>` is not implemented for `f64`
-   = note: a type of yours is opted in with `reassoc::passthrough!(f64);` where it is defined, or `reassoc::passthrough!(foreign f64);` if it comes from another crate; if `f64` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by, or mark the function `#[algebraic(skip)]`
+   = note: a type is opted in with `#[reassoc::passthrough]` on its definition, or on the `use` that brings it in from another crate; if `f64` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by, or mark the function `#[algebraic(skip)]`
    = note: a primitive number needs no opt-in: if `f64` is one, the two operands have different types, so cast one of them, or wrap the expression in `strict!(..)` to use ordinary operators
    = help: the following other types implement trait `Passthrough<Tag>`:
              `&T` implements `Passthrough<Tag>`
@@ -91,9 +91,9 @@ note: required by a bound in `reassoc::ops::mul`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
 
 error[E0277]: cannot add `u32` to `u8`
-  --> tests/ui/mismatched_operands.rs:30:14
+  --> tests/ui/mismatched_operands.rs:31:14
    |
-30 |     alg!(a + b)
+31 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        cannot add `u32` to `u8`
@@ -101,7 +101,7 @@ error[E0277]: cannot add `u32` to `u8`
    |
    = help: the trait `AddRhs<u8, _, _>` is not implemented for `u32`
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `u8` is a type of yours that is not opted in yet, add `reassoc::passthrough!(u8);` where it is defined (`passthrough!(foreign u8);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `u8` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `u8` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
@@ -117,9 +117,9 @@ note: required by a bound in `reassoc::ops::add`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `u32` to `i32`
-  --> tests/ui/mismatched_operands.rs:34:14
+  --> tests/ui/mismatched_operands.rs:35:14
    |
-34 |     alg!(a + b)
+35 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        cannot add `u32` to `i32`
@@ -127,7 +127,7 @@ error[E0277]: cannot add `u32` to `i32`
    |
    = help: the trait `AddRhs<i32, _, _>` is not implemented for `u32`
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `i32` is a type of yours that is not opted in yet, add `reassoc::passthrough!(i32);` where it is defined (`passthrough!(foreign i32);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `i32` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `i32` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
@@ -143,9 +143,9 @@ note: required by a bound in `reassoc::ops::add`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `f64` to `u32`
-  --> tests/ui/mismatched_operands.rs:38:14
+  --> tests/ui/mismatched_operands.rs:39:14
    |
-38 |     alg!(a + b)
+39 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        cannot add `f64` to `u32`
@@ -153,7 +153,7 @@ error[E0277]: cannot add `f64` to `u32`
    |
    = help: the trait `AddRhs<u32, _, _>` is not implemented for `f64`
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `u32` is a type of yours that is not opted in yet, add `reassoc::passthrough!(u32);` where it is defined (`passthrough!(foreign u32);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `u32` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `u32` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `AddRhs<Lhs, O, Tag>`:
              `&F` implements `AddRhs<&F, F, FloatTag>`
@@ -169,9 +169,9 @@ note: required by a bound in `reassoc::ops::add`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
 
 error[E0277]: cannot add `Wrapping<u32>` to `Wrapping<u8>`
-  --> tests/ui/mismatched_operands.rs:42:14
+  --> tests/ui/mismatched_operands.rs:43:14
    |
-42 |     alg!(a + b)
+43 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        no implementation for `Wrapping<u8> + Wrapping<u32>`
@@ -206,9 +206,9 @@ note: required by a bound in `reassoc::ops::add`
    = note: this error originates in the macro `wrapping_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot multiply `Duration` by `u64`
-  --> tests/ui/mismatched_operands.rs:48:14
+  --> tests/ui/mismatched_operands.rs:49:14
    |
-48 |     alg!(a * b)
+49 |     alg!(a * b)
    |     ---------^-
    |     |        |
    |     |        no implementation for `Duration * u64`
@@ -229,9 +229,9 @@ note: required by a bound in `reassoc::ops::mul`
    |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`
 
 error[E0277]: cannot add `f64` to `Metres`
-  --> tests/ui/mismatched_operands.rs:52:14
+  --> tests/ui/mismatched_operands.rs:53:14
    |
-52 |     alg!(a + b)
+53 |     alg!(a + b)
    |     ---------^-
    |     |        |
    |     |        no implementation for `Metres + f64`
@@ -239,9 +239,9 @@ error[E0277]: cannot add `f64` to `Metres`
    |
 help: the trait `Add<f64>` is not implemented for `Metres`
       but trait `Add<Metres>` is implemented for it
-  --> tests/ui/mismatched_operands.rs:14:1
+  --> tests/ui/mismatched_operands.rs:15:1
    |
-14 | impl core::ops::Add for Metres {
+15 | impl core::ops::Add for Metres {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: for that trait implementation, expected `Metres`, found `f64`
    = note: required for `f64` to implement `AddRhs<Metres, _>`

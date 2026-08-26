@@ -6,13 +6,13 @@ error[E0277]: `Big` is not a primitive float
    |             |
    |             required by a bound introduced by this call
    |
-   = note: this bound cannot be extended to another type: put `#[reassoc::algebraic_float]` on a float trait of your own and on the type's `impl` of it, and bound on that trait instead
+   = note: this bound cannot be extended to another type: put `#[reassoc::algebraic_float]` on a float trait of your own and `#[reassoc::passthrough]` on the type's `impl` of it, and bound on that trait instead
 help: the trait `AlgebraicFloat<()>` is not implemented for `Big`
       but trait `AlgebraicFloat<__ReassocTag_Float>` is implemented for it
   --> tests/ui/algebraic_float_alias_primitives_only.rs:27:1
    |
-27 | #[algebraic_float]
-   | ^^^^^^^^^^^^^^^^^^
+27 | #[passthrough]
+   | ^^^^^^^^^^^^^^
    = help: for that trait implementation, expected `__ReassocTag_Float`, found `()`
    = note: required for `Big` to implement `AlgebraicFloat`
 note: required by a bound in `takes`
@@ -20,4 +20,4 @@ note: required by a bound in `takes`
    |
 30 | fn takes<T: AlgebraicFloat>(x: T) -> T {
    |             ^^^^^^^^^^^^^^ required by this bound in `takes`
-   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the attribute macro `passthrough` (in Nightly builds, run with -Z macro-backtrace for more info)

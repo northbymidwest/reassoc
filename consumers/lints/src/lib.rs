@@ -15,7 +15,8 @@
 
 use reassoc::{alg, algebraic};
 
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[reassoc::passthrough]
 pub struct V(pub f32);
 impl core::ops::Add for V {
     type Output = V;

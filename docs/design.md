@@ -27,7 +27,7 @@ impl<A: Passthrough<Tag> + Mul<B>, B, Tag: OptInTag> MulRhs<A, <A as Mul<B>>::Ou
 }
 ```
 
-**One marker, every operator the type has.** `passthrough!(T)` is `impl
+**One marker, every operator the type has.** `#[passthrough]` is `impl
 Passthrough for T {}`; the blanket above (one per operator, plus one per
 `op=` through the type's own `MulAssign`) routes whatever `std::ops` the type
 implements, with the right-hand type and the output read off the type's own
@@ -237,8 +237,8 @@ local type beside the trait and names it in the marker's parameters, so the
 impl form, which sees both the trait and the type, can emit
 `impl AlgebraicFloat<__Tag_Trait> for rug::Float` from the user's crate,
 which the orphan rule permits only with a local type in the trait's
-parameters. That block is `passthrough!(foreign ..)`'s plus the marker impl,
-so it is the type's opt-in and `passthrough!` is not written as well (two
+parameters. That block is `#[passthrough]` on a `use`'s plus the marker impl,
+so it is the type's opt-in and `#[passthrough]` is not written as well (two
 tags, E0283 at a concrete site, the foreign-diamond rule). One marked trait
 per type for the same reason; all five operators, since the bound names
 them; and the impl form resolves the hidden type through the trait's path,
@@ -252,7 +252,7 @@ different call shape still fails on block order). A second pair, the same
 generic body monomorphised to an opted-in fixed-point type, was tried and is
 not in the matrix: it differs by two `phi i64` of identical shape swapped,
 which no name-erased key can order, and the path it would pin, the marker
-blankets under an opt-in's tag, is what the `passthrough!` pairs already
+blankets under an opt-in's tag, is what the `#[passthrough]` pairs already
 cover. The opted-in path is pinned for correctness in `tests/generic_float.rs`
 and for cost by those pairs.
 
@@ -261,7 +261,7 @@ and for cost by those pairs.
 reason: Rust's orphan rule lets a crate implement a foreign trait for a
 foreign type only if the impl header names a type local to that crate, and
 `AddRhs<Lhs, O> for Rhs` had no slot for one, so a user of `glam` or
-`nalgebra` could not opt those types in at all. `passthrough!(foreign ..)`
+`nalgebra` could not opt those types in at all. `#[passthrough]` on a `use`
 wraps its impls in `const _: () = { struct __ReassocOptIn; .. }` and passes
 that type as the tag; `ops::*` leave the tag free and rustc infers it from the
 one impl that matches, as it already infers `O`. The plain forms pass `()`, so

@@ -138,13 +138,13 @@ static mut TICKS: u32 = 0;
 /// Non-`Copy` on purpose, and `core`-only so this test runs without `alloc`.
 /// Has an in-place form and no `+`: exactly what native `+=` needs.
 #[derive(Debug, PartialEq)]
+#[reassoc::passthrough]
 struct Tally(u32);
 impl core::ops::AddAssign<u32> for Tally {
     fn add_assign(&mut self, n: u32) {
         self.0 += n;
     }
 }
-reassoc::passthrough!(add_assign: Tally, u32);
 
 // The assignment inside the RHS block is the point of the test: it proves the
 // RHS runs before the place is read, exactly as native `+=` orders them.
@@ -360,7 +360,8 @@ fn logical_and_bitwise_not_are_untouched() {
 // Overloaded operators on a user type
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[reassoc::passthrough]
 struct Metres(f64);
 
 impl core::ops::Add for Metres {

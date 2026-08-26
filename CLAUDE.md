@@ -20,7 +20,7 @@ cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
 cargo test -p reassoc --test codegen_matrix         # every construct == its hand-written twin, as optimized IR, at -C opt-level=1,2,3,s,z
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
-cargo test -p reassoc --test foreign                # passthrough!(foreign ..) against consumers/foreign-types
+cargo test -p reassoc --test foreign                # #[passthrough] on a use, against consumers/foreign-types
 python3 scripts/diag-compare.py                     # error messages: plain Rust vs the macros (vs a release with --against)
 scripts/check-ascii.sh                      # the repository is ASCII only; `git config core.hooksPath .githooks` to check on commit
 scripts/compile-bench.sh                            # compile-time cost, 4 variants (see scripts/compile-bench/README.md)
@@ -77,7 +77,7 @@ beside the trait and appends `::reassoc::__private::AlgebraicFloat<Tag>`, a
 hidden marker whose supertraits are the ten dispatch traits with the
 dispatch tag as an associated type; the primitives implement it for every
 `Tag` naming `FloatTag`, so `f32` gains no impl. On an `impl` of a marked
-trait it is the type's opt-in: the `passthrough!(foreign ..)` block plus a
+trait, `#[passthrough]` is the type's opt-in: the foreign block plus a
 marker impl under the trait's tag, which is the local type the orphan rule
 needs for a foreign bignum.
 
@@ -96,15 +96,15 @@ reverts to a worse result if undone.
   impls (`E0119`). Primitives are never `Passthrough`: the blanket would route
   `f32 + f32` to IEEE `Add`.
 - Every dispatch trait has a trailing `Tag = ()` that `ops::*` leave free;
-  `passthrough!(foreign ..)` passes a per-expansion local type so the orphan
-  rule admits other crates' types. `traits` must not be `#[doc(hidden)]`:
+  `#[passthrough]` on a `use`, a `type` alias or an `impl` passes a
+  per-expansion local type so the orphan rule admits other crates' types. `traits` must not be `#[doc(hidden)]`:
   rustc then stops trimming its paths in diagnostics.
   `consumers/foreign-types/` is the foreign crate the tests use.
 - The operand bound hangs off `B`. Nothing is synthesised for `Copy` types and
   references follow the type's own impls: native parity over convenience.
-- `passthrough!(OP: A, B => O)` and `OP_assign: A, B` are only for a *foreign*
-  right operand; with a plain tag and an opted-in `B` they overlap the
-  primitive-left blankets (`E0119`).
+- A `#[passthrough(A op B => O)]` pair is only for a foreign opt-in (a `use`,
+  `type` or `impl`); under the default tag, on a definition, it would overlap
+  the primitive-left blankets (`E0119`), so the attribute refuses it there.
 - No mixed-width impls (`f32 + f64`). Rust refuses the coercion; so do we.
 - Macros are opaque (`strict!` depends on it) except the std expression macros
   (`LISTED_MACROS` in `rewrite.rs`), matched on the last path segment and only

@@ -17,7 +17,7 @@ use crate::traits::{
 //
 // `T` is the opt-in tag (`traits.rs`): unconstrained here, resolved by
 // selection from the one impl that matches the operand types, `()` for
-// everything but a `passthrough!(foreign ..)` pair.
+// everything but a foreign opt-in's pair.
 
 // Under `const-fn` (nightly) the same ten functions are `const fn` with
 // `[const]` bounds, in `ops/konst.rs`, re-exported here; that syntax is

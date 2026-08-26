@@ -1,18 +1,18 @@
 error[E0277]: binary assignment operation `+=` cannot be applied to type `C`
-  --> tests/ui/compound_without_assign_impl.rs:17:10
+  --> tests/ui/compound_without_assign_impl.rs:18:10
    |
-15 | #[algebraic]
+16 | #[algebraic]
    | ------------ required by a bound introduced by this call
-16 | fn f(v: &mut [C], mut c: C, d: C) {
-17 |     v[0] += d;
+17 | fn f(v: &mut [C], mut c: C, d: C) {
+18 |     v[0] += d;
    |          ^ binary assignment operation `+=` cannot be applied to type `C`
    |
 help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
-  --> tests/ui/compound_without_assign_impl.rs:7:1
+  --> tests/ui/compound_without_assign_impl.rs:8:1
    |
- 7 | struct C(f32);
+ 8 | struct C(f32);
    | ^^^^^^^^
-   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(C);` where it is defined (`passthrough!(foreign C);` for a type from another crate)
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
    = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
              `&&String` implements `AddAssignRhs<String>`
@@ -31,20 +31,20 @@ note: required by a bound in `reassoc::ops::add_assign`
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
 
 error[E0277]: binary assignment operation `+=` cannot be applied to type `C`
-  --> tests/ui/compound_without_assign_impl.rs:18:7
+  --> tests/ui/compound_without_assign_impl.rs:19:7
    |
-15 | #[algebraic]
+16 | #[algebraic]
    | ------------ required by a bound introduced by this call
 ...
-18 |     c += d;
+19 |     c += d;
    |       ^ binary assignment operation `+=` cannot be applied to type `C`
    |
 help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
-  --> tests/ui/compound_without_assign_impl.rs:7:1
+  --> tests/ui/compound_without_assign_impl.rs:8:1
    |
- 7 | struct C(f32);
+ 8 | struct C(f32);
    | ^^^^^^^^
-   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(C);` where it is defined (`passthrough!(foreign C);` for a type from another crate)
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
    = help: the following other types implement trait `AddAssignRhs<Lhs, Tag>`:
              `&&String` implements `AddAssignRhs<String>`

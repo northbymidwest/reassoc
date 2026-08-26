@@ -4,7 +4,7 @@
 //! marked trait of the user's own does not satisfy it, and the error says
 //! what the alias is and where to go instead.
 #![allow(deprecated)]
-use reassoc::{AlgebraicFloat, algebraic_float};
+use reassoc::{AlgebraicFloat, algebraic_float, passthrough};
 
 #[derive(Clone, Debug, PartialEq)]
 struct Big(Box<f64>);
@@ -24,7 +24,7 @@ ops! {
 
 #[algebraic_float]
 pub trait Float: Clone {}
-#[algebraic_float]
+#[passthrough]
 impl Float for Big {}
 
 fn takes<T: AlgebraicFloat>(x: T) -> T {

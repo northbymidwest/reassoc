@@ -1,0 +1,5 @@
+error: pairs name one type; this `use` brings in several. Split it
+ --> tests/ui/passthrough_pairs_on_multi_use.rs:5:15
+  |
+5 | #[passthrough(f32 * Vec3 => Vec3)]
+  |               ^^^

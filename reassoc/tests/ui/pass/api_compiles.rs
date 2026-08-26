@@ -4,9 +4,10 @@
 // fire during codegen rather than analysis (`arithmetic_overflow` and
 // `unconditional_panic` among them) are invisible under `check`, so the
 // compile-fail case that pins them needs a `pass` case to exist at all.
-use reassoc::{alg, algebraic, strict, Passthrough};
+use reassoc::{alg, algebraic, strict};
 
-#[derive(Clone, Copy, PartialEq, Debug, Passthrough)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+#[reassoc::passthrough]
 struct Vec2(f32, f32);
 
 impl core::ops::Add for Vec2 {
@@ -42,6 +43,7 @@ fn main() {
 
 // An operator whose output is not its left operand: nothing extra is needed.
 #[derive(Clone, Copy)]
+#[reassoc::passthrough]
 struct Dot([f32; 2]);
 impl core::ops::Mul for Dot {
     type Output = f32;
@@ -49,4 +51,3 @@ impl core::ops::Mul for Dot {
         self.0[0] * o.0[0] + self.0[1] * o.0[1]
     }
 }
-reassoc::passthrough!(Dot);

@@ -68,8 +68,8 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   operators inside an algebraic scope is a potential to-do, not a decision:
   covering them may be revisited.
 
-- User-defined types need a one-line opt-in: `passthrough!(Ty)` or
-  `#[derive(Passthrough)]`. After it, every operator the type implements is
+- User-defined types need a one-line opt-in, `#[passthrough]` on the
+  definition. After it, every operator the type implements is
   dispatched (any right-hand type, any output, the `op=` forms, references
   wherever the type implements them) and nothing the type does not implement
   is: `v += w` needs the type's `AddAssign`, `&v + w` needs `Add<W> for &V`,
@@ -84,23 +84,23 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   internally avoids the overlap and is zero-cost, but the `'static` bound it
   needs rejects `&f32` operands, which rules it out.
 
-  **A type from another crate takes the `foreign` prefix**:
-  `passthrough!(foreign glam::Vec3)`. The plain form on such a type is Rust's
-  orphan rule, `E0117`: `passthrough!` implements this crate's traits for the
-  named type, and a third crate may do that only if the impl names a type of
-  its own. The `foreign` form emits one, a private marker never named by
-  you, and carries it in a trailing tag parameter the dispatch traits have
-  for exactly this. The one thing it cannot do is stop two crates from opting
-  in the same type: coherence can no longer forbid the second impl, so a
-  crate that depends on both sees two and every use is `E0283 type
+  **A type from another crate takes the same attribute on its `use`**,
+  `#[passthrough] use glam::Vec3;`, or on a `type` alias that names it. Nothing
+  of yours can go on the definition, and Rust's orphan rule (`E0117`) lets a
+  third crate implement this crate's traits for that type only if the impl
+  names a type of its own. The attribute emits one, a private marker never
+  named by you, and carries it in a trailing tag parameter the dispatch traits
+  have for exactly this. The one thing it cannot do is stop two crates from
+  opting in the same type: coherence can no longer forbid the second impl, so
+  a crate that depends on both sees two and every use is `E0283 type
   annotations needed` at the operator (`tests/ui/foreign_diamond.rs`). So opt
   a foreign type in **once**, in the binary or in one shared crate, never in
   a leaf library, which would export its opt-in to every dependant, and
   never for a type this crate already covers. A primitive on the *left* of a
   foreign type (`2.0 * v`, `n * v`) is the one pair that is named,
-  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`: for a type of
-  your own it is automatic, but the impl that makes it so is only provably
-  distinct from the general one under the default tag.
+  `#[passthrough(f32 * Vec3 => Vec3)]`: for a type of your own it is
+  automatic, but the impl that makes it so is only provably distinct from the
+  general one under the default tag, which a foreign opt-in never has.
 
 - Integer arithmetic whose operands are *both* compile-time-known non-literals
   (`let x: u8 = 255; let y: u8 = 1; x + y`) is not seen by rustc's
@@ -220,11 +220,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   the attribute writes into the trait is not a surface (it lives under
   `reassoc::__private` and can change: its name, a tag parameter, more than
   one bound); the attribute is. The primitive floats need nothing more. Any
-  other implementor, a bignum from another crate say, takes the same
-  attribute on its `impl` of the trait, and that is the type's opt-in: it
-  stands in for `passthrough!` for that type, which is not written as well
-  (two opt-ins are two dispatch tags, and a concrete operator on the type is
-  then `E0283`, the hazard `passthrough!(foreign ..)` already has). Three
+  other implementor, a bignum from another crate say, takes
+  `#[passthrough]` on its `impl` of the trait, and that is the type's opt-in:
+  it is not opted in anywhere else as well (two opt-ins are two dispatch
+  tags, and a concrete operator on the type is then `E0283`, the hazard a
+  foreign opt-in already has). Three
   limits follow. The type needs all five operators with `Output = Self` and
   the five `op=` forms, since the bound names every one. It implements one
   marked trait, for the same two-tags reason. And the impl form names a
@@ -251,12 +251,12 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   (`scripts/adopt/README.md`), that was what generic numeric crates ran into
   before the attribute existed; light-curve-feature is where it came from.
 - A *generic* type from another crate is opted in one instantiation at a
-  time: `passthrough!(foreign num_complex::Complex<f64>);` works, and there
-  is no form meaning "every `T`". That only bites inside code which is itself
+  time, on a `type` alias: `#[passthrough] type C64 = num_complex::Complex<f64>;`
+  works, and there is no form meaning "every `T`". That only bites inside code which is itself
   generic (`fn f<T: FftNum>(a: Complex<T>, ..)`), and `Complex<T>` is a
   foreign generic type, not a primitive float, so `#[algebraic_float]` does
   not reach it and the arithmetic there is out of scope. A crate whose operands are concrete
-  needs one line per instantiation and nothing else
+  needs one alias per instantiation and nothing else
   (`tests/foreign.rs::instantiations_of_a_generic_foreign_type_dispatch`).
   Measured on rustfft, which is generic throughout (`scripts/adopt/README.md`).
 

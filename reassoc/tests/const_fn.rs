@@ -78,7 +78,8 @@ fn const_fn_bodies_are_dispatched() {
 
 /// A marked user type with a `const impl Add` goes through the blanket, in a
 /// const fn, and a `const fn` member of an annotated impl is entered too.
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[reassoc::passthrough]
 struct V(f64, f64);
 const impl core::ops::Add for V {
     type Output = V;

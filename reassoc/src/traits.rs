@@ -1,5 +1,5 @@
 //! Dispatch traits for algebraic arithmetic operators. Implementation detail:
-//! the supported way to reach them is `passthrough!` and the derive.
+//! the supported way to reach them is `#[passthrough]`.
 //!
 //! The shape: one marker, [`Passthrough`], says "this type takes part in
 //! dispatch"; blanket impls then route every `std::ops` operator the type
@@ -13,11 +13,12 @@
 //! (`let s = 0.0;` in a function returning `f32`).
 //!
 //! The trailing `Tag` parameter carries no information and is never named by
-//! a user: it exists so that `passthrough!(foreign ..)` can put a type *local
+//! a user: it exists so that `#[passthrough]` on a `use` can put a type *local
 //! to the opting-in crate* into an impl header, which is what Rust's orphan
 //! rule needs before a crate may implement a foreign trait for a foreign
-//! type. Everything this crate ships, and every plain `passthrough!`, uses
-//! the default `()`; the `foreign` form uses a private type of its own. The
+//! type. Everything this crate ships, and every opt-in on a definition, uses
+//! the default `()`; an opt-in on a `use`, a `type` alias or an `impl` uses a
+//! private type of its own. The
 //! `ops::*` functions leave it free, and rustc infers it from the one impl
 //! that matches, the same way it already infers the output.
 
@@ -29,10 +30,10 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, 
 #[diagnostic::on_unimplemented(
     message = "no `reassoc` dispatch for `{Self}` with this operand",
     label = "no dispatch for `{Self}`",
-    note = "a type of yours is opted in with `reassoc::passthrough!({Self});` where it is \
-            defined, or `reassoc::passthrough!(foreign {Self});` if it comes from another crate; \
-            if `{Self}` is a generic type parameter, put `#[reassoc::algebraic_float]` on the \
-            float trait it is bounded by, or mark the function `#[algebraic(skip)]`",
+    note = "a type is opted in with `#[reassoc::passthrough]` on its definition, or on the \
+            `use` that brings it in from another crate; if `{Self}` is a generic type \
+            parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by, \
+            or mark the function `#[algebraic(skip)]`",
     note = "a primitive number needs no opt-in: if `{Self}` is one, the two operands have \
             different types, so cast one of them, or wrap the expression in `strict!(..)` to \
             use ordinary operators"
@@ -42,7 +43,7 @@ pub trait Passthrough<Tag = ()> {}
 impl<T: ?Sized + Passthrough<Tag>, Tag> Passthrough<Tag> for &T {}
 impl<T: ?Sized + Passthrough<Tag>, Tag> Passthrough<Tag> for &mut T {}
 
-/// The tags an opt-in may carry: `()` and every `passthrough!(foreign ..)`
+/// The tags an opt-in may carry: `()` and every foreign opt-in's private
 /// marker. The blanket impls below are bounded on it so that the primitive
 /// impls, which live under private tags of their own (`impls/float.rs`,
 /// `impls/int.rs`), are provably disjoint from them: no crate but this one
@@ -77,10 +78,10 @@ macro_rules! declare_op_trait_k {
             label = $msg,
             note = "operands are never converted implicitly, inside an \
                     `#[algebraic]` scope or outside one",
-            note = "if these are numeric types, cast one of them; if `{Lhs}` is a type of yours \
-                    that is not opted in yet, add `reassoc::passthrough!({Lhs});` where it is \
-                    defined (`passthrough!(foreign {Lhs});` for a type from another crate), or wrap \
-                    the expression in `strict!(..)` to use ordinary operators",
+            note = "if these are numeric types, cast one of them; if `{Lhs}` is a type that is \
+                    not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the \
+                    `use` that brings it in from another crate), or wrap the expression in \
+                    `strict!(..)` to use ordinary operators",
             note = "if `{Lhs}` is a generic type parameter, put `#[reassoc::algebraic_float]` on \
                     the float trait it is bounded by (a trait of yours implemented for `f32` and \
                     `f64`), or mark the function `#[algebraic(skip)]`"
@@ -106,8 +107,8 @@ macro_rules! declare_op_trait_k {
             message = $assign_msg,
             label = $assign_msg,
             note = "the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for \
-                    `+=`), and a type of yours needs `reassoc::passthrough!({Lhs});` where it is \
-                    defined (`passthrough!(foreign {Lhs});` for a type from another crate)",
+                    `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on \
+                    its definition (or on the `use` that brings it in from another crate)",
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
         pub $($c)* trait $assign_trait<Lhs, Tag = ()> {

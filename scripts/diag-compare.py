@@ -161,7 +161,7 @@ def to_native(src: str) -> str:
     lines = []
     for line in src.splitlines():
         s = line.strip()
-        if s.startswith("reassoc::passthrough!(") or s == "#[reassoc::algebraic]":
+        if s.startswith("reassoc::passthrough!(") or s.startswith("#[reassoc::passthrough") or s == "#[reassoc::algebraic]":
             continue
         if "// only:" in line:
             continue

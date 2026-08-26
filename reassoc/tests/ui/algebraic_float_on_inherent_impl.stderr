@@ -1,5 +1,0 @@
-error: `#[algebraic_float]` on an `impl` opts the type into a marked trait, and this `impl` block implements no trait
- --> tests/ui/algebraic_float_on_inherent_impl.rs:9:6
-  |
-9 | impl Mine {
-  |      ^^^^

@@ -1,9 +1,10 @@
 //! `+=` goes through the type's own `AddAssign`, exactly as native `+=` does:
 //! a `Copy` type with `Add` and no `AddAssign` has no `+=`, inside an
 //! algebraic scope or outside one. Nothing is synthesised from `+`.
-use reassoc::{Passthrough, algebraic};
+use reassoc::{algebraic};
 
-#[derive(Clone, Copy, Passthrough)]
+#[derive(Clone, Copy)]
+#[reassoc::passthrough]
 struct C(f32);
 impl core::ops::Add for C {
     type Output = C;

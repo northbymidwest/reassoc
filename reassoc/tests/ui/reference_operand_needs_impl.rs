@@ -2,9 +2,10 @@
 //! nothing for `&Vec3`, so `&a + b` is rejected inside an algebraic scope
 //! exactly as it is outside one. (A `Copy` type's references were once
 //! dereferenced for it; that made code compile here that native Rust refuses.)
-use reassoc::{Passthrough, algebraic};
+use reassoc::{algebraic};
 
-#[derive(Clone, Copy, Passthrough)]
+#[derive(Clone, Copy)]
+#[reassoc::passthrough]
 struct Vec3(f32);
 impl core::ops::Add for Vec3 {
     type Output = Vec3;

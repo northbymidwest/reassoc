@@ -16,7 +16,7 @@
 //! pair.
 
 use foreign_types::Big;
-use reassoc::{algebraic, algebraic_float};
+use reassoc::{algebraic, algebraic_float, passthrough};
 
 #[algebraic_float]
 pub trait Float: Copy + PartialEq + core::fmt::Debug {
@@ -75,7 +75,7 @@ fn generic_code_is_rewritten_at_both_widths() {
 /// `Copy`, so this is `rug::Float`'s shape exactly, and the plain
 /// `passthrough!` forms would be an orphan-rule error on it. The same
 /// generic bodies as above run on it; its operators are its own.
-#[algebraic_float]
+#[passthrough]
 impl Wide for Big {
     fn zero() -> Big {
         Big::new(0.0)
@@ -120,7 +120,7 @@ local_ops! {
     Div div / DivAssign div_assign /=;
     Rem rem % RemAssign rem_assign %=;
 }
-#[algebraic_float]
+#[passthrough]
 impl Wide for Local {
     fn zero() -> Local {
         Local(Box::new(0.0))

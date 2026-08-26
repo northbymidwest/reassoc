@@ -170,28 +170,28 @@ reassoc = "0.12"
   block, every item of an inline `mod`, every default body of a `trait`.
 - `strict!(expr)` / `strict! { stmts.. }`: opt a subexpression, or a whole
   statement block such as a Kahan step, back out to strict IEEE.
-- `passthrough!(Ty)`: opt your own type in. One line: every operator the
-  type implements (`+ - * / %` with any right-hand type and any output, the
-  `op=` forms, references wherever the type implements them) is dispatched
-  from then on, exactly as `std::ops` defines it. Nothing is listed.
-- `#[derive(Passthrough)]`: the same, at the type's definition.
+- `#[passthrough]`: opt a type in, on whichever item introduces it. On your
+  own type's definition; on the `use` that brings one in from another crate
+  (Rust's orphan rule forbids anything on the definition there, so the
+  attribute carries a private marker type of yours in the impl, which is what
+  the rule asks for; opt a foreign type in once, in the binary or one shared
+  crate, since two opt-ins give a third crate an ambiguity error); on a
+  `type` alias naming an instantiation of a generic foreign type
+  (`type C64 = num_complex::Complex<f64>`); and on a type's `impl` of an
+  `#[algebraic_float]` trait. One line: every operator the type implements
+  (`+ - * / %` with any right-hand type and any output, the `op=` forms,
+  references wherever the type implements them) is dispatched from then on,
+  exactly as `std::ops` defines it. Nothing is listed, with one exception: a
+  primitive on the *left* of a foreign type (`2.0 * v`, `n * v`) is named in
+  the attribute, `#[passthrough(f32 * Vec3 => Vec3)]`.
 - `#[algebraic_float]`: on your own float trait, the one implemented for
   `f32` and `f64` that a generic numeric crate writes everything against.
   One line, in one place; every function generic over that trait is then
   rewritten by `#[algebraic]` like concrete code. The primitive floats need
   nothing more; any other implementor, a bignum from another crate say,
-  takes the same attribute on its `impl` of the trait, which is that type's
+  takes `#[passthrough]` on its `impl` of the trait, which is that type's
   opt-in. Such a type needs all five operators and implements one marked
   trait.
-- `passthrough!(foreign glam::Vec3)`: a type from another crate. Rust's
-  orphan rule forbids the plain form there; the prefix carries a private
-  marker type of yours in the impl, which is what the rule asks for. Opt a
-  foreign type in once, in the binary or one shared crate (two crates opting
-  in the same type give a third an ambiguity error). A primitive on the *left*
-  of a foreign type (`2.0 * v`, `n * v`) is the one pair that is named:
-  `passthrough!(foreign mul: f32, glam::Vec3 => glam::Vec3)`. A generic
-  foreign type takes one line per instantiation:
-  `passthrough!(foreign num_complex::Complex<f64>)`.
 
 Primitives, references to them, `Duration`, `uN / NonZero<uN>` and
 `Wrapping<T>` / `Saturating<T>` are covered already and need no opt-in, in a
@@ -256,8 +256,8 @@ strict! {
 
 The short version: arithmetic inside a macro other than the std expression
 macros is left alone (which is also why `strict!` works); user types need a
-one-line opt-in, and types from other crates the `foreign` form of it, once
-per dependency tree; const positions, and arithmetic on a type parameter whose float trait is
+one-line opt-in, and types from other crates the same line on their `use`,
+once per dependency tree; const positions, and arithmetic on a type parameter whose float trait is
 not marked `#[algebraic_float]`, are out; `+=` on a `#[repr(packed)]` field is rejected; debug
 builds carry some call overhead.
 

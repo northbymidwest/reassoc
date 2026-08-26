@@ -70,7 +70,7 @@ instantiates them.
 - **Items produced by macro invocations** (`impl_vec!(..)`): nothing to put an
   attribute on. Annotate inside the macro's definition instead, done for
   `macro_rules!` in the same crate; not for macros from other crates.
-- **Types from other crates** used in arithmetic: `passthrough!(foreign ..)`
+- **Types from other crates** used in arithmetic: `#[passthrough]` on a `type` alias
   once, plus the named pair for a primitive on the left.
 - **Workspace quirks**: uninitialised submodules in `members`, features
   needed to build at all, a `rust-version` below 1.98 (harmless locally).

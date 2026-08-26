@@ -1,17 +1,18 @@
 //! Opting in types from another crate. `foreign_types` has no dependency on
 //! reassoc, so its `Vec3` is to these tests exactly what `glam::Vec3` is to a
-//! user: the plain `passthrough!` forms are an orphan-rule error on it
-//! (`tests/ui/foreign_needs_keyword.rs`), and `passthrough!(foreign ..)`,
-//! which carries a type local to this crate in the impl, is the way in.
-//! One line per type; a float on the *left* of a foreign type is the one pair
-//! that has to be named. The one new hazard, two crates opting in the same
-//! type, is pinned in `tests/ui/foreign_diamond.rs`.
-use foreign_types::{Matrix, Pair, Vec3, Vector};
+//! user: nothing of ours can go on its definition, so `#[passthrough]` goes
+//! on the `use` that brings it in, or on a `type` alias that names an
+//! instantiation of a generic one, and carries a type local to this crate in
+//! the impl, which is what the orphan rule asks for. A primitive on the
+//! *left* of a foreign type is the one pair that has to be named. The one
+//! new hazard, two crates opting in the same type, is pinned in
+//! `tests/ui/foreign_diamond.rs`.
 use reassoc::{algebraic, passthrough};
 
-passthrough!(foreign Vec3);
-passthrough!(foreign mul: f32, Vec3 => Vec3); // a float on the left: the one pair named
-passthrough!(foreign Matrix);
+#[passthrough(f32 * Vec3 => Vec3)] // a float on the left: the one pair named
+use foreign_types::Vec3;
+#[passthrough]
+use foreign_types::{Matrix, Vector};
 
 #[algebraic]
 fn kinematics(p: Vec3, v: Vec3, a: Vec3, dt: f32) -> Vec3 {
@@ -65,9 +66,10 @@ fn foreign_reference_type_with_heterogeneous_output_dispatches() {
     assert_eq!(mm, Matrix(vec![2.0, 4.0, 6.0, 8.0]));
 }
 
-/// Local types still take the plain forms and are unaffected by the tag: a
-/// mix of both in one scope resolves without annotation.
+/// Local types go on their definition and are unaffected by the tag: a mix
+/// of both in one scope resolves without annotation.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[passthrough]
 struct Local(f32);
 impl core::ops::Mul<Vec3> for Local {
     type Output = Vec3;
@@ -75,7 +77,6 @@ impl core::ops::Mul<Vec3> for Local {
         v * self.0
     }
 }
-passthrough!(Local);
 
 #[test]
 fn local_and_foreign_opt_ins_coexist() {
@@ -88,31 +89,71 @@ fn local_and_foreign_opt_ins_coexist() {
 
 // ---- a generic foreign type, per instantiation ----
 
-// `passthrough!(foreign Pair<f64>)`: a generic type from another crate is
-// opted in one instantiation at a time, which is what a crate with concrete
+// A generic type from another crate is opted in one instantiation at a time,
+// on a `type` alias that names it, which is what a crate with concrete
 // operands needs (`num_complex::Complex<f64>` is the real-world shape). There
 // is no form for "every `T`", and inside code generic over `T` the arithmetic
 // is out of scope anyway (`docs/limitations.md`).
-reassoc::passthrough!(foreign foreign_types::Pair<f64>);
-reassoc::passthrough!(foreign foreign_types::Pair<f32>);
+#[passthrough]
+type Pair64 = foreign_types::Pair<f64>;
+#[passthrough]
+type Pair32 = foreign_types::Pair<f32>;
 
 #[reassoc::algebraic]
-fn combine(a: Pair<f64>, b: Pair<f64>, k: f64) -> Pair<f64> {
+fn combine(a: Pair64, b: Pair64, k: f64) -> Pair64 {
     let mut acc = a + b * k;
     acc += a;
     acc
 }
 
 #[reassoc::algebraic]
-fn combine_f32(a: Pair<f32>, k: f32) -> Pair<f32> {
+fn combine_f32(a: Pair32, k: f32) -> Pair32 {
     a + a * k
 }
 
 #[test]
 fn instantiations_of_a_generic_foreign_type_dispatch() {
     assert_eq!(
-        combine(Pair(1.0, 2.0), Pair(3.0, 4.0), 2.0),
-        Pair(1.0 + 6.0 + 1.0, 2.0 + 8.0 + 2.0)
+        combine(
+            foreign_types::Pair(1.0, 2.0),
+            foreign_types::Pair(3.0, 4.0),
+            2.0
+        ),
+        foreign_types::Pair(1.0 + 6.0 + 1.0, 2.0 + 8.0 + 2.0)
     );
-    assert_eq!(combine_f32(Pair(1.0, 2.0), 3.0), Pair(4.0, 8.0));
+    assert_eq!(
+        combine_f32(foreign_types::Pair(1.0, 2.0), 3.0),
+        foreign_types::Pair(4.0, 8.0)
+    );
+}
+
+// ---- every pair a foreign opt-in can name ----
+
+/// One pair per operator, binary and in place, on one `use`. A foreign type
+/// has no blanket for a primitive on its left (the blankets are keyed on the
+/// default tag, which a foreign opt-in never has), so each expression below
+/// compiles only through the pair that names it: an arm missing from the
+/// attribute's operator table is a compile error here, not a silent gap.
+#[passthrough(
+    f64 + Q => Q, f64 - Q => Q, f64 * Q => Q, f64 / Q => Q, f64 % Q => Q,
+    f64 += Q, f64 -= Q, f64 *= Q, f64 /= Q, f64 %= Q
+)]
+use foreign_types::Q;
+
+#[algebraic]
+fn every_pair(k: f64, q: Q) -> ([Q; 5], [f64; 5]) {
+    let (mut a, mut b, mut c, mut d, mut e) = (k, k, k, k, k);
+    a += q;
+    b -= q;
+    c *= q;
+    d /= q;
+    e %= q;
+    ([k + q, k - q, k * q, k / q, k % q], [a, b, c, d, e])
+}
+
+#[test]
+fn every_primitive_left_pair_dispatches() {
+    let (binary, in_place) = every_pair(7.0, Q(2.0));
+    assert_eq!(binary, [Q(9.0), Q(5.0), Q(14.0), Q(3.5), Q(1.0)]);
+    assert_eq!(in_place, [9.0, 5.0, 14.0, 3.5, 1.0]);
 }

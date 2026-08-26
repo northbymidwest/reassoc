@@ -9,7 +9,7 @@ help: the trait `RemAssign` is not implemented for `NoRem`
    |
  8 | struct NoRem(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(NoRem);` where it is defined (`passthrough!(foreign NoRem);` for a type from another crate)
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
    = help: the following other types implement trait `RemAssignRhs<Lhs, Tag>`:
              `&F` implements `RemAssignRhs<F, FloatTag>`
@@ -42,7 +42,7 @@ help: the trait `Rem` is not implemented for `NoRem`
  8 | struct NoRem(Box<f64>);
    | ^^^^^^^^^^^^
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `NoRem` is a type of yours that is not opted in yet, add `reassoc::passthrough!(NoRem);` where it is defined (`passthrough!(foreign NoRem);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `NoRem` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `NoRem` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `RemRhs<Lhs, O, Tag>`:
              `&F` implements `RemRhs<&F, F, FloatTag>`
@@ -70,14 +70,14 @@ error[E0277]: binary assignment operation `%=` cannot be applied to type `NoRem`
 26 | impl Float for NoRem {}
    |                ^^^^^ binary assignment operation `%=` cannot be applied to type `NoRem`
    |
-   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type of yours needs `reassoc::passthrough!(NoRem);` where it is defined (`passthrough!(foreign NoRem);` for a type from another crate)
+   = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
 help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not implemented for `NoRem`
       but trait `AlgebraicFloat<__ReassocTag_Float>` is implemented for it
   --> tests/ui/algebraic_float_missing_operator.rs:25:1
    |
-25 | #[algebraic_float]
-   | ^^^^^^^^^^^^^^^^^^
+25 | #[passthrough]
+   | ^^^^^^^^^^^^^^
    = note: required for `NoRem` to implement `RemAssignRhs<NoRem, __ReassocOptIn>`
    = note: required for `NoRem` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
@@ -87,7 +87,7 @@ note: required by a bound in `Float`
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
 23 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
-   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the attribute macro `passthrough` which comes from the expansion of the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
   --> tests/ui/algebraic_float_missing_operator.rs:26:16
@@ -96,14 +96,14 @@ error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
    |                ^^^^^ cannot calculate the remainder of `NoRem` divided by `NoRem`
    |
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
-   = note: if these are numeric types, cast one of them; if `NoRem` is a type of yours that is not opted in yet, add `reassoc::passthrough!(NoRem);` where it is defined (`passthrough!(foreign NoRem);` for a type from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
+   = note: if these are numeric types, cast one of them; if `NoRem` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate), or wrap the expression in `strict!(..)` to use ordinary operators
    = note: if `NoRem` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
 help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not implemented for `NoRem`
       but trait `AlgebraicFloat<__ReassocTag_Float>` is implemented for it
   --> tests/ui/algebraic_float_missing_operator.rs:25:1
    |
-25 | #[algebraic_float]
-   | ^^^^^^^^^^^^^^^^^^
+25 | #[passthrough]
+   | ^^^^^^^^^^^^^^
    = note: required for `NoRem` to implement `RemRhs<NoRem, NoRem, __ReassocOptIn>`
    = note: required for `NoRem` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
@@ -113,4 +113,4 @@ note: required by a bound in `Float`
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
 23 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
-   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the attribute macro `passthrough` which comes from the expansion of the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

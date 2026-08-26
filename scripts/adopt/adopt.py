@@ -975,7 +975,7 @@ def cmd_opt_in(a: argparse.Namespace) -> int:
     # No leading `::`: a macro invocation in item position may not start with
     # one. `reassoc` resolves as a dependency (2018+) or via the `extern
     # crate` this tool adds for edition 2015.
-    block += [f"reassoc::passthrough!(foreign {t});" for t in types if f"foreign {t});" not in text]
+    block += [f"#[reassoc::passthrough]\ntype __ReassocOptIn{i} = {t};" for i, t in enumerate(types) if f"= {t};" not in text]
     if len(block) == 1:
         print("already opted in")
         return 0

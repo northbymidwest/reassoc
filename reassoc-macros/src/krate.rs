@@ -1,8 +1,5 @@
 //! Resolving the path the generated code should use to reach `reassoc`.
 
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
-
 /// The name the facade crate goes by in the consumer.
 ///
 /// By default simply `reassoc`, which is correct unless the consumer renamed
@@ -30,11 +27,4 @@ pub fn name() -> String {
         }
     }
     "reassoc".to_owned()
-}
-
-/// The absolute path to the facade crate as tokens, for `passthrough!`'s
-/// derive output.
-pub fn path() -> TokenStream {
-    let ident = syn::Ident::new(&name(), Span::call_site());
-    quote!(::#ident)
 }

@@ -1,4 +1,5 @@
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[reassoc::passthrough] // only: local
 struct Metres(f64);
 macro_rules! ops { ($($t:ident, $m:ident, $op:tt);*) => {$(
     impl core::ops::$t for Metres { type Output = Metres; fn $m(self, o: Metres) -> Metres { Metres(self.0 $op o.0) } }

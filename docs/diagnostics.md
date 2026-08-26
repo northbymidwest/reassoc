@@ -38,8 +38,8 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 | `Wrapping<u8> + Wrapping<u32>` | `E0277` no implementation for ... | **identical** |
 | `Duration * u64` | `E0308` expected `u32`, found `u64` | `E0277` cannot multiply `Duration` by `u64` |
 | opted-in `Metres + f64` | `E0308` expected `Metres`, found `f64` | `E0277` cannot add `f64` to `Metres` |
-| `Odd * Odd`, no ops, never opted in | `E0369` cannot multiply `Odd` by `Odd`, *must implement `Mul`* | `E0277` cannot multiply `Odd` by `Odd` , *if `Odd` is a type of yours that is not opted in yet, add `reassoc::passthrough!(Odd);`* |
-| `P * P`, has `Mul`, never opted in | compiles | `E0277` cannot multiply `P` by `P`, *add `reassoc::passthrough!(P);`* |
+| `Odd * Odd`, no ops, never opted in | `E0369` cannot multiply `Odd` by `Odd`, *must implement `Mul`* | `E0277` cannot multiply `Odd` by `Odd` , *if `Odd` is a type that is not opted in yet, put `#[reassoc::passthrough]` on its definition* |
+| `P * P`, has `Mul`, never opted in | compiles | `E0277` cannot multiply `P` by `P`, *put `#[reassoc::passthrough]` on its definition* |
 | `c += d`, `C: Add` but no `AddAssign` | `E0368` `+=` cannot be applied to `C`, *must implement `AddAssign`* | `E0277` `+=` cannot be applied to type `C` |
 | `&c + d`, `C: Add<C>` only | `E0369` cannot add `C` to `&C` | `E0277` cannot add `C` to `&C` |
 | `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |

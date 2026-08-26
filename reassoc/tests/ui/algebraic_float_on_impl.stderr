@@ -1,0 +1,7 @@
+error: `#[algebraic_float]` goes on the trait; a type's `impl` of a marked trait is opted in with `#[passthrough]`
+  --> tests/ui/algebraic_float_on_impl.rs:12:1
+   |
+12 | #[algebraic_float]
+   | ^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

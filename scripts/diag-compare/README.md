@@ -25,8 +25,8 @@ python3 scripts/diag-compare.py --full out/ --case c03   # raw stderr for one ca
 ```
 
 A case is a small file written with the macros. The plain-Rust twin is
-derived by stripping `reassoc::alg!(..)` to `(..)`, dropping
-`#[reassoc::algebraic]` and `reassoc::passthrough!(..)` lines, and removing
-`reassoc::Passthrough` from derive lists. A line ending in `// only: local`
-or `// only: against` is kept for that variant alone, for an opt-in whose
-spelling differs between releases. Work happens under `target/diag-compare/`.
+derived by stripping `reassoc::alg!(..)` to `(..)` and dropping
+`#[reassoc::algebraic]` and `#[reassoc::passthrough]` lines. A line ending in
+`// only: local` or `// only: against` is kept for that variant alone, for an
+opt-in whose spelling differs between releases. Work happens under
+`target/diag-compare/`.

@@ -1,0 +1,5 @@
+error: `#[passthrough]` opts in the types a `use` names; a glob names none. List them
+ --> tests/ui/passthrough_on_glob_use.rs:6:20
+  |
+6 | use foreign_types::*;
+  |                    ^

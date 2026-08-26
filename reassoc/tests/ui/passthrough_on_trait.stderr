@@ -1,0 +1,5 @@
+error: `#[passthrough]` opts a type in; a float trait is marked with `#[algebraic_float]`
+ --> tests/ui/passthrough_on_trait.rs:6:11
+  |
+6 | pub trait Float: Copy {}
+  |           ^^^^^

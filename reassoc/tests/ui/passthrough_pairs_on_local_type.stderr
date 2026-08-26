@@ -1,0 +1,14 @@
+error: a `#[passthrough(..)]` pair is for a primitive on the left of a type from another crate; a type of yours has that through the blankets already
+ --> tests/ui/passthrough_pairs_on_local_type.rs:7:15
+  |
+7 | #[passthrough(f32 * Vec3 => Vec3)]
+  |               ^^^
+
+error[E0206]: the trait `Copy` cannot be implemented for this type
+ --> tests/ui/passthrough_pairs_on_local_type.rs:8:8
+  |
+6 | #[derive(Clone, Copy)]
+  |                 ---- in this derive macro expansion
+7 | #[passthrough(f32 * Vec3 => Vec3)]
+8 | struct Vec3(f32, f32, f32);
+  |        ^^^^ type is not a structure or enumeration

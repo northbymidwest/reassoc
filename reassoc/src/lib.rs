@@ -133,38 +133,36 @@
 //!
 //! Floats dispatch to algebraic operators; integers, references, and the
 //! supported standard types dispatch to ordinary operators. Your own types
-//! need one line; a type from another crate (a `glam` or `nalgebra` vector,
-//! say) takes the same line with the `foreign` prefix, once per dependency
-//! tree. See [`passthrough!`] and `docs/limitations.md`.
+//! take one attribute, on their definition; a type from another crate (a
+//! `glam` or `nalgebra` vector, say) takes the same attribute on the `use`
+//! that brings it in, once per dependency tree. See [`passthrough`] and
+//! `docs/limitations.md`.
 //!
 //! ```
-//! # #[derive(Clone, Copy)] struct Vec3(f32);
-//! # impl core::ops::Add for Vec3 { type Output = Vec3; fn add(self, o: Vec3) -> Vec3 { Vec3(self.0 + o.0) } }
-//! # impl core::ops::Sub for Vec3 { type Output = Vec3; fn sub(self, o: Vec3) -> Vec3 { Vec3(self.0 - o.0) } }
-//! # impl core::ops::Mul for Vec3 { type Output = Vec3; fn mul(self, o: Vec3) -> Vec3 { Vec3(self.0 * o.0) } }
-//! # impl core::ops::Div for Vec3 { type Output = Vec3; fn div(self, o: Vec3) -> Vec3 { Vec3(self.0 / o.0) } }
-//! # impl core::ops::Rem for Vec3 { type Output = Vec3; fn rem(self, o: Vec3) -> Vec3 { Vec3(self.0 % o.0) } }
-//! reassoc::passthrough!(Vec3);
-//! ```
+//! use reassoc::{alg, passthrough};
 //!
-//! Or opt in at the definition instead:
-//!
-//! ```
-//! # use core::ops::{Add, Mul};
-//! #[derive(Clone, Copy, PartialEq, Debug, reassoc::Passthrough)]
+//! #[derive(Clone, Copy, PartialEq, Debug)]
+//! #[passthrough]
 //! struct Metres(f32);   // implements `Add` and `Mul`: those two are dispatched
+//! # impl core::ops::Add for Metres { type Output = Metres; fn add(self, o: Metres) -> Metres { Metres(self.0 + o.0) } }
+//! # impl core::ops::Mul for Metres { type Output = Metres; fn mul(self, o: Metres) -> Metres { Metres(self.0 * o.0) } }
 //!
-//! # impl Add for Metres { type Output = Metres; fn add(self, o: Metres) -> Metres { Metres(self.0 + o.0) } }
-//! # impl Mul for Metres { type Output = Metres; fn mul(self, o: Metres) -> Metres { Metres(self.0 * o.0) } }
-//! # fn main() {
-//! assert_eq!(reassoc::alg!(Metres(1.5) + Metres(2.0)), Metres(3.5));
-//! # }
+//! assert_eq!(alg!(Metres(1.5) + Metres(2.0)), Metres(3.5));
 //! ```
 //!
-//! Either way, every operator the type implements (any right-hand type, any
-//! output, the `op=` forms, references wherever the type implements them) is
-//! dispatched, exactly as `std::ops` defines it; nothing is listed. A type from
-//! another crate takes `passthrough!(foreign ..)`.
+//! Every operator the type implements (any right-hand type, any output, the
+//! `op=` forms, references wherever the type implements them) is dispatched,
+//! exactly as `std::ops` defines it; nothing is listed. A type from another
+//! crate goes on its `use`, and a primitive on the *left* of one (`2.0 * v`)
+//! is the one pair that has to be named:
+//!
+//! ```text
+//! #[passthrough(f32 * Vec3 => Vec3)]
+//! use glam::Vec3;
+//!
+//! #[passthrough]                          // an instantiation of a generic foreign type
+//! type C64 = num_complex::Complex<f64>;
+//! ```
 //!
 //! `Wrapping<T>` and `Saturating<T>` are covered already and need no opt-in.
 //!
@@ -200,10 +198,10 @@
 //!
 //! The primitive floats need nothing more. Any other implementor, a bignum
 //! from another crate say, takes the same attribute on its `impl`, which is
-//! that type's opt-in (it stands in for `passthrough!` for that type):
+//! that type's opt-in, the same attribute a type of your own takes:
 //!
 //! ```
-//! # use reassoc::{algebraic, algebraic_float};
+//! # use reassoc::{algebraic, algebraic_float, passthrough};
 //! # #[algebraic_float]
 //! # pub trait Float: Clone { fn zero() -> Self; }
 //! # impl Float for f64 { fn zero() -> f64 { 0.0 } }
@@ -217,7 +215,7 @@
 //! #        Div div / DivAssign div_assign /=; Rem rem % RemAssign rem_assign %=; }
 //! // .. its `+ - * / %` and `op=` impls ..
 //!
-//! #[algebraic_float]
+//! #[passthrough]
 //! impl Float for Big { fn zero() -> Big { Big(Box::new(0.0)) } }
 //!
 //! #[algebraic]
@@ -242,7 +240,7 @@
 //! every use; see its docs.
 //!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
-//! [`passthrough!`], [`algebraic_float`] and the derive. The `ops` functions and dispatch traits
+//! [`passthrough`] and [`algebraic_float`]. The `ops` functions and dispatch traits
 //! they expand to are implementation detail, visible because generated code
 //! has to name them, but not a surface to write against by hand.
 //!
@@ -313,16 +311,17 @@ extern crate alloc;
 extern crate std;
 
 pub mod ops;
-// Reached through `passthrough!` and the derive; not a supported surface for
+// Reached through `#[passthrough]`; not a supported surface for
 // hand-written code. Not `#[doc(hidden)]`: rustc stops trimming paths in
 // diagnostics for items under a hidden module, and `AddRhs<..>` reads better
 // than `reassoc::traits::AddRhs<..>` in every error this crate produces.
 pub mod traits;
 
-pub(crate) mod impls;
+#[macro_use]
 mod macros;
+mod impls;
 
-pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
+pub use reassoc_macros::{alg, algebraic, algebraic_float, passthrough};
 
 /// A bound for code generic over the primitive floats and nothing else, for
 /// a crate with no float trait of its own. **Unstable**, and deprecated from
@@ -361,8 +360,8 @@ pub use reassoc_macros::{Passthrough, alg, algebraic, algebraic_float};
     message = "`{Self}` is not a primitive float",
     label = "`reassoc::AlgebraicFloat` is `f32` and `f64` only",
     note = "this bound cannot be extended to another type: put `#[reassoc::algebraic_float]` on \
-            a float trait of your own and on the type's `impl` of it, and bound on that trait \
-            instead"
+            a float trait of your own and `#[reassoc::passthrough]` on the type's `impl` of it, \
+            and bound on that trait instead"
 )]
 pub trait AlgebraicFloat: __private::AlgebraicFloat {}
 #[allow(deprecated)]
@@ -409,11 +408,11 @@ pub mod __private {
     #[diagnostic::on_unimplemented(
         message = "`{Self}` is not a primitive float, and is not opted into this \
                    `#[algebraic_float]` trait",
-        label = "not `f32` or `f64`, and no `#[reassoc::algebraic_float]` on its `impl`",
+        label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
         note = "a primitive float needs nothing; any other type is opted in by putting \
-                `#[reassoc::algebraic_float]` on its `impl` of the marked trait, which needs the \
-                type to have all five operators (`+ - * / %` and their `op=` forms)",
-        note = "a type can implement one marked trait; `passthrough!` is not used for it as well",
+                `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
+                to have all five operators (`+ - * / %` and their `op=` forms)",
+        note = "a type can implement one marked trait, and that `impl` is its one opt-in",
         note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
                 only and cannot be extended: bound on a float trait of your own carrying \
                 `#[algebraic_float]` instead"

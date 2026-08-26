@@ -5,7 +5,7 @@
 
 mod build;
 mod krate;
-mod passthrough;
+mod opt_in;
 mod rewrite;
 mod scope;
 mod trace;
@@ -147,21 +147,16 @@ fn with_errors(
     tokens
 }
 
-/// Mark a user's own float trait so that generic code over it is rewritten,
-/// and opt a non-primitive type into such a trait.
+/// Mark a user's own float trait so that generic code over it is rewritten.
 ///
 /// A crate that is generic over "some float" defines a trait implemented for
 /// `f32` and `f64` and writes every function against it. Dispatch is by
 /// trait, so a type parameter has only the bounds it is given, and none of
-/// them says "a float the macros can rewrite". On the trait, this attribute
-/// adds that bound: one line, in one place, and every generic function in
-/// the crate is rewritable without touching a signature. The primitive
-/// floats need nothing more.
-///
-/// On an `impl` of a marked trait, it opts the implementing type in: a
-/// bignum from another crate, say. That is the whole of what such a type
-/// needs, and it replaces `passthrough!` for that type rather than adding
-/// to it.
+/// them says "a float the macros can rewrite". This attribute adds that
+/// bound to the trait: one line, in one place, and every generic function
+/// in the crate is rewritable without touching a signature. The primitive
+/// floats need nothing more; any other implementor, a bignum from another
+/// crate say, is opted in with `#[passthrough]` on its `impl` of the trait.
 ///
 /// ```text
 /// #[reassoc::algebraic_float]
@@ -169,23 +164,17 @@ fn with_errors(
 /// impl Float for f32 {}
 /// impl Float for f64 {}
 ///
-/// #[reassoc::algebraic_float]
-/// impl Float for rug::Float {}                     // a foreign bignum: one attribute
+/// #[reassoc::passthrough]
+/// impl Float for rug::Float {}                     // a foreign bignum
 ///
 /// #[reassoc::algebraic]
 /// fn dot<T: Float>(a: &[T], b: &[T]) -> T { .. }   // rewritten, at all three
 /// ```
 ///
-/// The impl form names a hidden type the trait form put beside the trait,
-/// through the trait's own path: `impl a::Float for Big` works anywhere, and
-/// `impl Float for Big` works beside the trait or wherever `a::*` is in
-/// scope. A trait brought in alone by `use a::Float` and implemented in
-/// another module does not resolve that name; write the trait's path.
-///
-/// What either form expands to is not a surface and may change; the
-/// attribute is the contract. See `reassoc`'s crate docs for the compiled
-/// example and the limits (all five operators, one marked trait per type).
-/// This crate cannot depend on `reassoc`, so the example lives there.
+/// What the attribute writes into the trait is not a surface and may
+/// change; the attribute is the contract. See `reassoc`'s crate docs for the
+/// compiled example and the limits. This crate cannot depend on `reassoc`,
+/// so the example lives there.
 #[proc_macro_attribute]
 pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !attr.is_empty() {
@@ -207,9 +196,9 @@ pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
         // marker's parameters, so that an `impl` of this trait for a type
         // from another crate may implement the marker too (Rust's orphan
         // rule admits a foreign trait for a foreign type only then). Beside
-        // the trait, with the trait's visibility, since the impl form names
-        // it by the trait's path.
-        let tag = tag_ident(&item_trait.ident);
+        // the trait, with the trait's visibility, since `#[passthrough]` on
+        // an impl names it by the trait's path.
+        let tag = opt_in::trait_tag(&item_trait.ident);
         let vis = &item_trait.vis;
         let bound: syn::TypeParamBound =
             syn::parse_quote!(::#krate::__private::AlgebraicFloat<#tag>);
@@ -222,77 +211,50 @@ pub fn algebraic_float(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         .into();
     }
-
-    match syn::parse::<syn::ItemImpl>(item) {
-        Ok(item_impl) => {
-            let Some((path, _)) = &item_impl.trait_ else {
-                return syn::Error::new_spanned(
-                    &item_impl.self_ty,
-                    "`#[algebraic_float]` on an `impl` opts the type into a marked trait, and \
-                     this `impl` block implements no trait",
-                )
-                .to_compile_error()
-                .into();
-            };
-            // The trait's hidden tag, through the trait's own path, at the
-            // trait name's span so that an unresolved name points there.
-            let mut tag_path = path.clone();
-            let last = tag_path.segments.last_mut().expect("a path has a segment");
-            last.ident = syn::Ident::new(&tag_ident(&last.ident).to_string(), last.ident.span());
-            last.arguments = syn::PathArguments::None;
-            let (impl_generics, _, where_clause) = item_impl.generics.split_for_impl();
-            let self_ty = &item_impl.self_ty;
-            // A fresh dispatch tag per impl, the same block `passthrough!(foreign
-            // ..)` emits, plus the marker impl that names it. The marker's
-            // supertraits are what require all five operators of the type.
-            quote::quote! {
-                const _: () = {
-                    pub struct __ReassocOptIn;
-                    impl ::#krate::traits::OptInTag for __ReassocOptIn {}
-                    impl #impl_generics ::#krate::traits::Passthrough<__ReassocOptIn>
-                        for #self_ty #where_clause {}
-                    impl #impl_generics ::#krate::__private::AlgebraicFloat<#tag_path>
-                        for #self_ty #where_clause
-                    {
-                        type Tag = __ReassocOptIn;
-                    }
-                };
-                #item_impl
-            }
-            .into()
-        }
-        Err(_) => syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "`#[algebraic_float]` applies to a trait, or to an `impl` of a marked trait: put it \
-             on the trait your generic code is written against, the one implemented for \
-             `f32` and `f64`, and on an `impl` of that trait for any other type",
-        )
-        .to_compile_error()
-        .into(),
-    }
-}
-
-/// The hidden tag the trait form emits beside a trait and the impl form
-/// names: one per marked trait, derived from the trait's name.
-fn tag_ident(trait_ident: &syn::Ident) -> syn::Ident {
-    quote::format_ident!("__ReassocTag_{}", trait_ident)
-}
-
-/// Opt a type into `reassoc`'s dispatch layer at its definition.
-///
-/// Equivalent to `passthrough!(Ty)`, but written where the type is declared:
-/// every operator the type implements is dispatched. A generic type is opted
-/// in for every instantiation, with the operators each instantiation has.
-///
-/// See `reassoc::passthrough!` for a worked example. This crate cannot depend
-/// on `reassoc`, so the example lives there where it can actually be compiled.
-#[proc_macro_derive(Passthrough, attributes(passthrough))]
-pub fn derive_passthrough(input: TokenStream) -> TokenStream {
-    let input = match syn::parse::<syn::DeriveInput>(input) {
-        Ok(input) => input,
-        Err(err) => return err.to_compile_error().into(),
+    let msg = if syn::parse::<syn::ItemImpl>(item).is_ok() {
+        "`#[algebraic_float]` goes on the trait; a type's `impl` of a marked trait is opted in \
+         with `#[passthrough]`"
+    } else {
+        "`#[algebraic_float]` applies to a trait: put it on the trait your generic code is \
+         written against, the one implemented for `f32` and `f64`"
     };
-    match passthrough::expand(input) {
+    syn::Error::new(proc_macro2::Span::call_site(), msg)
+        .to_compile_error()
+        .into()
+}
+
+/// Opt a type into `reassoc`'s dispatch layer.
+///
+/// On whichever item introduces the type. Every operator the type implements
+/// (`+ - * / %` with any right-hand type and any output, the `op=` forms, and
+/// references wherever the type implements them) is dispatched from then on,
+/// exactly as `std::ops` defines it; nothing is listed.
+///
+/// ```text
+/// #[passthrough]                          // a type of yours: its definition
+/// struct Vec3(f32, f32, f32);
+///
+/// #[passthrough]                          // a type from another crate: the `use`
+/// use glam::Vec3;
+///
+/// #[passthrough(f32 * Vec3 => Vec3)]      // a primitive on the *left* of a foreign type
+/// use glam::Vec3;                         // is the one pair that has to be named
+///
+/// #[passthrough]                          // an instantiation of a generic foreign type
+/// type C64 = num_complex::Complex<f64>;
+///
+/// #[passthrough]                          // a bignum into an `#[algebraic_float]` trait
+/// impl Float for rug::Float { .. }
+/// ```
+///
+/// A foreign type is opted in **once** per dependency tree: two opt-ins are
+/// two dispatch impls, and every concrete operator on the type is then an
+/// ambiguity error. The pairs (`A op B => O`, or `A op= B`) are for a
+/// primitive on the left of a foreign type only; a type of yours has that
+/// automatically. See `reassoc`'s crate docs for the compiled examples.
+#[proc_macro_attribute]
+pub fn passthrough(attr: TokenStream, item: TokenStream) -> TokenStream {
+    match opt_in::expand(attr.into(), item.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

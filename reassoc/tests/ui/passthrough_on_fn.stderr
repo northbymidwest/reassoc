@@ -1,0 +1,5 @@
+error: `#[passthrough]` goes on the item that introduces a type: its definition, the `use` or `type` alias that names one from another crate, or its `impl` of an `#[algebraic_float]` trait
+ --> tests/ui/passthrough_on_fn.rs:6:1
+  |
+6 | fn scale(a: f32, b: f32) -> f32 {
+  | ^^

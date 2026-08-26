@@ -1,10 +1,11 @@
-//! `passthrough!` and `#[derive(Passthrough)]`: one line opts a type in, and
+//! `passthrough!` and `#[passthrough]`: one line opts a type in, and
 //! every operator it implements (any right-hand type, any output, the
 //! in-place forms, references wherever the type implements them) is
 //! dispatched from then on, exactly as `std::ops` defines it.
 use reassoc::{alg, passthrough, strict};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Vec3(f32, f32, f32);
 
 macro_rules! vec3_ops {
@@ -20,6 +21,7 @@ vec3_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 /// `Scaled * u32`: one operator, a foreign right-hand type. Nothing names it:
 /// the opt-in covers whatever the type implements.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Scaled(u32);
 impl core::ops::Mul<u32> for Scaled {
     type Output = Scaled;
@@ -27,9 +29,6 @@ impl core::ops::Mul<u32> for Scaled {
         Scaled(self.0 * n)
     }
 }
-
-passthrough!(Vec3);
-passthrough!(Scaled);
 
 #[test]
 fn one_line_covers_every_operator_the_type_has() {
@@ -70,7 +69,8 @@ fn wrapping_and_saturating_need_no_opt_in() {
 
 // ---- the derive ----
 
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Derived(f32);
 macro_rules! derived_ops {
     ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
@@ -95,7 +95,8 @@ fn derive_covers_all_five_operators() {
 /// A type that implements three operators gets three. Nothing is named, and
 /// nothing is emitted for the two it lacks, so `Partial / Partial` is rejected
 /// exactly as native Rust rejects it (`tests/ui/unsupported_type.rs`).
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Partial(f32);
 impl core::ops::Add for Partial {
     type Output = Partial;
@@ -124,7 +125,8 @@ fn derive_covers_exactly_the_operators_the_type_has() {
 
 /// A generic type is opted in for every instantiation, with the operators
 /// each instantiation has.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Pair<T>(T, T);
 impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
     type Output = Pair<T>;
@@ -141,7 +143,8 @@ fn derive_works_on_generic_types() {
 
 /// A `where` clause with a trailing comma is what rustfmt writes for any
 /// multi-line bound list; the derive must reproduce it without `, ,`.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Bounded<T>
 where
     T: Copy,
@@ -166,7 +169,8 @@ fn derive_accepts_a_where_clause_with_a_trailing_comma() {
 }
 
 /// Derive on an enum and on a type with a lifetime parameter.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 enum Sign {
     Pos,
     Neg,
@@ -178,7 +182,8 @@ impl core::ops::Mul for Sign {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Tagged<'a>(f32, &'a str);
 impl core::ops::Add for Tagged<'_> {
     type Output = Self;
@@ -206,7 +211,8 @@ fn derive_on_an_enum_and_a_type_with_a_lifetime() {
 /// does: `Vec3` above has no `Add<&Vec3>`, so `&v + v` is rejected there
 /// (`tests/ui/reference_operand_needs_impl.rs`); this type has the impls
 /// and gets every combination.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct RefOps(f64);
 impl core::ops::Add for RefOps {
     type Output = RefOps;
@@ -273,7 +279,8 @@ fn std_wrappers_accept_reference_operands() {
 
 /// A dot product: the output is not the left operand. Nothing is declared;
 /// the type's own `Output` is used.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Ray([f64; 2]);
 impl core::ops::Mul for Ray {
     type Output = f64;
@@ -291,7 +298,8 @@ fn an_output_that_is_not_the_left_operand() {
 }
 
 /// Two operators on one left type, two right types, one foreign output.
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct Q(f64);
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct R(f64);
@@ -319,7 +327,8 @@ fn two_right_hand_types_with_the_same_foreign_output() {
 
 /// A non-`Copy` type: `+` through its `Add`, `+=` through its `AddAssign`,
 /// through a `&mut`, an index, or a bare local alike.
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, PartialEq)]
+#[passthrough]
 struct Owned(String);
 impl core::ops::Add for Owned {
     type Output = Owned;
@@ -349,7 +358,7 @@ fn non_copy_compound_assignment_in_place() {
 
 /// A right-hand type that is itself a reference: `Label + &str`, `Label +=
 /// &str`, through the type's own impls.
-#[derive(reassoc::Passthrough)]
+#[passthrough]
 struct Label(String);
 impl core::ops::Add<&str> for Label {
     type Output = Label;
@@ -378,7 +387,8 @@ fn reference_right_operand() {
 
 /// A type with `AddAssign` and nothing else: native `+=` on it is fine, and
 /// so is the dispatched one; `+` is rejected, as natively.
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, PartialEq)]
+#[passthrough]
 struct InPlaceOnly(String);
 impl core::ops::AddAssign for InPlaceOnly {
     fn add_assign(&mut self, o: InPlaceOnly) {
@@ -399,7 +409,8 @@ fn in_place_only_type() {
 }
 
 /// Five operators by value on a non-`Copy` type.
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, PartialEq)]
+#[passthrough]
 struct Big(i64);
 macro_rules! big_ops {
     ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
@@ -423,7 +434,8 @@ fn non_copy_type_by_value() {
 
 // ---- scalars ----
 
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
 struct V2(f32, f32);
 impl core::ops::Add for V2 {
     type Output = V2;
@@ -488,7 +500,8 @@ fn float_literal_scalars_infer_against_a_user_vector() {
 /// `&Heavy + &Heavy`, `&Heavy * f64`, `Heavy * &Heavy`, and a dot product
 /// `&Heavy * &Heavy => f64`: the standard shape for a non-`Copy` numeric
 /// type, one line.
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, PartialEq)]
+#[passthrough]
 struct Heavy(Vec<f64>);
 impl core::ops::Add<&Heavy> for &Heavy {
     type Output = Heavy;
@@ -542,7 +555,8 @@ fn operators_on_references_only() {
 // vectors have exactly this (`i8 / I8Vec2`): with only the float-left
 // blanket the operator had no impl. A literal on the left (`2 * v`) was
 // always fine: the literal rule leaves it native.
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[passthrough]
 struct IVec(i32, i32);
 impl core::ops::Mul<IVec> for i32 {
     type Output = IVec;
@@ -584,7 +598,8 @@ impl core::ops::AddAssign<IVec> for u8 {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[passthrough]
 struct Scale(f64);
 impl core::ops::MulAssign<Scale> for f64 {
     fn mul_assign(&mut self, s: Scale) {

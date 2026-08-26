@@ -67,7 +67,7 @@ impl Mul<&Vector> for &Matrix {
 }
 
 /// A *generic* foreign type, the shape `num_complex::Complex<T>` has: opted
-/// in one instantiation at a time (`passthrough!(foreign Pair<f64>)`), which
+/// in one instantiation at a time (`#[passthrough] type P = Pair<f64>;`), which
 /// is all a crate with concrete operands needs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pair<T>(pub T, pub T);
@@ -119,6 +119,34 @@ macro_rules! big_ops {
     )*};
 }
 big_ops! {
+    Add add + AddAssign add_assign +=;
+    Sub sub - SubAssign sub_assign -=;
+    Mul mul * MulAssign mul_assign *=;
+    Div div / DivAssign div_assign /=;
+    Rem rem % RemAssign rem_assign %=;
+}
+
+/// A foreign scalar with every operator a *primitive on the left* can have
+/// with it, binary and in place: `f64 + Q`, `f64 += Q`, and so on for all
+/// five. The pairs a foreign opt-in names, one of each.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Q(pub f64);
+macro_rules! left_ops {
+    ($($t:ident $m:ident $op:tt $ta:ident $ma:ident $opa:tt;)*) => {$(
+        impl core::ops::$t<Q> for f64 {
+            type Output = Q;
+            fn $m(self, q: Q) -> Q {
+                Q(self $op q.0)
+            }
+        }
+        impl core::ops::$ta<Q> for f64 {
+            fn $ma(&mut self, q: Q) {
+                *self $opa q.0;
+            }
+        }
+    )*};
+}
+left_ops! {
     Add add + AddAssign add_assign +=;
     Sub sub - SubAssign sub_assign -=;
     Mul mul * MulAssign mul_assign *=;

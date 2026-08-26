@@ -1,9 +1,10 @@
-//! `+=` through an index or a `&mut` on a type with no in-place form. The
-//! blanket "form `+=` from `+`" impl matches any pair, so the bound rustc
-//! reports is the per-pair marker, which carries the message: the wording
-//! plain Rust uses for a missing `AddAssign`, plus how to opt in.
+//! `+=` through an index or a `&mut` on a type with no in-place form. An
+//! opted-in type gets `+=` through its own `AddAssign` and nothing else, so a
+//! type with `Add<&str>` alone is refused with the wording plain Rust uses for
+//! a missing `AddAssign`; a type never opted in at all is told how to opt in.
 use reassoc::{algebraic, passthrough};
 
+#[passthrough]
 struct Owned(String);
 impl core::ops::Add<&str> for Owned {
     type Output = Owned;
@@ -11,7 +12,6 @@ impl core::ops::Add<&str> for Owned {
         Owned(self.0 + o)
     }
 }
-passthrough!(add: Owned, &str => Owned); // binary only: no `add_assign`
 
 struct Plain(f64); // never opted in at all
 

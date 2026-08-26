@@ -2,7 +2,7 @@
 //! supertraits name every one, so a type without `%` fails at the impl the
 //! attribute emits, on the operator it lacks. "Some float" is the premise;
 //! a type with fewer operators is a `passthrough!` type, not a float.
-use reassoc::algebraic_float;
+use reassoc::{algebraic_float, passthrough};
 
 #[derive(Clone, Debug, PartialEq)]
 struct NoRem(Box<f64>);
@@ -22,7 +22,7 @@ ops! {
 #[algebraic_float]
 pub trait Float: Clone {}
 
-#[algebraic_float]
+#[passthrough]
 impl Float for NoRem {}
 
 fn main() {}

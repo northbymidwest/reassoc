@@ -4,7 +4,7 @@
 
 #![cfg(test)]
 
-use myalg::{Passthrough, alg, algebraic, algebraic_float, passthrough, strict};
+use myalg::{alg, algebraic, algebraic_float, passthrough, strict};
 
 /// Implements only the dispatch traits, so compiling at all proves the
 /// operators were rewritten, and that the generated path resolved.
@@ -36,7 +36,8 @@ fn attribute_and_block_forms_resolve_through_the_renamed_crate() {
     assert_eq!(alg! { let y = x * x; y * x }, Dispatched(27.0));
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[myalg::passthrough]
 struct Derived(f32);
 impl core::ops::Add for Derived {
     type Output = Derived;
@@ -46,6 +47,7 @@ impl core::ops::Add for Derived {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[myalg::passthrough]
 struct Declared(f32);
 impl core::ops::Mul for Declared {
     type Output = f32;
@@ -53,7 +55,6 @@ impl core::ops::Mul for Declared {
         self.0 * o.0
     }
 }
-passthrough!(Declared);
 
 #[test]
 fn derive_and_passthrough_resolve_through_the_renamed_crate() {
@@ -102,7 +103,7 @@ big_ops! {
 }
 #[algebraic_float]
 trait Wide: Clone {}
-#[algebraic_float]
+#[passthrough]
 impl Wide for Big {}
 
 #[algebraic]

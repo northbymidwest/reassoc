@@ -7,7 +7,8 @@
 //! Found adopting tiny-skia, whose `blend_fn!(plus, ..)` has this shape.
 use reassoc::algebraic;
 
-#[derive(Clone, Copy, reassoc::Passthrough)]
+#[derive(Clone, Copy)]
+#[reassoc::passthrough]
 struct U(u16);
 impl core::ops::Add for U {
     type Output = U;

@@ -459,7 +459,8 @@ fn index_place_compound_assignment_is_dispatched_not_native() {
     assert_eq!(v[0], Dispatched(3.0));
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[reassoc::passthrough]
 struct Pair<T>(T, T);
 impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
     type Output = Pair<T>;
@@ -506,7 +507,8 @@ fn generic_copy_derive_through_an_index() {
     assert_eq!(v, [Pair(2.0, 3.0), Pair(6.0, 9.0)]);
 }
 
-#[derive(Debug, Clone, PartialEq, reassoc::Passthrough)]
+#[derive(Debug, Clone, PartialEq)]
+#[reassoc::passthrough]
 struct Tag(String);
 impl core::ops::Add for Tag {
     type Output = Tag;
@@ -613,13 +615,13 @@ fn non_copy_local_captured_by_an_async_block_is_borrowed_not_moved() {
 fn in_place_only_type_on_a_bare_path() {
     // `AddAssign` without `Add`: native `a += b` works, and it must here too.
     #[derive(Debug, PartialEq)]
+    #[reassoc::passthrough]
     struct Acc(f64);
     impl core::ops::AddAssign<&Acc> for Acc {
         fn add_assign(&mut self, o: &Acc) {
             self.0 += o.0;
         }
     }
-    reassoc::passthrough!(add_assign: Acc, &Acc);
     #[algebraic]
     fn go(mut a: Acc, b: &Acc) -> Acc {
         a += b;
@@ -632,7 +634,8 @@ fn in_place_only_type_on_a_bare_path() {
 fn struct_literal_rhs_on_both_paths() {
     // The RHS is bound through a `match`; a bare struct literal is not allowed
     // as a scrutinee, so the expansion must not put it there unwrapped.
-    #[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    #[reassoc::passthrough]
     struct P {
         x: f64,
     }
@@ -906,13 +909,13 @@ fn overloaded_compound_assign_through_a_vec_index() {
     use core::ops::AddAssign;
 
     #[derive(Clone, Copy, Debug, PartialEq)]
+    #[reassoc::passthrough]
     struct V(f64);
     impl AddAssign for V {
         fn add_assign(&mut self, o: V) {
             self.0 += o.0;
         }
     }
-    reassoc::passthrough!(V);
 
     #[algebraic]
     fn vec_index(v: &mut Vec<V>) {

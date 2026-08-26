@@ -8,7 +8,6 @@
 //! operand once the impl is unique, a step a generic dispatch function never
 //! takes, so those are spelled out.
 
-use crate::passthrough;
 use crate::traits::Passthrough;
 use core::num::{NonZero, Saturating, Wrapping};
 use core::time::Duration;
@@ -22,10 +21,10 @@ impl<T> Passthrough for Saturating<T> {}
 // so `uN / NonZero<uN>` with `%`, `/=`, `%=` are spelled out.
 macro_rules! nonzero_divisor {
     ($($t:ty)*) => {$(
-        passthrough!(div: $t, NonZero<$t> => $t);
-        passthrough!(rem: $t, NonZero<$t> => $t);
-        passthrough!(div_assign: $t, NonZero<$t>);
-        passthrough!(rem_assign: $t, NonZero<$t>);
+        pair!(DivRhs, div_rhs, /, $t, NonZero<$t> => $t);
+        pair!(RemRhs, rem_rhs, %, $t, NonZero<$t> => $t);
+        pair!(DivAssignRhs, div_assign_rhs, /=, $t, NonZero<$t>);
+        pair!(RemAssignRhs, rem_assign_rhs, %=, $t, NonZero<$t>);
     )*};
 }
 nonzero_divisor!(u8 u16 u32 u64 u128 usize);

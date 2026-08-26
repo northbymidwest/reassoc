@@ -545,7 +545,8 @@ pub fn direct_int_left(n: u32, v: V, w: V) -> V {
     n * v + n * w
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[passthrough]
 pub struct V(pub f32, pub f32);
 impl core::ops::Add for V {
     type Output = V;
@@ -591,7 +592,8 @@ pub fn direct_user_type(v: V, w: V, k: f32) -> V {
     a
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[passthrough]
 pub struct Pair<T>(pub T, pub T);
 impl<T: core::ops::Mul<Output = T>> core::ops::Mul for Pair<T> {
     type Output = Pair<T>;
@@ -615,7 +617,8 @@ pub fn direct_derive_generic(p: Pair<f64>, q: Pair<f64>) -> Pair<f64> {
 /// A non-`Copy` type with its operators on references and a heterogeneous
 /// output: the heavy-numeric shape. `&Heavy + &Heavy`, `&Heavy * f64`,
 /// `&Heavy * &Heavy => f64`, `Heavy += Heavy` (a move in, as natively).
-#[derive(Clone, Debug, PartialEq, reassoc::Passthrough)]
+#[derive(Clone, Debug, PartialEq)]
+#[passthrough]
 pub struct Heavy(pub Vec<f64>);
 impl core::ops::Add<&Heavy> for &Heavy {
     type Output = Heavy;
@@ -667,9 +670,8 @@ pub fn direct_non_copy(a: &Heavy, b: &Heavy, k: f64) -> (Heavy, f64) {
 
 // ---- a type from another crate, through the foreign tag ----
 
+#[passthrough(f32 * Vec3 => Vec3)]
 use foreign_types::Vec3;
-passthrough!(foreign Vec3);
-passthrough!(foreign mul: f32, Vec3 => Vec3);
 #[algebraic]
 #[unsafe(no_mangle)]
 #[inline(never)]
