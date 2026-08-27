@@ -47,6 +47,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+      # Every other job tests at opt-level 0, where an algebraic operator
+      # computes the same value as its IEEE twin: nothing can reassociate or
+      # contract until the optimizer runs. `codegen_matrix` compares optimized
+      # IR but never executes it, so an assertion that only holds unoptimized
+      # (a fuzz-corpus value with too tight a tolerance, say) would pass every
+      # job and fail the first user who builds with --release. This is the
+      # one job that runs the suite as the optimizer would ship it.
+      - run: cargo test --workspace --release
       # The unstable public bound is behind a feature; its tests are too.
       - run: cargo test -p reassoc --features unstable-algebraic-float-trait
       - run: cargo test -p edition2021 --features unstable-algebraic-float-trait
@@ -87,12 +95,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
 
+  # The floor is `rust-version` in the workspace manifest, read from there
+  # rather than repeated here: a bump that touched one and not the other would
+  # leave this job testing a compiler the manifest no longer admits. The `ui`
+  # job below keeps a literal toolchain on purpose; that is a pin on rustc's
+  # diagnostic rendering, not a floor, and must not follow this one.
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.98.0
+      - id: floor
+        run: |
+          v=$(sed -n 's/^rust-version = "\([0-9.]*\)"$/\1/p' Cargo.toml)
+          [ -n "$v" ] || { echo 'no rust-version in Cargo.toml' >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.floor.outputs.version }}
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
