@@ -40,6 +40,11 @@
 # `ui` is included (trybuild, ~8s; needs the pinned toolchain, see tests/ui.rs)
 # and `renamed`, `codegen_matrix`, `fuzz_corpus*` are not: compile time per
 # mutant, and they observe nothing the rest does not.
+#
+# `unstable-algebraic-float-trait` is on, as `ci.yml` has it for `ui`: cases
+# that name the public bound do not resolve without it, and a baseline that
+# fails to compile tests no mutants at all. Package-qualified because two
+# packages are selected.
 set -eu
 cd "$(dirname "$0")/.."
 wrap="$(pwd)/target/mutants/cargo-wrap.sh"
@@ -61,6 +66,7 @@ WRAP
 chmod +x "$wrap"
 bin="$(command -v cargo-mutants || { echo "cargo-mutants not installed: cargo install cargo-mutants" >&2; exit 1; })"
 CARGO="$wrap" exec "$bin" mutants -p reassoc-macros -j "${JOBS:-3}" --output target/mutants "$@" -- \
+  --features reassoc/unstable-algebraic-float-trait \
   --test alg --test attribute --test compound --test expressions --test operators \
   --test macros --test passthrough --test features --test dispatch --test foreign \
   --test edition2024 --test ui --test rewrite -- --include-ignored
