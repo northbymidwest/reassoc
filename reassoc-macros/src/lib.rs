@@ -1,7 +1,15 @@
+//! The proc macros behind [`reassoc`](https://docs.rs/reassoc): `alg!`,
+//! `#[algebraic]`, `#[algebraic_float]` and `#[passthrough]`. A proc-macro
+//! crate can export nothing else, so the traits and impls they expand into
+//! live in `reassoc`, which re-exports these. Depend on `reassoc`; this
+//! crate's version is pinned exactly by it and has no surface of its own.
+
 // The rewriter reads tokens and writes tokens; it has never needed `unsafe`
 // and should not start. `forbid` rather than `deny` so a future `allow`
 // cannot quietly reopen it.
 #![forbid(unsafe_code)]
+// As in `reassoc`: every public item says what it is.
+#![warn(missing_docs)]
 
 mod build;
 mod krate;

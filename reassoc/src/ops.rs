@@ -33,9 +33,13 @@ pub use konst::*;
 // whole rewritten statement is passed to `unit`, an identity on `()`, so
 // that it is a call rather than a block-like expression (clippy's semicolon
 // lints, `docs/design.md`).
+/// Identity on `()`: wraps a rewritten compound assignment so the statement
+/// is a call expression rather than a block-like one.
 #[inline(always)]
 pub const fn unit(_: ()) {}
 
+/// `a + b` as the macros emit it: dispatched through [`AddRhs`] on the
+/// right operand, so a float is algebraic and everything else is its own `+`.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -43,6 +47,8 @@ pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.add_rhs(a)
 }
 
+/// `a - b` as the macros emit it: dispatched through [`SubRhs`] on the
+/// right operand, so a float is algebraic and everything else is its own `-`.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -50,6 +56,8 @@ pub fn sub<A, B: SubRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.sub_rhs(a)
 }
 
+/// `a * b` as the macros emit it: dispatched through [`MulRhs`] on the
+/// right operand, so a float is algebraic and everything else is its own `*`.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -57,6 +65,8 @@ pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.mul_rhs(a)
 }
 
+/// `a / b` as the macros emit it: dispatched through [`DivRhs`] on the
+/// right operand, so a float is algebraic and everything else is its own `/`.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -64,6 +74,8 @@ pub fn div<A, B: DivRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.div_rhs(a)
 }
 
+/// `a % b` as the macros emit it: dispatched through [`RemRhs`] on the
+/// right operand, so a float is algebraic and everything else is its own `%`.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -71,6 +83,8 @@ pub fn rem<A, B: RemRhs<A, O, T>, O, T>(a: A, b: B) -> O {
     b.rem_rhs(a)
 }
 
+/// `a += b` as the macros emit it: `a` by `&mut`, dispatched through
+/// [`AddAssignRhs`] on the right operand.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -78,6 +92,8 @@ pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.add_assign_rhs(a)
 }
 
+/// `a -= b` as the macros emit it: `a` by `&mut`, dispatched through
+/// [`SubAssignRhs`] on the right operand.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -85,6 +101,8 @@ pub fn sub_assign<A, B: SubAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.sub_assign_rhs(a)
 }
 
+/// `a *= b` as the macros emit it: `a` by `&mut`, dispatched through
+/// [`MulAssignRhs`] on the right operand.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -92,6 +110,8 @@ pub fn mul_assign<A, B: MulAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.mul_assign_rhs(a)
 }
 
+/// `a /= b` as the macros emit it: `a` by `&mut`, dispatched through
+/// [`DivAssignRhs`] on the right operand.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]
@@ -99,6 +119,8 @@ pub fn div_assign<A, B: DivAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.div_assign_rhs(a)
 }
 
+/// `a %= b` as the macros emit it: `a` by `&mut`, dispatched through
+/// [`RemAssignRhs`] on the right operand.
 #[cfg(not(feature = "const-fn"))]
 #[inline(always)]
 #[track_caller]

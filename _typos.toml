@@ -1,0 +1,9 @@
+# Spell check over the whole tree (`typos`, run in CI's `lint` job). Every
+# entry here is a word the checker calls a typo and is not.
+[default.extend-words]
+# Hyphenated "mis-maps", "mis-mapping": the prefix on its own.
+mis = "mis"
+
+[default.extend-identifiers]
+# `codegen_matrix.rs`: the body of `a`, beside `bb`, the body of `b`.
+ba = "ba"

@@ -22,3 +22,8 @@ default = ["std"]
 std = ["alloc", "reassoc/std"]
 alloc = ["reassoc/alloc"]
 unstable-algebraic-float-trait = ["reassoc/unstable-algebraic-float-trait"]
+
+# Every test file here is included by `#[path]`, which cargo-machete does not
+# follow; it sees a crate with no source and calls both dependencies unused.
+[package.metadata.cargo-machete]
+ignored = ["reassoc", "foreign-types"]

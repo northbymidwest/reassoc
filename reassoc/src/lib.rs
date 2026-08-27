@@ -277,6 +277,11 @@
 // audit it. `forbid` rather than `deny` so a future `allow` cannot quietly
 // reopen it.
 #![forbid(unsafe_code)]
+// Every public item says what it is. A crate-root attribute rather than
+// `[lints]` in the manifest: that would reach the test targets, whose
+// public fixtures document nothing on purpose. CI's `-D warnings` makes
+// this an error.
+#![warn(missing_docs)]
 // docs.rs only (`--cfg docsrs`, set in `Cargo.toml`): annotates every
 // feature-gated impl with the feature it needs, which is most of what a
 // `no_std` reader wants from the `Passthrough` and `AddRhs` impl lists.

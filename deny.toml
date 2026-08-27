@@ -1,0 +1,26 @@
+# `cargo deny check licenses bans sources`, in CI's `deny` job. Advisories
+# are `audit.yml`, which files an issue; this is the policy the tree must
+# satisfy on every push.
+
+[graph]
+all-features = false
+
+# No copyleft enters the tree. The crate is 0BSD, and a consumer embedding
+# it should inherit nothing it did not choose. Every dependency today is on
+# this list; a new one under another license fails here rather than being
+# noticed by a downstream lawyer.
+[licenses]
+allow = ["0BSD", "MIT", "Apache-2.0", "Unicode-3.0", "Unlicense"]
+# The workspace's own unpublished consumers carry no license field.
+private = { ignore = true }
+
+[bans]
+# Two versions of one crate in a tree this small is a floor that drifted.
+multiple-versions = "deny"
+wildcards = "deny"
+# The workspace's own crates reach each other by path, with no version.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

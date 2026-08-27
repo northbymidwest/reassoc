@@ -271,7 +271,9 @@ jobs:
       # nightly-only and have their own job below.
       - run: cargo clippy --workspace --all-targets --features resolve-crate-name,unstable-algebraic-float-trait -- -D warnings
       - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-      - run: cargo doc --workspace --no-deps --features resolve-crate-name,unstable-algebraic-float-trait
+      # Private items too: the machinery is most of the code, and a broken
+      # intra-doc link in it is invisible to a public-only build.
+      - run: cargo doc --workspace --no-deps --document-private-items --features resolve-crate-name,unstable-algebraic-float-trait
         env:
           RUSTDOCFLAGS: -D warnings
       # The offline expander shares the rewriter by `#[path]` but mirrors
@@ -288,7 +290,28 @@ jobs:
       # script, but hooks are per-clone and `--no-verify` skips them, so this
       # is where it is actually enforced.
       - run: scripts/check-ascii.sh
+      # Spelling, over the whole tree. `_typos.toml` holds the words it is
+      # wrong about; it has been wrong about two.
+      - uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f # v1.49.0
+      # A dependency nothing imports. Six today, so this is cheap, and a
+      # dependency that stops being used is also a floor nobody rechecks.
+      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2
+        with:
+          tool: cargo-machete@0.9.2
+      - run: cargo machete
 
+  # Licenses, duplicate versions and sources, against `deny.toml`. The
+  # policy is no copyleft; advisories are `audit.yml`'s.
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check licenses bans sources
   # The crate promises one thing about its surface: the macros are the API,
   # and the dispatch layer they expand into is machinery, not a contract.
   # Nothing enforced that promise, so an item that drifted into public view

@@ -87,6 +87,7 @@ macro_rules! declare_op_trait_k {
                     `f64`), or mark the function `#[algebraic(skip)]`"
         )]
         pub $($c)* trait $rhs_trait<Lhs, O, Tag = ()> {
+            /// The operator with `self` on the right and `lhs` on the left.
             fn $rhs_method(self, lhs: Lhs) -> O;
         }
 
@@ -112,6 +113,7 @@ macro_rules! declare_op_trait_k {
             note = "if the place is a reference, dereference it: `*place` rather than `place`"
         )]
         pub $($c)* trait $assign_trait<Lhs, Tag = ()> {
+            /// The compound operator, `self` applied to the place `lhs`.
             fn $assign_method(self, lhs: &mut Lhs);
         }
 

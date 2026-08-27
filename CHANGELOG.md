@@ -8,6 +8,15 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Changed
+
+- **Every public item is documented, and stays so.** The ten `ops::*`
+  functions, `ops::unit`, the dispatch traits' methods and the macros crate
+  itself had no doc comment; docs.rs showed a signature and nothing else.
+  `missing_docs` is now an error in both published crates.
+
 ## 0.14.0 - 2026-08-27
 
 ### Changed
