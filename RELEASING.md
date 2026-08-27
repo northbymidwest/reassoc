@@ -22,9 +22,15 @@ publishing; what is left to a person is the part that needs judgement.
 ## Then
 
 Actions -> release -> Run workflow. Give the version without a leading `v`
-(`0.11.3`), untick `dry_run`, and approve the run when it pauses: the
-`release` environment requires a reviewer, which is the one human gate in
-front of an irreversible upload.
+(`0.11.3`) and untick `dry_run`. The run is titled with the version (and
+"dry run" when it is one). Its first job, `preflight`, has no write scope
+and needs no approval: it runs every check below, assembles both archives,
+and writes a summary on the run page saying what approving will do: the
+version, the commit, the CI run it is green on, and the release notes
+verbatim. Read that, then approve `publish` when it pauses: the `release`
+environment requires a reviewer, which is the one human gate in front of an
+irreversible upload, and `publish` is the only job holding the scopes that
+upload and tag.
 
 `dry_run` is on by default. The asymmetry is deliberate: forgetting to untick
 it costs a re-run, forgetting to tick it publishes irreversibly. A dry run

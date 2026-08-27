@@ -29,21 +29,23 @@ on:
         default: true
         type: boolean
 
+# The two jobs split at the approval. `preflight` has no environment and no
+# write scope: it can only check and report, so nothing is lost by running
+# it before anyone has approved anything, and what it writes to its summary
+# (version, mode, commit, CI, the release notes verbatim) is what the
+# approver is deciding about. `publish` is the only job with the environment
+# and the scopes that upload and tag, and it does nothing else.
 permissions:
-  contents: write   # create the tag and the release
-  id-token: write   # trusted publishing: exchange OIDC for a crates.io token
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
+  preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Scopes the OIDC token to this environment, and is where a required
-    # reviewer goes if a publish should pause for a human.
-    environment: release
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -122,6 +124,60 @@ jobs:
       # archive, so a publish blocker surfaces before anything is uploaded.
       - run: cargo package -p reassoc-macros
       - run: cargo package -p reassoc --no-verify --exclude-lockfile
+
+      # What the approver reads. Everything above passed, so this is a
+      # statement of what approving will do, with the notes as they will
+      # appear on the GitHub release.
+      - name: For review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DRY: ${{ inputs.dry_run }}
+          RUNS: ${{ github.server_url }}/${{ github.repository }}/actions/runs
+        run: |
+          set -eu
+          sha=$(git rev-parse HEAD)
+          subject=$(git log -1 --format=%s)
+          ci=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$sha&status=completed" \
+            --jq '[.workflow_runs[] | select(.name == "CI")] | .[0].id // empty')
+          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          {
+            if [ "$DRY" = true ]; then
+              echo "## Dry run: \`$VERSION\` (nothing will be published or tagged)"
+            else
+              echo "## Release \`$VERSION\`: approving publishes both crates and tags \`v$VERSION\`"
+            fi
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| version | \`$VERSION\` (both manifests agree) |"
+            echo "| commit | \`$sha\` $subject |"
+            echo "| CI | [green on this commit]($RUNS/$ci) |"
+            echo "| tag | \`v$VERSION\`, free |"
+            echo "| crates.io | neither crate has \`$VERSION\` |"
+            echo "| archives | both assemble (\`cargo package\`) |"
+            echo
+            echo "### Release notes, verbatim from \`CHANGELOG.md\`"
+            echo
+            cat /tmp/notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Scopes the OIDC token to this environment, and is where the required
+    # reviewer pauses the run. By now `preflight` has passed and its summary
+    # is on the run page: the approval page links to it.
+    environment: release
+    permissions:
+      contents: write   # create the tag and the release
+      id-token: write   # trusted publishing: exchange OIDC for a crates.io token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
 
       # Trusted publishing: a short-lived token from OIDC, so the repository
       # holds no standing credential that could publish. This runs on a dry
