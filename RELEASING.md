@@ -75,7 +75,9 @@ secret `RELEASE_TAG_KEY`, readable only by a job that has passed the
 reviewer, so "can create `v*`" and "was approved to publish" are the same
 set. A tag pushed by hand is refused with a rule violation; measured on a
 throwaway pattern when the rule was added, refused by hand and accepted
-through the key. The environment is also restricted to `main`.
+through the key. The environment is also restricted to `main`, and
+administrators cannot bypass its rules: the reviewer approves, or nothing
+happens.
 
 The key is the one standing credential in the release path. Rotate it by
 generating a new one, adding it as a deploy key, replacing the secret, and
