@@ -10,7 +10,8 @@ all-features = false
 # this list; a new one under another license fails here rather than being
 # noticed by a downstream lawyer.
 [licenses]
-allow = ["0BSD", "MIT", "Apache-2.0", "Unicode-3.0", "Unlicense"]
+allow = ["0BSD", "MIT", "Apache-2.0", "Unicode-3.0"]
+unused-allowed-license = "deny"
 # The workspace's own unpublished consumers carry no license field.
 private = { ignore = true }
 
