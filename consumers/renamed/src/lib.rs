@@ -10,12 +10,12 @@ use myalg::{alg, algebraic, algebraic_float, passthrough, strict};
 /// operators were rewritten, and that the generated path resolved.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Dispatched(f32);
-impl myalg::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
+impl myalg::__private::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 * self.0)
     }
 }
-impl myalg::traits::MulAssignRhs<Dispatched> for Dispatched { fn mul_assign_rhs(self, lhs: &mut Dispatched) { lhs.0 *= self.0 } }
+impl myalg::__private::traits::MulAssignRhs<Dispatched> for Dispatched { fn mul_assign_rhs(self, lhs: &mut Dispatched) { lhs.0 *= self.0 } }
 
 #[algebraic]
 fn attribute(a: Dispatched, mut acc: Dispatched, v: &mut [Dispatched]) -> Dispatched {

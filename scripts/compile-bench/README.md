@@ -51,7 +51,7 @@ was memoized per expansion.
 
 ### What remains, and why
 
-`expanded - plain` is type-check resolving each `::reassoc::ops::add(a, b)`:
+`expanded - plain` is type-check resolving each `::reassoc::__private::ops::add(a, b)`:
 infer `A`, `B`, `O`, select `A: AddOut<B, O>` (the blanket that fixes `O` from
 the left type) and `B: AddRhs<A, O>` (candidates indexed by `B`'s type, so the
 number of opted-in types does not matter), confirm, record the instantiation.

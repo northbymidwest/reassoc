@@ -22,13 +22,13 @@ help: the trait `RemAssign` is not implemented for `NoRem`
              `NonZero<usize>` implements `RemAssignRhs<usize>`
    = note: required for `NoRem` to implement `RemAssignRhs<NoRem, __ReassocOptIn>`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
-  --> src/lib.rs
+  --> src/__private.rs
    |
-   |     pub trait AlgebraicFloat<X = ()>:
-   |               -------------- required by a bound in this trait
+   | pub trait AlgebraicFloat<X = ()>:
+   |           -------------- required by a bound in this trait
 ...
-   |         + RemAssignRhs<Self, Self::Tag>
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |     + RemAssignRhs<Self, Self::Tag>
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
   --> tests/ui/algebraic_float_missing_operator.rs:26:16
@@ -56,13 +56,13 @@ help: the trait `Rem` is not implemented for `NoRem`
            and $N others
    = note: required for `NoRem` to implement `RemRhs<NoRem, NoRem, __ReassocOptIn>`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
-  --> src/lib.rs
+  --> src/__private.rs
    |
-   |     pub trait AlgebraicFloat<X = ()>:
-   |               -------------- required by a bound in this trait
+   | pub trait AlgebraicFloat<X = ()>:
+   |           -------------- required by a bound in this trait
 ...
-   |         + RemRhs<Self, Self, Self::Tag>
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |     + RemRhs<Self, Self, Self::Tag>
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: binary assignment operation `%=` cannot be applied to type `NoRem`
   --> tests/ui/algebraic_float_missing_operator.rs:26:16

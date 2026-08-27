@@ -12,6 +12,16 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Changed
 
+- **Breaking: the machinery lives under `reassoc::__private`.** `ops` and
+  `traits` were at the crate root, which read as a surface. They are now
+  `reassoc::__private::ops` and `reassoc::__private::traits`, beside the
+  `#[algebraic_float]` marker that was already there: the macros are the
+  API, and a path typed into `__private` by hand looks like what it is. Any
+  hand-written `impl reassoc::traits::AddRhs<..>` needs the new path; the
+  attributes and `alg!` are unchanged. `ops` and the marker are hidden from
+  docs; `traits` deliberately is not: hidden, rustc stops trimming its paths
+  and every "other types implement" line in a diagnostic would spell
+  `reassoc::__private::traits::` (measured in `tests/ui`).
 - **The machinery says what it is on docs.rs.** The macros are the API;
   `ops::*` and the dispatch traits are what they expand into, visible only
   because generated code must name them and hiding them would untrim rustc's

@@ -127,7 +127,7 @@ fn compound_assignment_evaluates_rhs_before_place_like_native_plus_equals() {
 /// A type that implements the dispatch traits but NOT `std::ops`.
 ///
 /// This makes the rewrite observable: `alg!(w * w)` and `alg!(w += w)`
-/// compile only because they become `::reassoc::ops::*` calls. Plain
+/// compile only because they become `::reassoc::__private::ops::*` calls. Plain
 /// `w * w` or `w += w` would fail with E0369/E0368. Without this, every
 /// test in this file would still pass if the rewriter were a no-op, since
 /// native `f32` operators produce identical values.
@@ -136,7 +136,7 @@ struct Dispatched(f32);
 
 macro_rules! impl_dispatched {
     ($trait_name:ident, $method:ident, $op:tt) => {
-        impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
             fn $method(self, lhs: Dispatched) -> Dispatched {
                 Dispatched(lhs.0 $op self.0)
             }
@@ -149,22 +149,22 @@ impl_dispatched!(MulRhs, mul_rhs, *);
 impl_dispatched!(DivRhs, div_rhs, /);
 impl_dispatched!(RemRhs, rem_rhs, %);
 // `Copy`, so `+=` is formed from `+`: the marker says so, per pair.
-impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddAssignRhs<Dispatched> for Dispatched {
     fn add_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 += self.0
     }
 }
-impl reassoc::traits::SubAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::SubAssignRhs<Dispatched> for Dispatched {
     fn sub_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 -= self.0
     }
 }
-impl reassoc::traits::MulAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulAssignRhs<Dispatched> for Dispatched {
     fn mul_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 *= self.0
     }
 }
-impl reassoc::traits::DivAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::DivAssignRhs<Dispatched> for Dispatched {
     fn div_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 /= self.0
     }

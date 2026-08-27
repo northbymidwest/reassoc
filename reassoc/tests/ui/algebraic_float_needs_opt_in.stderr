@@ -13,13 +13,13 @@ help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not 
    = note: a type can implement one marked trait, and that `impl` is its one opt-in
    = note: if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats only and cannot be extended: bound on a float trait of your own carrying `#[algebraic_float]` instead
 help: the following other types implement trait `reassoc::__private::AlgebraicFloat<X>`
-  --> src/lib.rs
+  --> src/__private.rs
    |
-   |     impl<X> AlgebraicFloat<X> for f32 {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f32`
+   | impl<X> AlgebraicFloat<X> for f32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f32`
 ...
-   |     impl<X> AlgebraicFloat<X> for f64 {
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64`
+   | impl<X> AlgebraicFloat<X> for f64 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `f64`
 note: required by a bound in `Float`
   --> tests/ui/algebraic_float_needs_opt_in.rs:8:1
    |

@@ -98,8 +98,10 @@ reverts to a worse result if undone.
   `f32 + f32` to IEEE `Add`.
 - Every dispatch trait has a trailing `Tag = ()` that `ops::*` leave free;
   `#[passthrough]` on a `use`, a `type` alias or an `impl` passes a
-  per-expansion local type so the orphan rule admits other crates' types. `traits` must not be `#[doc(hidden)]`:
-  rustc then stops trimming its paths in diagnostics.
+  per-expansion local type so the orphan rule admits other crates' types.
+  `ops` and `traits` live under `reassoc::__private`; `ops` is
+  `#[doc(hidden)]`, `traits` and the module must not be: rustc then stops
+  trimming their paths in diagnostics (measured in `tests/ui`).
   `consumers/foreign-types/` is the foreign crate the tests use.
 - The operand bound hangs off `B`. Nothing is synthesised for `Copy` types and
   references follow the type's own impls: native parity over convenience.

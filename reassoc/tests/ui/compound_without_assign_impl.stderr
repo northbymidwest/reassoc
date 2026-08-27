@@ -24,8 +24,8 @@ help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
              `&I` implements `AddAssignRhs<I, IntTag>`
              `&Rc<str>` implements `AddAssignRhs<String>`
            and $N others
-note: required by a bound in `reassoc::ops::add_assign`
-  --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::add_assign`
+  --> src/__private/ops.rs
    |
    | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`
@@ -56,8 +56,8 @@ help: the trait `AddAssignRhs<C, _>` is not implemented for `C`
              `&I` implements `AddAssignRhs<I, IntTag>`
              `&Rc<str>` implements `AddAssignRhs<String>`
            and $N others
-note: required by a bound in `reassoc::ops::add_assign`
-  --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::add_assign`
+  --> src/__private/ops.rs
    |
    | pub fn add_assign<A, B: AddAssignRhs<A, T>, T>(a: &mut A, b: B) {
    |                         ^^^^^^^^^^^^^^^^^^ required by this bound in `add_assign`

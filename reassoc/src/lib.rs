@@ -318,12 +318,9 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-pub mod ops;
-// Reached through `#[passthrough]`; not a supported surface for
-// hand-written code. Not `#[doc(hidden)]`: rustc stops trimming paths in
-// diagnostics for items under a hidden module, and `AddRhs<..>` reads better
-// than `reassoc::traits::AddRhs<..>` in every error this crate produces.
-pub mod traits;
+// The dispatch layer and the functions the macros emit live under
+// `__private` (see its module doc); these keep the crate's own paths short.
+pub(crate) use __private::traits;
 
 #[macro_use]
 mod macros;
@@ -385,68 +382,4 @@ struct ReadmeDoctests;
 // hidden item is outside what `cargo-semver-checks` compares, so a change
 // here would have reached them from a patch release with green CI on both
 // sides. Under `__private`, typing the name looks like what it is.
-#[doc(hidden)]
-pub mod __private {
-    use crate::traits::{
-        AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, FloatTag, MulAssignRhs, MulRhs, RemAssignRhs,
-        RemRhs, SubAssignRhs, SubRhs,
-    };
-
-    /// The bound `#[algebraic_float]` appends to a user's float trait:
-    /// "some type the dispatch layer can rewrite arithmetic on". Generic code
-    /// bounded on that trait reaches every operator through the supertraits
-    /// here, with the dispatch tag carried as an associated type so that each
-    /// implementor names the impls it already has: the primitive floats their
-    /// algebraic ones under `FloatTag`, an opted-in type the marker blankets
-    /// under its own tag. Nothing is implemented for `f32` that it did not
-    /// have, which is what keeps concrete float code at exactly one candidate.
-    ///
-    /// `X` is an orphan slot, never a dispatch tag. The attribute emits a
-    /// hidden type beside the trait it marks and writes `AlgebraicFloat<That>`
-    /// as the bound, so that the user's crate may implement this trait for a
-    /// type from another crate (a bignum), which the orphan rule permits only
-    /// when a local type appears in the trait's parameters. The primitive
-    /// impls are generic over `X` and serve every marked trait.
-    #[diagnostic::on_unimplemented(
-        message = "`{Self}` is not a primitive float, and is not opted into this \
-                   `#[algebraic_float]` trait",
-        label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
-        note = "a primitive float needs nothing; any other type is opted in by putting \
-                `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
-                to have all five operators (`+ - * / %` and their `op=` forms)",
-        note = "a type can implement one marked trait, and that `impl` is its one opt-in",
-        note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
-                only and cannot be extended: bound on a float trait of your own carrying \
-                `#[algebraic_float]` instead"
-    )]
-    pub trait AlgebraicFloat<X = ()>:
-        Sized
-        + AddRhs<Self, Self, Self::Tag>
-        + SubRhs<Self, Self, Self::Tag>
-        + MulRhs<Self, Self, Self::Tag>
-        + DivRhs<Self, Self, Self::Tag>
-        + RemRhs<Self, Self, Self::Tag>
-        + AddAssignRhs<Self, Self::Tag>
-        + SubAssignRhs<Self, Self::Tag>
-        + MulAssignRhs<Self, Self::Tag>
-        + DivAssignRhs<Self, Self::Tag>
-        + RemAssignRhs<Self, Self::Tag>
-    {
-        type Tag;
-    }
-
-    impl<X> AlgebraicFloat<X> for f32 {
-        type Tag = FloatTag;
-    }
-    impl<X> AlgebraicFloat<X> for f64 {
-        type Tag = FloatTag;
-    }
-    #[cfg(feature = "f16")]
-    impl<X> AlgebraicFloat<X> for f16 {
-        type Tag = FloatTag;
-    }
-    #[cfg(feature = "f128")]
-    impl<X> AlgebraicFloat<X> for f128 {
-        type Tag = FloatTag;
-    }
-}
+pub mod __private;

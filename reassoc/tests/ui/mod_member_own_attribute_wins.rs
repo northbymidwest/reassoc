@@ -5,7 +5,7 @@ use reassoc::algebraic;
 
 #[derive(Clone, Copy)]
 pub struct Dispatched(f32);
-impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 * self.0)
     }

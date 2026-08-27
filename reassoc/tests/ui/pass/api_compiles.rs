@@ -37,7 +37,7 @@ fn main() {
     assert_eq!(alg!(2.0f32 * 3.0 + 1.0), 7.0);
 
     let vs = [Vec2(1.0, 2.0), Vec2(3.0, 4.0)];
-    let summed = vs.iter().fold(Vec2(0.0, 0.0), |acc, v| reassoc::ops::add(acc, *v));
+    let summed = vs.iter().fold(Vec2(0.0, 0.0), |acc, v| reassoc::__private::ops::add(acc, *v));
     assert_eq!(summed, Vec2(4.0, 6.0));
 }
 

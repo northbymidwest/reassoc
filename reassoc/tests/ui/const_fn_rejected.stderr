@@ -1,4 +1,4 @@
-error: `#[algebraic]` cannot be applied to a `const fn`: the dispatch functions it generates (`reassoc::ops::*`) are not `const fn`
+error: `#[algebraic]` cannot be applied to a `const fn`: the dispatch functions it generates (`reassoc::__private::ops::*`) are not `const fn`
  --> tests/ui/const_fn_rejected.rs:4:1
   |
 4 | const fn cf(x: f32) -> f32 {

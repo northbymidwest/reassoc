@@ -17,7 +17,7 @@ use reassoc::{alg, algebraic};
 struct Dispatched(f32);
 macro_rules! impl_dispatched {
     ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
-        impl reassoc::traits::$t<Dispatched, Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$t<Dispatched, Dispatched> for Dispatched {
             fn $m(self, lhs: Dispatched) -> Dispatched { Dispatched(lhs.0 $op self.0) }
         }
     )*};

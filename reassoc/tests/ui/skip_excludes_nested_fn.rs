@@ -1,6 +1,6 @@
 // Proves `#[algebraic(skip)]` has teeth: nested items are entered by
 // default, so without it the rewriter would turn `w * w` into a
-// `::reassoc::ops::mul` call and this would compile. Since `Dispatched`
+// `::reassoc::__private::ops::mul` call and this would compile. Since `Dispatched`
 // implements only the crate's `*Rhs` traits and not `std::ops::Mul`, the
 // skipped fn must be left untouched and fail with E0369.
 use reassoc::algebraic;
@@ -8,7 +8,7 @@ use reassoc::algebraic;
 #[derive(Clone, Copy)]
 struct Dispatched(f32);
 
-impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 * self.0)
     }

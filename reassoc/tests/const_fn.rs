@@ -59,7 +59,7 @@ fn const_evaluated_values_are_exact() {
 /// const fn compiles at all only through `ops::mul`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Dispatched(f32);
-const impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
+const impl reassoc::__private::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 * self.0)
     }

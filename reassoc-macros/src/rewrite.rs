@@ -65,13 +65,14 @@ impl Rewriter {
         }
     }
 
-    /// `::reassoc::ops::<func>`, every token at `span` except the function
-    /// name, which keeps the call site's.
+    /// `::reassoc::__private::ops::<func>`, every token at `span` except the
+    /// function name, which keeps the call site's.
     fn ops_fn(&self, span: Span, func: &str) -> Expr {
         build::path(
             span,
             [
                 syn::Ident::new(&self.krate, span),
+                syn::Ident::new("__private", span),
                 syn::Ident::new("ops", span),
                 syn::Ident::new(func, Span::call_site()),
             ],
@@ -109,7 +110,7 @@ impl Rewriter {
             self.errors.push(syn::Error::new_spanned(
                 const_token,
                 "`#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch \
-                 functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it \
+                 functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it \
                  `#[algebraic(skip)]` to leave it as written, or drop `const`",
             ));
         }

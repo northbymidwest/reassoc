@@ -24,7 +24,7 @@ struct Dispatched(f32);
 
 macro_rules! impl_dispatched {
     ($($trait_name:ident, $method:ident, $op:tt);* $(;)?) => {$(
-        impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
             #[inline(always)]
             fn $method(self, lhs: Dispatched) -> Dispatched {
                 Dispatched(lhs.0 $op self.0)
@@ -39,12 +39,12 @@ impl_dispatched!(
     DivRhs, div_rhs, /;
     RemRhs, rem_rhs, %;
 );
-impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddAssignRhs<Dispatched> for Dispatched {
     fn add_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 += self.0
     }
 }
-impl reassoc::traits::SubAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::SubAssignRhs<Dispatched> for Dispatched {
     fn sub_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 -= self.0
     }

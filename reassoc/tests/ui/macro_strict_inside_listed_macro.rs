@@ -5,7 +5,7 @@ use reassoc::{algebraic, strict};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Dispatched(f32);
-impl reassoc::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
     fn add_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 + self.0)
     }

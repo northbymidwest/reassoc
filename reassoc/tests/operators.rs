@@ -15,7 +15,7 @@ struct Dispatched(f32);
 
 macro_rules! impl_dispatched {
     ($($trait_name:ident, $method:ident, $op:tt);* $(;)?) => {$(
-        impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
             #[inline(always)]
             fn $method(self, lhs: Dispatched) -> Dispatched { Dispatched(lhs.0 $op self.0) }
         }
@@ -27,7 +27,7 @@ impl_dispatched!(
 );
 macro_rules! assign {
     ($($t:ident, $m:ident, $op:tt);* $(;)?) => {$(
-        impl reassoc::traits::$t<Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$t<Dispatched> for Dispatched {
             fn $m(self, lhs: &mut Dispatched) { lhs.0 $op self.0 }
         }
     )*};
@@ -414,7 +414,7 @@ fn strict_wraps_an_operand() {
 // Casts on an operand
 // ---------------------------------------------------------------------------
 
-impl reassoc::traits::MulRhs<f32, Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulRhs<f32, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: f32) -> Dispatched {
         Dispatched(lhs * self.0)
     }

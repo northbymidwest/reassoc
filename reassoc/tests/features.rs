@@ -1,5 +1,5 @@
 use core::time::Duration;
-use reassoc::ops::{add, div, mul};
+use reassoc::__private::ops::{add, div, mul};
 
 #[test]
 fn duration_heterogeneous_pairs_work_in_core() {
@@ -57,7 +57,7 @@ fn string_compound_assignment_through_a_reference_or_index() {
 #[cfg(feature = "std")]
 #[test]
 fn instant_minus_instant_is_a_duration() {
-    use reassoc::ops::sub;
+    use reassoc::__private::ops::sub;
     let t = std::time::Instant::now();
     assert_eq!(sub(t, t), Duration::ZERO);
 }
@@ -75,7 +75,7 @@ fn system_time_plus_duration_works() {
 #[test]
 fn wrapping_subtraction_and_the_narrow_integers() {
     use core::num::Wrapping;
-    use reassoc::ops::{add, mul, sub};
+    use reassoc::__private::ops::{add, mul, sub};
     assert_eq!(sub(Wrapping(0u8), Wrapping(1u8)), Wrapping(255u8));
     assert_eq!(add(1i8, 2i8), 3i8);
     assert_eq!(add(1i16, 2i16), 3i16);
@@ -101,7 +101,7 @@ extern crate alloc as alloc_or_std;
 #[cfg(feature = "std")]
 #[test]
 fn system_time_minus_duration_works() {
-    use reassoc::ops::sub;
+    use reassoc::__private::ops::sub;
     let t = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(10);
     assert_eq!(
         sub(t, Duration::from_secs(1)),

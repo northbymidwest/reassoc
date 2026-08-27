@@ -1,4 +1,4 @@
-error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
   --> tests/ui/const_fn_trait_member_with_arithmetic.rs:19:5
    |
 19 |     const fn scale(x: f32) -> f32 {

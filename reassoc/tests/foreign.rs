@@ -52,7 +52,7 @@ fn foreign_copy_type_dispatches() {
     // Through `ops::*` directly, so this fails to compile if the opt-in is
     // not an impl of the dispatch traits.
     assert_eq!(
-        reassoc::ops::add(Vec3(1.0, 0.0, 0.0), Vec3(0.0, 1.0, 0.0)),
+        reassoc::__private::ops::add(Vec3(1.0, 0.0, 0.0), Vec3(0.0, 1.0, 0.0)),
         Vec3(1.0, 1.0, 0.0)
     );
 }

@@ -1,8 +1,8 @@
 error[E0277]: cannot multiply `Odd` by `Odd`
- --> tests/ui/unsupported_type.rs:4:41
+ --> tests/ui/unsupported_type.rs:4:52
   |
-4 |     let _: Odd = reassoc::ops::mul(Odd, Odd);
-  |                  -----------------      ^^^ cannot multiply `Odd` by `Odd`
+4 |     let _: Odd = reassoc::__private::ops::mul(Odd, Odd);
+  |                  ----------------------------      ^^^ cannot multiply `Odd` by `Odd`
   |                  |
   |                  required by a bound introduced by this call
   |
@@ -36,8 +36,8 @@ help: the following other types implement trait `MulRhs<Lhs, O, Tag>`
 ...
   | plain_int_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, *, *=);
   | ------------------------------------------------------------------- in this macro invocation
-note: required by a bound in `reassoc::ops::mul`
- --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::mul`
+ --> src/__private/ops.rs
   |
   | pub fn mul<A, B: MulRhs<A, O, T>, O, T>(a: A, b: B) -> O {
   |                  ^^^^^^^^^^^^^^^ required by this bound in `mul`

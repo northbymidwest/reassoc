@@ -22,7 +22,7 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   the *single-argument* form of `assert!` and `debug_assert!`, and `dbg!`.
 
   ```text
-  assert!(a * b > 100.0)  ->  assertion failed: ::reassoc::ops::mul(a, b) > 100.0
+  assert!(a * b > 100.0)  ->  assertion failed: ::reassoc::__private::ops::mul(a, b) > 100.0
   dbg!(a * b)             ->  [src/main.rs:5:13] :: reassoc :: ops :: mul(a, b) = 6.0
   ```
 

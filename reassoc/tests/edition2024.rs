@@ -5,12 +5,12 @@ use reassoc::algebraic;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 struct Dispatched(f32);
-impl reassoc::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulRhs<Dispatched, Dispatched> for Dispatched {
     fn mul_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 * self.0)
     }
 }
-impl reassoc::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
     fn add_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 + self.0)
     }

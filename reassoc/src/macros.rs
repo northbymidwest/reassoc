@@ -4,14 +4,14 @@
 /// `#[passthrough(..)]`'s arguments.
 macro_rules! pair {
     ($rhs:ident, $method:ident, $op:tt, $a:ty, $b:ty => $o:ty) => {
-        impl $crate::traits::$rhs<$a, $o> for $b {
+        impl $crate::__private::traits::$rhs<$a, $o> for $b {
             #[inline(always)]
             #[track_caller]
             fn $method(self, lhs: $a) -> $o { lhs $op self }
         }
     };
     ($assign:ident, $method:ident, $op:tt, $a:ty, $b:ty) => {
-        impl $crate::traits::$assign<$a> for $b {
+        impl $crate::__private::traits::$assign<$a> for $b {
             #[inline(always)]
             #[track_caller]
             fn $method(self, lhs: &mut $a) { *lhs $op self }

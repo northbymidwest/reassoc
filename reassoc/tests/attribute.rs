@@ -271,7 +271,7 @@ fn enum_discriminant_stays_const() {
 // would keep passing even if `#[algebraic]` rewrote nothing at all. To make
 // that impossible, the tests below use a type that implements only the
 // crate's `Alg*` traits and NOT `std::ops`, so `w * w` compiles at all only
-// if the attribute actually rewrote it into a `::reassoc::ops::mul` call.
+// if the attribute actually rewrote it into a `::reassoc::__private::ops::mul` call.
 //
 // Duplicated (not shared) from `reassoc/tests/alg.rs`'s `Dispatched`
 // deliberately: integration test binaries are separate crates and cannot
@@ -281,7 +281,7 @@ struct Dispatched(f32);
 
 macro_rules! impl_dispatched {
     ($trait_name:ident, $method:ident, $op:tt) => {
-        impl reassoc::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
+        impl reassoc::__private::traits::$trait_name<Dispatched, Dispatched> for Dispatched {
             fn $method(self, lhs: Dispatched) -> Dispatched {
                 Dispatched(lhs.0 $op self.0)
             }
@@ -422,7 +422,7 @@ fn trait_associated_const_default_stays_const() {
 
 // An inline `const { .. }` block nested inside an expression that *is*
 // rewritten. `Dispatched` has no `std::ops::Mul`, so this compiles at all
-// only if the outer `*` became an `::reassoc::ops::mul` call -- proving the
+// only if the outer `*` became an `::reassoc::__private::ops::mul` call -- proving the
 // exclusion for `Expr::Const` didn't spread to its surroundings. The
 // `2.0 * 3.0` inside the const block stays plain `f32` multiplication
 // (fine at const-eval time); if the exclusion failed, it would become a
@@ -692,12 +692,12 @@ fn compound_assignment_matches_native_order() {
 // ---- compile error; each of these was found working by probing, and is  ----
 // ---- pinned here so it stays that way                                   ----
 
-impl reassoc::traits::AddAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddAssignRhs<Dispatched> for Dispatched {
     fn add_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 += self.0
     }
 }
-impl reassoc::traits::MulAssignRhs<Dispatched> for Dispatched {
+impl reassoc::__private::traits::MulAssignRhs<Dispatched> for Dispatched {
     fn mul_assign_rhs(self, lhs: &mut Dispatched) {
         lhs.0 *= self.0
     }

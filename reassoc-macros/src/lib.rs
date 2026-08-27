@@ -91,7 +91,7 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let err = syn::Error::new_spanned(
                     const_token,
                     "`#[algebraic]` cannot be applied to a `const fn`: the dispatch \
-                     functions it generates (`reassoc::ops::*`) are not `const fn`",
+                     functions it generates (`reassoc::__private::ops::*`) are not `const fn`",
                 );
                 return with_errors(func.to_token_stream(), vec![err]).into();
             }

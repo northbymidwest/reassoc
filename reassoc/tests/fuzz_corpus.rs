@@ -77,27 +77,27 @@ use reassoc::{alg, algebraic, strict};
 struct Disp(f64);
 macro_rules! impl_dispatched {
     ($($t:ident, $synth:ident, $sm:ident, $m:ident, $op:tt);* $(;)?) => {$(
-        impl reassoc::traits::$t<Disp, Disp> for Disp {
+        impl reassoc::__private::traits::$t<Disp, Disp> for Disp {
             #[inline(always)]
             fn $m(self, lhs: Disp) -> Disp { Disp(lhs.0 $op self.0) }
         }
-        impl reassoc::traits::$t<Disp, Disp> for &Disp {
+        impl reassoc::__private::traits::$t<Disp, Disp> for &Disp {
             #[inline(always)]
             fn $m(self, lhs: Disp) -> Disp { Disp(lhs.0 $op self.0) }
         }
-        impl reassoc::traits::$t<&Disp, Disp> for Disp {
+        impl reassoc::__private::traits::$t<&Disp, Disp> for Disp {
             #[inline(always)]
             fn $m(self, lhs: &Disp) -> Disp { Disp(lhs.0 $op self.0) }
         }
-        impl reassoc::traits::$t<&Disp, Disp> for &Disp {
+        impl reassoc::__private::traits::$t<&Disp, Disp> for &Disp {
             #[inline(always)]
             fn $m(self, lhs: &Disp) -> Disp { Disp(lhs.0 $op self.0) }
         }
-        impl reassoc::traits::$synth<Disp> for Disp {
+        impl reassoc::__private::traits::$synth<Disp> for Disp {
             #[inline(always)]
             fn $sm(self, lhs: &mut Disp) { lhs.0 = lhs.0 $op self.0 }
         }
-        impl reassoc::traits::$synth<Disp> for &Disp {
+        impl reassoc::__private::traits::$synth<Disp> for &Disp {
             #[inline(always)]
             fn $sm(self, lhs: &mut Disp) { lhs.0 = lhs.0 $op self.0 }
         }

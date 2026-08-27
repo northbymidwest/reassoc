@@ -17,13 +17,13 @@ help: the following types implement trait `OptInTag`
 13 |     #[reassoc::passthrough]
    |     ^^^^^^^^^^^^^^^^^^^^^^^ `render::_::__ReassocOptIn`
    |
-  ::: src/traits.rs
+  ::: src/__private/traits.rs
    |
    | impl OptInTag for () {}
    | ^^^^^^^^^^^^^^^^^^^^ `()`
    = note: required for `Vec3` to implement `AddRhs<Vec3, Vec3, _>`
-note: required by a bound in `reassoc::ops::add`
-  --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::add`
+  --> src/__private/ops.rs
    |
    | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`
@@ -47,8 +47,8 @@ note: multiple `impl`s satisfying `Vec3: Passthrough<_>` found
 13 |     #[reassoc::passthrough]
    |     ^^^^^^^^^^^^^^^^^^^^^^^
    = note: required for `Vec3` to implement `AddRhs<Vec3, Vec3, _>`
-note: required by a bound in `reassoc::ops::add`
-  --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::add`
+  --> src/__private/ops.rs
    |
    | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`

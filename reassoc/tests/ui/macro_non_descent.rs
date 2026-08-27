@@ -6,7 +6,7 @@ use reassoc::alg;
 /// for rustc to reject with E0369.
 struct Dispatched(f32);
 
-impl reassoc::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
+impl reassoc::__private::traits::AddRhs<Dispatched, Dispatched> for Dispatched {
     fn add_rhs(self, lhs: Dispatched) -> Dispatched {
         Dispatched(lhs.0 + self.0)
     }

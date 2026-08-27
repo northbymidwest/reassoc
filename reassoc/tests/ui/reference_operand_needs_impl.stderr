@@ -22,8 +22,8 @@ help: the trait `AddRhs<&Vec3, _, _>` is not implemented for `Vec3`
              `&I` implements `AddRhs<I, I, IntTag>`
              `&T` implements `AddRhs<String, String>`
              `&mut T` implements `AddRhs<String, String>`
-note: required by a bound in `reassoc::ops::add`
-  --> src/ops.rs
+note: required by a bound in `reassoc::__private::ops::add`
+  --> src/__private/ops.rs
    |
    | pub fn add<A, B: AddRhs<A, O, T>, O, T>(a: A, b: B) -> O {
    |                  ^^^^^^^^^^^^^^^ required by this bound in `add`

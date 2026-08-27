@@ -277,9 +277,13 @@ and iterator case still resolves) but is not free to type-check: on the
 `scripts/compile-bench.sh` workload (1800 fns, ~72k operators) the dispatch
 half of `cargo check` went from 2.21s to 2.75s over plain, about +7us per
 rewritten operator, ~+7% on the whole `#[algebraic]` check; one more
-inference variable per call. And `#[doc(hidden)]` on `traits` is not an
-option: rustc stops trimming paths in diagnostics under a hidden module, and
-every error would read `reassoc::traits::AddRhs<..>`. Shipping impls for
+inference variable per call. And `#[doc(hidden)]` on `__private`, where
+`traits` lives, is not an option: rustc stops trimming paths in diagnostics
+under a hidden module, and every "other types implement" line would read
+`reassoc::__private::traits::AddRhs<..>` (measured when the module was
+introduced: 236 lines of `tests/ui` snapshots changed hidden, 69 visible, the
+latter all `ops::` function paths that were already spelled in full). The
+name does the job the attribute cannot. Shipping impls for
 popular crates behind features would avoid the tag for those types; not done,
 since such types are along for the ride in an algebraic scope rather than its
 point.

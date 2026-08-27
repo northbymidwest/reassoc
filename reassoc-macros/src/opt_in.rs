@@ -90,7 +90,7 @@ impl Pair {
                 ));
             }
             return Ok(quote! {
-                impl ::#krate::traits::#trait_<#a, #tag> for #b {
+                impl ::#krate::__private::traits::#trait_<#a, #tag> for #b {
                     #[inline(always)]
                     #[track_caller]
                     fn #method(self, lhs: &mut #a) { *lhs #op self; }
@@ -105,7 +105,7 @@ impl Pair {
             None => quote!(<#a as ::core::ops::#std<#b>>::Output),
         };
         Ok(quote! {
-            impl ::#krate::traits::#trait_<#a, #out, #tag> for #b {
+            impl ::#krate::__private::traits::#trait_<#a, #out, #tag> for #b {
                 #[inline(always)]
                 #[track_caller]
                 fn #method(self, lhs: #a) -> #out { lhs #op self }
@@ -162,8 +162,8 @@ fn foreign_block(
     Ok(quote! {
         const _: () = {
             pub struct #tag;
-            impl ::#krate::traits::OptInTag for #tag {}
-            impl ::#krate::traits::Passthrough<#tag> for #ty {}
+            impl ::#krate::__private::traits::OptInTag for #tag {}
+            impl ::#krate::__private::traits::Passthrough<#tag> for #ty {}
             #(#pair_impls)*
             #extra
         };
@@ -217,7 +217,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
             Ok(quote! {
                 #item
-                impl #impl_generics ::#krate::traits::Passthrough for #ident #ty_generics #where_clause {}
+                impl #impl_generics ::#krate::__private::traits::Passthrough for #ident #ty_generics #where_clause {}
             })
         }
 
@@ -277,8 +277,8 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             Ok(quote! {
                 const _: () = {
                     pub struct #tag;
-                    impl ::#krate::traits::OptInTag for #tag {}
-                    impl #impl_generics ::#krate::traits::Passthrough<#tag> for #self_ty #where_clause {}
+                    impl ::#krate::__private::traits::OptInTag for #tag {}
+                    impl #impl_generics ::#krate::__private::traits::Passthrough<#tag> for #self_ty #where_clause {}
                     impl #impl_generics ::#krate::__private::AlgebraicFloat<#tag_path> for #self_ty #where_clause {
                         type Tag = #tag;
                     }

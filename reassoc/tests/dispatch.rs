@@ -1,4 +1,4 @@
-use reassoc::ops::{add, div, mul, rem, sub};
+use reassoc::__private::ops::{add, div, mul, rem, sub};
 
 #[test]
 fn float_ops_produce_correct_values() {

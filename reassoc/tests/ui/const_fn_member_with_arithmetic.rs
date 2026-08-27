@@ -1,5 +1,5 @@
 //! A `const fn` inside an annotated container cannot have its arithmetic
-//! rewritten (`reassoc::ops::*` are not `const fn`). One whose body the
+//! rewritten (`reassoc::__private::ops::*` are not `const fn`). One whose body the
 //! rewrite would not touch (`const fn new(x) -> Self { Self(x) }`) is skipped
 //! silently; one it *would* touch is an error naming the way out, so the
 //! container form never leaves a method strict without saying so.
