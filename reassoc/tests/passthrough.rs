@@ -1,4 +1,4 @@
-//! `passthrough!` and `#[passthrough]`: one line opts a type in, and
+//! `#[passthrough]`: one line opts a type in, and
 //! every operator it implements (any right-hand type, any output, the
 //! in-place forms, references wherever the type implements them) is
 //! dispatched from then on, exactly as `std::ops` defines it.
@@ -67,7 +67,7 @@ fn wrapping_and_saturating_need_no_opt_in() {
     assert_eq!(s, Saturating(255u8));
 }
 
-// ---- the derive ----
+// ---- the attribute on a definition ----
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[passthrough]
@@ -83,7 +83,7 @@ macro_rules! derived_ops {
 derived_ops!(Add, add, +; Sub, sub, -; Mul, mul, *; Div, div, /; Rem, rem, %);
 
 #[test]
-fn derive_covers_all_five_operators() {
+fn opt_in_covers_all_five_operators() {
     let (a, b) = (Derived(6.0), Derived(3.0));
     assert_eq!(alg!(a + b), Derived(9.0));
     assert_eq!(alg!(a - b), Derived(3.0));
@@ -118,7 +118,7 @@ impl core::ops::Mul for Partial {
 }
 
 #[test]
-fn derive_covers_exactly_the_operators_the_type_has() {
+fn opt_in_covers_exactly_the_operators_the_type_has() {
     let (a, b) = (Partial(6.0), Partial(3.0));
     assert_eq!(alg!(a + b - a * b), Partial(-9.0));
 }
@@ -136,13 +136,13 @@ impl<T: core::ops::Add<Output = T>> core::ops::Add for Pair<T> {
 }
 
 #[test]
-fn derive_works_on_generic_types() {
+fn opt_in_works_on_generic_types() {
     assert_eq!(alg!(Pair(1, 2) + Pair(3, 4)), Pair(4, 6));
     assert_eq!(alg!(Pair(1.5f32, 2.0) + Pair(3.0, 4.0)), Pair(4.5, 6.0));
 }
 
 /// A `where` clause with a trailing comma is what rustfmt writes for any
-/// multi-line bound list; the derive must reproduce it without `, ,`.
+/// multi-line bound list; the attribute must reproduce it without `, ,`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[passthrough]
 struct Bounded<T>
@@ -164,7 +164,7 @@ where
 }
 
 #[test]
-fn derive_accepts_a_where_clause_with_a_trailing_comma() {
+fn opt_in_accepts_a_where_clause_with_a_trailing_comma() {
     assert_eq!(alg!(Bounded { v: 1 } + Bounded { v: 2 }), Bounded { v: 3 });
 }
 
@@ -199,7 +199,7 @@ impl core::ops::Mul for Tagged<'_> {
 }
 
 #[test]
-fn derive_on_an_enum_and_a_type_with_a_lifetime() {
+fn opt_in_on_an_enum_and_a_type_with_a_lifetime() {
     assert_eq!(alg!(Sign::Neg * Sign::Neg), Sign::Pos);
     let t = Tagged(2.0, "m");
     assert_eq!(alg!(t + t * t), Tagged(6.0, "m"));

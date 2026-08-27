@@ -17,7 +17,7 @@ cargo test --workspace                 # unit + integration tests
 cargo test -p reassoc --doc            # doctests (must stay at 0 ignored)
 cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 
-cargo test -p reassoc --test ui -- --ignored        # trybuild diagnostics
+cargo test -p reassoc --features unstable-algebraic-float-trait --test ui -- --ignored  # trybuild diagnostics; the feature is required, a case names the bound it gates
 cargo test -p reassoc --test codegen_matrix         # every construct == its hand-written twin, as optimized IR, at -C opt-level=1,2,3,s,z
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 cargo test -p reassoc --test foreign                # #[passthrough] on a use, against consumers/foreign-types
@@ -27,6 +27,7 @@ scripts/compile-bench.sh                            # compile-time cost, 4 varia
 scripts/codegen-demo.sh [OPT_LEVEL]                 # the README's dot-loop table, regenerated for this host
 scripts/mutants.sh [--re REGEX]                     # cargo-mutants over the rewriter; a survivor is a line no test observes
 scripts/adopt/adopt.py apply|report|ir|revert DIR  # adopt reassoc across a whole foreign crate and see what breaks (scripts/adopt/README.md)
+scripts/adopt/smoke.sh                              # that tool's own guard: apply to a fixture, check every item kind, build it
 REASSOC_TRACE=/tmp/t.log cargo build                # one line per function the macros entered, with operators rewritten (tests/trace.rs)
 
 cargo test -p reassoc --no-default-features                    # core only
@@ -60,8 +61,11 @@ member: `resolve-crate-name` would spread through feature unification.
 Two crates, and the split is forced: a `proc-macro = true` crate can export
 nothing but proc macros. `reassoc-macros` holds the rewriter (`rewrite.rs`,
 one `VisitMut` behind both `alg!` and `#[algebraic]`; `scope.rs` parses the
-attribute's parameters); `reassoc` holds the traits, impls and `passthrough!`,
-and re-exports the macros. Users depend only on `reassoc`.
+attribute's parameters; `opt_in.rs` expands `#[passthrough]` and
+`#[algebraic_float]`); `reassoc` holds the traits, impls and `strict!`, and
+re-exports the macros. Users depend only on `reassoc`. `passthrough!` and
+`#[derive(Passthrough)]` were removed in 0.14.0; `#[passthrough]` on whichever
+item introduces the type is the one opt-in.
 
 The dispatch layer is one marker, `Passthrough<Tag = ()>`, two traits per
 operator (`MulRhs<Lhs, O, Tag>` and `MulAssignRhs<Lhs, Tag>`), blanket impls

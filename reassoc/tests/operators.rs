@@ -386,7 +386,7 @@ impl core::ops::Neg for Metres {
 #[algebraic]
 fn user_type(a: Metres, b: Metres) -> Metres {
     // Negation reaches the type's own `Neg` through the blanket impl, with no
-    // `passthrough!` entry needed for it.
+    // `#[passthrough]` opt-in needed for it.
     -(a + b) * a
 }
 

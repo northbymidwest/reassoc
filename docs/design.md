@@ -67,7 +67,7 @@ per concrete primitive, under the default tag.** `2.0 * v` is `MulRhs<f32, ..>
 for V` and `n * v` is `MulRhs<u32, ..> for V`, and `f32: Passthrough<()>`
 being knowably false is what keeps each apart from the general blanket; under
 a foreign tag that is not knowable, so `2.0 * glam_vec` is the one pair a
-foreign opt-in names: `passthrough!(foreign mul: f32, Vec3 => Vec3)`. The
+foreign opt-in names: `#[passthrough(f32 * Vec3)] use glam::Vec3;`. The
 explicit-pair form survives for that alone; on an opted-in left type it now
 overlaps the blanket and is `E0119`. The integer half arrived with the
 wholesale adoption of glam (`scripts/adopt/`): `i8 / I8Vec2` in an algebraic
@@ -355,12 +355,22 @@ every member body, and containers nested in those: the annotation on an
 items inside function bodies only, tracked by an `in_body` flag the fn
 visitors set; a UI case once caught the impl visitor calling syn's free
 function instead of the overriding method and bypassing it.)
-A `const fn` in any algebraic scope is decided by probing: the body is cloned
-and rewritten under the same scope, and if the tokens changed the fn is an
-error naming `#[algebraic(skip)]`; otherwise it is skipped silently. Probing
-rather than a syntactic "contains `+`" keeps the literal rule, `strict!` and
-const positions exactly as consistent as everywhere else, and costs one extra
-walk of a body that is usually `Self(x)`. `mod foo;` is refused with an
+A `const fn` in any algebraic scope is decided by *entering* it with a flag
+set, `const_context`: an operator met while it is set is recorded rather than
+rewritten, and a `const fn` that recorded one is an error naming
+`#[algebraic(skip)]` while one that recorded none is skipped silently.
+Recording rather than a syntactic "contains `+`" keeps the literal rule,
+`strict!` and const positions exactly as consistent as everywhere else, and
+costs nothing beyond the walk the visitor was making anyway.
+
+A clone-and-compare probe (rewrite a copy of the body, compare the tokens)
+cannot do this: a `const fn` body is not one region but const context with
+*runtime islands* in it, and a nested `fn`, `impl`, `mod` or `trait`, or a
+closure body, is ordinary runtime code that must be rewritten. A probe reads
+those rewrites as "the body changed" and condemns the function for arithmetic
+that is not its own. `const_context` is cleared on entry to each of them
+(`in_runtime_context`), so each half is judged as what it is. `mod foo;` is
+refused with an
 authored message (stable rustc refuses attribute macros on file modules
 first, E0658). A trait's required methods are skipped, its default bodies
 rewritten; the attribute does not propagate to implementors.
@@ -378,8 +388,11 @@ skipped item has the `skip`s nested inside it stripped too since nothing else
 will see them, a `const fn` body likewise, and the attribute invoked directly
 with `skip` returns its item unchanged before looking at what it is, which is
 how `#[algebraic(skip)] const fn` works at top level. A `const fn` nested
-inside a skipped `const fn` with arithmetic of its own is still reported: the
-probe's errors propagate.
+inside a silently skipped `const fn` with arithmetic of its own is still
+reported against itself: both flags are saved and restored per `const fn`, so
+a parent's arithmetic never condemns a nested one and a nested one's never
+condemns its parent (`tests/ui/const_fn_nested_const_fn_with_arithmetic.rs`
+pins both orders).
 
 **Generated code is respanned onto the operator.** `quote_spanned!` does not
 respan interpolated tokens, so a crate path at `Span::call_site()` anchored

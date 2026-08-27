@@ -1,7 +1,7 @@
 //! A type opted into a marked trait needs all five operators: the marker's
 //! supertraits name every one, so a type without `%` fails at the impl the
 //! attribute emits, on the operator it lacks. "Some float" is the premise;
-//! a type with fewer operators is a `passthrough!` type, not a float.
+//! a type with fewer operators is a `#[passthrough]` type, not a float.
 use reassoc::{algebraic_float, passthrough};
 
 #[derive(Clone, Debug, PartialEq)]

@@ -12,7 +12,7 @@ side. Re-run it before editing this page.
 Every opted-in type is dispatched through one blanket impl per operator:
 
 ```rust
-impl<A: Passthrough<Tag> + Mul<B>, B, Tag> MulRhs<A, <A as Mul<B>>::Output, Tag> for B { .. }
+impl<A: Passthrough<Tag> + Mul<B>, B, Tag: OptInTag> MulRhs<A, <A as Mul<B>>::Output, Tag> for B { .. }
 ```
 
 so for an opted-in type the bound that fails is the type's own `std::ops`
@@ -73,7 +73,7 @@ unsatisfied bounds: the `std::ops` one, in rustc's wording, and the
 note says a primitive needs no opt-in and to cast. It cannot be suppressed
 without the blanket ceasing to be a candidate, which is what makes every
 other row match. A type never opted in gets *one* error, from the operator
-trait itself, whose note names `passthrough!`: rustc rejects the blanket for
+trait itself, whose note names `#[passthrough]`: rustc rejects the blanket for
 it outright, since nothing implements `Passthrough` for the type.
 
 **Counts differ case by case.** Plain Rust reports a mismatched pair two or
@@ -103,5 +103,12 @@ there rather than in a scratch crate. The ones pinned as tests live in
 the current expected output, regenerated with:
 
 ```bash
-TRYBUILD=overwrite cargo test -p reassoc --test ui -- --ignored
+TRYBUILD=overwrite cargo test -p reassoc \
+    --features unstable-algebraic-float-trait --test ui -- --ignored
 ```
+
+The feature is not optional: one case names the bound it gates, and without
+it `overwrite` replaces that case's snapshot with an `unresolved import`
+that pins nothing. `must_fail_cases_fail_for_the_stated_reason` in
+`tests/ui.rs` fails on such a snapshot, so a slip is caught, but the
+regeneration is still wrong to run without it. Read every diff back.

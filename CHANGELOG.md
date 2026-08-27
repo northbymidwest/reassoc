@@ -62,6 +62,16 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 - `syn`'s `derive` feature is gone from `reassoc-macros`: nothing has parsed a
   `DeriveInput` since 0.14.0. `cargo machete` sees unused crates, not unused
   features.
+- Three of the surviving mutants `mutants.yml`'s baseline covers are now
+  documented at their site, as the rest already were: `visit_variant_mut`,
+  `is_float_suffix`, and the `TraitAlias` arm of `item_attrs_mut`, the last
+  being the one arm no stable test can reach.
+- `passthrough!` and `#[derive(Passthrough)]`, removed in 0.14.0, are no
+  longer named as current in `CLAUDE.md`, `docs/design.md`,
+  `docs/diagnostics.md` or the test suite; `docs/design.md` describes the
+  `const_context` the `const fn` rule actually uses rather than the
+  clone-and-compare probe it replaced; and `docs/diagnostics.md` shows the
+  marker blanket with the `OptInTag` bound its own argument depends on.
 
 ### Added
 

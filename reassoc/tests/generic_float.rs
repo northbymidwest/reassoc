@@ -73,7 +73,7 @@ fn generic_code_is_rewritten_at_both_widths() {
 /// A foreign bignum, opted in with the attribute on its `impl`. `Big` is
 /// `foreign_types`'s: another crate's type, heap-allocated, `Clone` and not
 /// `Copy`, so this is `rug::Float`'s shape exactly, and the plain
-/// `passthrough!` forms would be an orphan-rule error on it. The same
+/// `#[passthrough]` on a definition would be an orphan-rule error on it. The same
 /// generic bodies as above run on it; its operators are its own.
 #[passthrough]
 impl Wide for Big {
@@ -94,7 +94,7 @@ impl Wide for f64 {
     }
 }
 
-/// A local bignum takes the identical line, and does not `passthrough!` as
+/// A local bignum takes the identical line, and does not take `#[passthrough]` as
 /// well: the impl attribute is its opt-in.
 #[derive(Clone, Debug, PartialEq)]
 struct Local(Box<f64>);
