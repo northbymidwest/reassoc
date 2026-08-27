@@ -226,16 +226,30 @@ jobs:
 
       # Only now. Everything above can fail without leaving a mark; from here
       # on the tag is permanent, and so is what it points at.
+      #
+      # The tag ruleset restricts creation of `v*` to one bypass actor, a
+      # deploy key, whose private half is the `release` environment's
+      # `RELEASE_TAG_KEY`. `GITHUB_TOKEN` cannot be a bypass actor, so the
+      # push goes over SSH with that key and nothing else on offer (`-F
+      # /dev/null`, no agent: a stray identity would be rejected, not the
+      # key). GitHub's host keys come from its API rather than a hardcoded
+      # fingerprint. The key file lives only for this step.
       - name: Tag and release
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          RELEASE_TAG_KEY: ${{ secrets.RELEASE_TAG_KEY }}
         run: |
           set -eu
           sha=$(git rev-parse HEAD)
-          gh api "repos/${{ github.repository }}/git/refs" -X POST \
-            -f ref="refs/tags/v$VERSION" -f sha="$sha" > /dev/null
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$RELEASE_TAG_KEY" > "$dir/key"
+          chmod 600 "$dir/key"
+          gh api meta --jq '.ssh_keys[] | "github.com \(.)"' > "$dir/known_hosts"
+          GIT_SSH_COMMAND="ssh -F /dev/null -i $dir/key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" \
+            git push "git@github.com:${{ github.repository }}.git" "$sha:refs/tags/v$VERSION"
           awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
           # Pre-release, as every release here is: the README calls the crate
           # experimental, and a 0.x moving this fast should not present any

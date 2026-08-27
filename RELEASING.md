@@ -67,6 +67,21 @@ triggered by a tag would therefore burn a version number for good every time
 anything downstream failed, and leave a tag pointing at a commit that never
 shipped. The tag is an output of a release that already succeeded.
 
+**Only the workflow can create a tag.** The same ruleset carries `creation`,
+and its one bypass actor is a deploy key (write access, titled for this in
+the repository's deploy keys). `GITHUB_TOKEN` cannot be a bypass actor, which
+is why a key exists at all. Its private half is the `release` environment's
+secret `RELEASE_TAG_KEY`, readable only by a job that has passed the
+reviewer, so "can create `v*`" and "was approved to publish" are the same
+set. A tag pushed by hand is refused with a rule violation; measured on a
+throwaway pattern when the rule was added, refused by hand and accepted
+through the key. The environment is also restricted to `main`.
+
+The key is the one standing credential in the release path. Rotate it by
+generating a new one, adding it as a deploy key, replacing the secret, and
+deleting the old deploy key; the bypass is "any deploy key", so nothing in
+the ruleset changes. If it is lost, do that before the next release.
+
 That ruleset used to also carry `required_signatures`. It was removed because
 it cannot do anything: the rule checks commits being pushed, and a tag push
 introduces no commits. Tags here are unsigned, and GitHub cannot enforce
