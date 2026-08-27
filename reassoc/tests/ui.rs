@@ -23,9 +23,23 @@ fn ui() {
 /// unresolved name. Five cases named a trait that had since been removed and
 /// sat green for several releases; this would have caught it on day one. Not
 /// ignored: it only reads files.
+///
+/// `E0432` is on the list for a reason the others are not: the `ui` run needs
+/// `--features unstable-algebraic-float-trait`, a case naming the bound it
+/// gates, and `TRYBUILD=overwrite` without the feature rewrites that case's
+/// snapshot to `unresolved import`, which pins nothing.
 #[test]
 fn must_fail_cases_fail_for_the_stated_reason() {
-    let unresolved = ["E0405", "E0412", "E0425", "E0433", "cannot find"];
+    let unresolved = [
+        "E0405",
+        "E0412",
+        "E0425",
+        "E0432",
+        "E0433",
+        "cannot find",
+        "unresolved import",
+        "the item is gated behind",
+    ];
     let mut wrong = Vec::new();
     for entry in std::fs::read_dir("tests/ui").unwrap() {
         let path = entry.unwrap().path();

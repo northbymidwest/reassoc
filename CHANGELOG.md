@@ -35,6 +35,25 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   "pending cover" set, and the next item to open a block inherited it: one
   such member made the following `trait` unannotated. Adoption reports counted
   that as clean.
+- **A must-fail UI snapshot could be replaced by an unresolved import without
+  anything noticing.** The `ui` run needs
+  `--features unstable-algebraic-float-trait`; the regeneration commands in
+  `CLAUDE.md` and `docs/diagnostics.md` omitted it, and `TRYBUILD=overwrite`
+  then rewrote a case's `.stderr` to `E0432 unresolved import`, which pins
+  nothing, and past `must_fail_cases_fail_for_the_stated_reason`, whose list
+  did not cover it. `E0432`, "unresolved import" and "the item is gated
+  behind" are on that list now, and both commands carry the feature.
+
+### Added
+
+- `suite_layout.rs` checks the fuzz corpora's recorded generator hash against
+  the generator in the tree. The header says "a different generator hash is a
+  different corpus" and nothing enforced it; both files carried the hash of a
+  two-commit-old script. The digest comes from
+  `scripts/gen-fuzz-corpus.py --provenance`, a new flag printing the pair the
+  generator stamps into a header, so the check and the stamp cannot disagree
+  about what a generator hashes to. Gated off Windows, the one CI job without
+  a `python3` this can rely on.
 
 ## 0.14.2 - 2026-08-27
 

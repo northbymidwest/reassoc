@@ -46,7 +46,7 @@
 //! source outside `#[algebraic]`.
 //!
 //! Seed 1, 200 trees of ~40 nodes and 80 chains, over `f64`.
-//! Generator sha256 f9b9e8f05b73, run at commit 8f6d80e (generator modified): the same seed under a
+//! Generator sha256 07da1a44b3d0, run at commit b63a7a3 (generator modified): the same seed under a
 //! different generator hash is a different corpus.
 #![allow(
     clippy::float_cmp,

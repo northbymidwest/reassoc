@@ -362,7 +362,17 @@ def main() -> None:
     p.add_argument("--nodes", type=int, default=40)
     p.add_argument("--width", type=int, default=64, choices=[32, 64])
     p.add_argument("--per-fn", type=int, default=20)
+    # `<digest> <commit>`, the same pair stamped into a corpus header, and
+    # nothing else. `reassoc/tests/suite_layout.rs` asks for it rather than
+    # recomputing the digest, so the two cannot disagree about what a
+    # generator hashes to.
+    p.add_argument("--provenance", action="store_true",
+                   help="print this generator's provenance and exit")
     args = p.parse_args()
+
+    if args.provenance:
+        print("%s %s" % provenance())
+        return
 
     ty = f"f{args.width}"
     if args.width == 32:
