@@ -105,3 +105,37 @@ pub fn div_assign<A, B: DivAssignRhs<A, T>, T>(a: &mut A, b: B) {
 pub fn rem_assign<A, B: RemAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.rem_assign_rhs(a)
 }
+
+/// The functions an `unsafe_fast` scope emits: the same dispatch, through
+/// each trait's `*_fast` method, which only the primitive floats override.
+/// `unit` is shared. Nightly, behind `unstable-fast-math`; UB on a NaN or
+/// infinity anywhere in the scope, which is the scope's contract, not this
+/// module's to check.
+#[cfg(feature = "unstable-fast-math")]
+pub mod fast {
+    use crate::traits::{
+        AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, MulAssignRhs, MulRhs, RemAssignRhs, RemRhs,
+        SubAssignRhs, SubRhs,
+    };
+    macro_rules! fast_ops {
+        ($($f:ident $rhs:ident $m:ident; $fa:ident $assign:ident $ma:ident;)*) => {$(
+            #[inline(always)]
+            #[track_caller]
+            pub fn $f<A, B: $rhs<A, O, T>, O, T>(a: A, b: B) -> O {
+                b.$m(a)
+            }
+            #[inline(always)]
+            #[track_caller]
+            pub fn $fa<A, B: $assign<A, T>, T>(a: &mut A, b: B) {
+                b.$ma(a)
+            }
+        )*};
+    }
+    fast_ops! {
+        add AddRhs add_rhs_fast; add_assign AddAssignRhs add_assign_rhs_fast;
+        sub SubRhs sub_rhs_fast; sub_assign SubAssignRhs sub_assign_rhs_fast;
+        mul MulRhs mul_rhs_fast; mul_assign MulAssignRhs mul_assign_rhs_fast;
+        div DivRhs div_rhs_fast; div_assign DivAssignRhs div_assign_rhs_fast;
+        rem RemRhs rem_rhs_fast; rem_assign RemAssignRhs rem_assign_rhs_fast;
+    }
+}

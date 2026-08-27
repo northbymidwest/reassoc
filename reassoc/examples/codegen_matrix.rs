@@ -14,6 +14,11 @@
     clippy::too_many_arguments,
     clippy::missing_const_for_fn
 )]
+#![cfg_attr(
+    feature = "unstable-fast-math",
+    feature(core_intrinsics),
+    allow(internal_features)
+)]
 
 use core::num::{NonZero, Wrapping};
 use core::time::Duration;
@@ -725,4 +730,116 @@ fn main() {
         direct_chain_sum16(&a),
         plain_chain_sum16(&a)
     );
+}
+
+// ---- the folds the algebraic operators must not do ----
+//
+// `x - x`, `x / x`, `x * 0.0`: each stays an instruction, since a NaN or an
+// infinity has to come out as NaN. Pairs in their own right, and the
+// controls the `unsafe_fast` section below is required to differ from.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_self_sub(x: f32) -> f32 {
+    x - x
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_self_sub(x: f32) -> f32 {
+    x.algebraic_sub(x)
+}
+
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_self_div(x: f32) -> f32 {
+    x / x
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_self_div(x: f32) -> f32 {
+    x.algebraic_div(x)
+}
+
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_times_zero(x: f32) -> f32 {
+    x * 0.0
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_times_zero(x: f32) -> f32 {
+    x.algebraic_mul(0.0)
+}
+
+// ---- the `unsafe_fast` scope (nightly, `unstable-fast-math`) ----
+//
+// Each `sugar_fast_*` has two comparisons: identical to its hand-written
+// intrinsic twin (zero cost), and *different* from the algebraic sugar of
+// the same body above (the mode reached the intrinsics; `tests/codegen_matrix.rs`
+// checks that as a negative control). The bodies are the three folds only
+// `nnan ninf` permit, and the dot loop, where the two modes are expected to
+// agree because nothing in it folds.
+#[cfg(feature = "unstable-fast-math")]
+mod fast {
+    use core::intrinsics::{fadd_fast, fdiv_fast, fmul_fast, fsub_fast};
+    use reassoc::{algebraic, unsafe_fast};
+
+    #[algebraic(unsafe_fast)]
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn sugar_fast_self_sub(x: f32) -> f32 {
+        x - x
+    }
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn direct_fast_self_sub(x: f32) -> f32 {
+        unsafe { fsub_fast(x, x) }
+    }
+
+    #[algebraic(unsafe_fast)]
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn sugar_fast_self_div(x: f32) -> f32 {
+        x / x
+    }
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn direct_fast_self_div(x: f32) -> f32 {
+        unsafe { fdiv_fast(x, x) }
+    }
+
+    // The block form, and a float literal, which the literal rule leaves in.
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn sugar_fast_times_zero(x: f32) -> f32 {
+        unsafe_fast!(x * 0.0)
+    }
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn direct_fast_times_zero(x: f32) -> f32 {
+        unsafe { fmul_fast(x, 0.0) }
+    }
+
+    // Where the modes agree: a dot loop with `+=` and an index, no folds.
+    #[algebraic(unsafe_fast)]
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn sugar_fast_dot_loop(a: &[f32], b: &[f32]) -> f32 {
+        let mut sum = 0.0;
+        for i in 0..a.len().min(b.len()) {
+            sum += a[i] * b[i];
+        }
+        sum
+    }
+    #[unsafe(no_mangle)]
+    #[inline(never)]
+    pub fn direct_fast_dot_loop(a: &[f32], b: &[f32]) -> f32 {
+        let mut sum = 0.0f32;
+        for i in 0..a.len().min(b.len()) {
+            sum = unsafe { fadd_fast(sum, fmul_fast(a[i], b[i])) };
+        }
+        sum
+    }
 }

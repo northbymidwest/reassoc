@@ -8,6 +8,8 @@ pub struct Scope {
     /// expressions (`assert!`, `println!`, `vec!`, ..).
     pub macros: bool,
     pub skip: bool,
+    /// Route the float operators to the `f*_fast` intrinsics: `ops::fast::*`.
+    pub fast: bool,
 }
 
 impl Default for Scope {
@@ -23,6 +25,7 @@ impl Default for Scope {
             closures: true,
             macros: true,
             skip: false,
+            fast: false,
         }
     }
 }
@@ -44,6 +47,17 @@ impl Scope {
             } else if meta.path.is_ident("skip") {
                 scope.skip = true;
                 Ok(())
+            } else if meta.path.is_ident("unsafe_fast") {
+                if cfg!(feature = "unstable-fast-math") {
+                    scope.fast = true;
+                    Ok(())
+                } else {
+                    Err(meta.error(
+                        "`unsafe_fast` needs the `unstable-fast-math` feature of `reassoc` (nightly): \
+                         the scope's float operators become `f*_fast` intrinsics, undefined \
+                         behaviour on a NaN or infinity",
+                    ))
+                }
             } else if meta.path.is_ident("items") {
                 // Deprecated in 0.4.0, removed in 0.8.0. An authored error
                 // rather than "unknown parameter", since old code has it.
@@ -53,7 +67,7 @@ impl Scope {
                 ))
             } else {
                 Err(meta.error(
-                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, or `skip`",
+                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, `skip`, or `unsafe_fast`",
                 ))
             }
         });

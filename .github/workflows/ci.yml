@@ -134,6 +134,10 @@ jobs:
       - run: cargo test -p reassoc --features const-fn
       - run: cargo test -p reassoc --features f16,f128,const-fn
       - run: cargo test -p reassoc --no-default-features --features f16,f128,const-fn
+      # The fast scope: never with `const-fn` (the prototype refuses the pair).
+      - run: cargo test -p reassoc --features unstable-fast-math
+      - run: cargo test -p reassoc --features f16,f128,unstable-fast-math
+      - run: cargo clippy -p reassoc --all-targets --features f16,f128,unstable-fast-math -- -D warnings
       - run: cargo clippy -p reassoc --all-targets --features f16,f128,const-fn -- -D warnings
 
   # The floors in Cargo.toml are a promise: build against exactly these

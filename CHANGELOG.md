@@ -8,6 +8,25 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Added
+
+- **`#[algebraic(unsafe_fast)]` and `unsafe_fast!`, behind the nightly
+  `unstable-fast-math` feature (prototype, #5).** A scope whose float
+  operators go to `core::intrinsics::f*_fast`, LLVM's full `fast` set, so
+  `x * 0.0`, `x - x` and `x / x` fold where the algebraic operators must keep
+  the instruction for NaN and infinity's sake; on a kernel with none of those
+  the two modes compile identically (the matrix pins both facts). Undefined
+  behaviour on a NaN or infinity anywhere in the scope, stated in the name and
+  the docs; the macro writes the `unsafe` blocks, so the feature turns the
+  facade's `forbid(unsafe_code)` into `deny` with one `allow` on the impls
+  that call the intrinsics. It adds a spelling and changes nothing about
+  `#[algebraic]`: a dependency turning the feature on cannot alter another
+  crate's scopes. Dispatch is one defaulted `*_fast` method per trait that
+  only the float impls override, and `ops::fast::*`; no new tag, so `f32`
+  keeps one candidate. Not combined with `const-fn`.
+
 ## 0.14.0 - 2026-08-27
 
 ### Changed

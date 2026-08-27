@@ -68,8 +68,8 @@ macro_rules! declare_op_trait {
 }
 macro_rules! declare_op_trait_k {
     (($($c:tt)*) ($($b:tt)*)
-     $rhs_trait:ident, $rhs_method:ident, $msg:literal, $std:ident, $op:tt,
-     $assign_trait:ident, $assign_method:ident, $assign_msg:literal, $std_assign:ident, $op_assign:tt) => {
+     $rhs_trait:ident, $rhs_method:ident, $rhs_method_fast:ident, $msg:literal, $std:ident, $op:tt,
+     $assign_trait:ident, $assign_method:ident, $assign_method_fast:ident, $assign_msg:literal, $std_assign:ident, $op_assign:tt) => {
         /// The right-hand operand of one operator, for a given left type:
         /// `b.add_rhs(a)` is `a + b`. The blanket impl below covers every
         /// opted-in left type; floats and `String` have concrete impls.
@@ -88,6 +88,17 @@ macro_rules! declare_op_trait_k {
         )]
         pub $($c)* trait $rhs_trait<Lhs, O, Tag = ()> {
             fn $rhs_method(self, lhs: Lhs) -> O;
+            /// The same operator inside an `unsafe_fast` scope. Only the float
+            /// impls override this, to the `f*_fast` intrinsics; every other
+            /// type's operator has no fast variant and falls through.
+            #[cfg(feature = "unstable-fast-math")]
+            #[inline(always)]
+            fn $rhs_method_fast(self, lhs: Lhs) -> O
+            where
+                Self: Sized,
+            {
+                self.$rhs_method(lhs)
+            }
         }
 
         $($c)* impl<A, B, Tag: OptInTag> $rhs_trait<A, <A as $std<B>>::Output, Tag> for B
@@ -113,6 +124,14 @@ macro_rules! declare_op_trait_k {
         )]
         pub $($c)* trait $assign_trait<Lhs, Tag = ()> {
             fn $assign_method(self, lhs: &mut Lhs);
+            #[cfg(feature = "unstable-fast-math")]
+            #[inline(always)]
+            fn $assign_method_fast(self, lhs: &mut Lhs)
+            where
+                Self: Sized,
+            {
+                self.$assign_method(lhs)
+            }
         }
 
         $($c)* impl<A, B, Tag: OptInTag> $assign_trait<A, Tag> for B
@@ -129,22 +148,22 @@ macro_rules! declare_op_trait_k {
 }
 
 declare_op_trait!(
-    AddRhs, add_rhs, "cannot add `{Self}` to `{Lhs}`", Add, +,
-    AddAssignRhs, add_assign_rhs, "binary assignment operation `+=` cannot be applied to type `{Lhs}`", AddAssign, +=
+    AddRhs, add_rhs, add_rhs_fast, "cannot add `{Self}` to `{Lhs}`", Add, +,
+    AddAssignRhs, add_assign_rhs, add_assign_rhs_fast, "binary assignment operation `+=` cannot be applied to type `{Lhs}`", AddAssign, +=
 );
 declare_op_trait!(
-    SubRhs, sub_rhs, "cannot subtract `{Self}` from `{Lhs}`", Sub, -,
-    SubAssignRhs, sub_assign_rhs, "binary assignment operation `-=` cannot be applied to type `{Lhs}`", SubAssign, -=
+    SubRhs, sub_rhs, sub_rhs_fast, "cannot subtract `{Self}` from `{Lhs}`", Sub, -,
+    SubAssignRhs, sub_assign_rhs, sub_assign_rhs_fast, "binary assignment operation `-=` cannot be applied to type `{Lhs}`", SubAssign, -=
 );
 declare_op_trait!(
-    MulRhs, mul_rhs, "cannot multiply `{Lhs}` by `{Self}`", Mul, *,
-    MulAssignRhs, mul_assign_rhs, "binary assignment operation `*=` cannot be applied to type `{Lhs}`", MulAssign, *=
+    MulRhs, mul_rhs, mul_rhs_fast, "cannot multiply `{Lhs}` by `{Self}`", Mul, *,
+    MulAssignRhs, mul_assign_rhs, mul_assign_rhs_fast, "binary assignment operation `*=` cannot be applied to type `{Lhs}`", MulAssign, *=
 );
 declare_op_trait!(
-    DivRhs, div_rhs, "cannot divide `{Lhs}` by `{Self}`", Div, /,
-    DivAssignRhs, div_assign_rhs, "binary assignment operation `/=` cannot be applied to type `{Lhs}`", DivAssign, /=
+    DivRhs, div_rhs, div_rhs_fast, "cannot divide `{Lhs}` by `{Self}`", Div, /,
+    DivAssignRhs, div_assign_rhs, div_assign_rhs_fast, "binary assignment operation `/=` cannot be applied to type `{Lhs}`", DivAssign, /=
 );
 declare_op_trait!(
-    RemRhs, rem_rhs, "cannot calculate the remainder of `{Lhs}` divided by `{Self}`", Rem, %,
-    RemAssignRhs, rem_assign_rhs, "binary assignment operation `%=` cannot be applied to type `{Lhs}`", RemAssign, %=
+    RemRhs, rem_rhs, rem_rhs_fast, "cannot calculate the remainder of `{Lhs}` divided by `{Self}`", Rem, %,
+    RemAssignRhs, rem_assign_rhs, rem_assign_rhs_fast, "binary assignment operation `%=` cannot be applied to type `{Lhs}`", RemAssign, %=
 );

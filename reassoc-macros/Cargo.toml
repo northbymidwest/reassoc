@@ -25,6 +25,9 @@ resolve-crate-name = ["dep:proc-macro-crate"]
 # Enter `const fn` bodies: the facade's dispatch layer is `const` under its
 # feature of the same name (nightly). Never turn on alone.
 const-fn = []
+# `#[algebraic(unsafe_fast)]` and `unsafe_fast!` exist; the facade's feature of
+# the same name turns on the dispatch path they need. Never turn on alone.
+unstable-fast-math = []
 
 [dependencies]
 proc-macro-crate = { version = "3.5", optional = true }

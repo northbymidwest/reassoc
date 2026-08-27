@@ -45,6 +45,11 @@ macro_rules! float_trait_k {
             fn alg_mul(self, o: Self) -> Self;
             fn alg_div(self, o: Self) -> Self;
             fn alg_rem(self, o: Self) -> Self;
+            #[cfg(feature = "unstable-fast-math")] fn fast_add(self, o: Self) -> Self;
+            #[cfg(feature = "unstable-fast-math")] fn fast_sub(self, o: Self) -> Self;
+            #[cfg(feature = "unstable-fast-math")] fn fast_mul(self, o: Self) -> Self;
+            #[cfg(feature = "unstable-fast-math")] fn fast_div(self, o: Self) -> Self;
+            #[cfg(feature = "unstable-fast-math")] fn fast_rem(self, o: Self) -> Self;
         }
     };
 }
@@ -67,6 +72,19 @@ macro_rules! float_one {
             #[inline(always)] fn alg_mul(self, o: $t) -> $t { <$t>::algebraic_mul(self, o) }
             #[inline(always)] fn alg_div(self, o: $t) -> $t { <$t>::algebraic_div(self, o) }
             #[inline(always)] fn alg_rem(self, o: $t) -> $t { <$t>::algebraic_rem(self, o) }
+            // The intrinsics are UB on a NaN or infinity in either operand or
+            // the result. That is the scope's contract, stated in its name and
+            // its docs; nothing here can check it.
+            #[cfg(feature = "unstable-fast-math")] #[allow(unsafe_code)] #[inline(always)]
+            fn fast_add(self, o: $t) -> $t { unsafe { core::intrinsics::fadd_fast(self, o) } }
+            #[cfg(feature = "unstable-fast-math")] #[allow(unsafe_code)] #[inline(always)]
+            fn fast_sub(self, o: $t) -> $t { unsafe { core::intrinsics::fsub_fast(self, o) } }
+            #[cfg(feature = "unstable-fast-math")] #[allow(unsafe_code)] #[inline(always)]
+            fn fast_mul(self, o: $t) -> $t { unsafe { core::intrinsics::fmul_fast(self, o) } }
+            #[cfg(feature = "unstable-fast-math")] #[allow(unsafe_code)] #[inline(always)]
+            fn fast_div(self, o: $t) -> $t { unsafe { core::intrinsics::fdiv_fast(self, o) } }
+            #[cfg(feature = "unstable-fast-math")] #[allow(unsafe_code)] #[inline(always)]
+            fn fast_rem(self, o: $t) -> $t { unsafe { core::intrinsics::frem_fast(self, o) } }
         }
     };
 }
@@ -81,30 +99,38 @@ macro_rules! alg_float_op {
 }
 macro_rules! alg_float_op_k {
     (($($c:tt)*) ($($b:tt)*)
-     $rhs_trait:ident, $rhs_method:ident, $assign_trait:ident, $assign_method:ident, $alg:ident) => {
+     $rhs_trait:ident, $rhs_method:ident, $rhs_fast:ident, $assign_trait:ident, $assign_method:ident, $assign_fast:ident, $alg:ident, $fast:ident) => {
         $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for F {
             #[inline(always)]
             fn $rhs_method(self, lhs: F) -> F {
                 lhs.$alg(self)
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $rhs_fast(self, lhs: F) -> F { lhs.$fast(self) }
         }
         $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for &F {
             #[inline(always)]
             fn $rhs_method(self, lhs: F) -> F {
                 lhs.$alg(*self)
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $rhs_fast(self, lhs: F) -> F { lhs.$fast(*self) }
         }
         $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for F {
             #[inline(always)]
             fn $rhs_method(self, lhs: &F) -> F {
                 lhs.$alg(self)
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $rhs_fast(self, lhs: &F) -> F { lhs.$fast(self) }
         }
         $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for &F {
             #[inline(always)]
             fn $rhs_method(self, lhs: &F) -> F {
                 lhs.$alg(*self)
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $rhs_fast(self, lhs: &F) -> F { lhs.$fast(*self) }
         }
         // `+=` reads the place and writes back the algebraic result; same
         // codegen.
@@ -113,21 +139,70 @@ macro_rules! alg_float_op_k {
             fn $assign_method(self, lhs: &mut F) {
                 *lhs = lhs.$alg(self);
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $assign_fast(self, lhs: &mut F) { *lhs = lhs.$fast(self); }
         }
         $($c)* impl<F: $($b)* Float> $assign_trait<F, FloatTag> for &F {
             #[inline(always)]
             fn $assign_method(self, lhs: &mut F) {
                 *lhs = lhs.$alg(*self);
             }
+            #[cfg(feature = "unstable-fast-math")] #[inline(always)]
+            fn $assign_fast(self, lhs: &mut F) { *lhs = lhs.$fast(*self); }
         }
     };
 }
 
-alg_float_op!(AddRhs, add_rhs, AddAssignRhs, add_assign_rhs, alg_add);
-alg_float_op!(SubRhs, sub_rhs, SubAssignRhs, sub_assign_rhs, alg_sub);
-alg_float_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, alg_mul);
-alg_float_op!(DivRhs, div_rhs, DivAssignRhs, div_assign_rhs, alg_div);
-alg_float_op!(RemRhs, rem_rhs, RemAssignRhs, rem_assign_rhs, alg_rem);
+alg_float_op!(
+    AddRhs,
+    add_rhs,
+    add_rhs_fast,
+    AddAssignRhs,
+    add_assign_rhs,
+    add_assign_rhs_fast,
+    alg_add,
+    fast_add
+);
+alg_float_op!(
+    SubRhs,
+    sub_rhs,
+    sub_rhs_fast,
+    SubAssignRhs,
+    sub_assign_rhs,
+    sub_assign_rhs_fast,
+    alg_sub,
+    fast_sub
+);
+alg_float_op!(
+    MulRhs,
+    mul_rhs,
+    mul_rhs_fast,
+    MulAssignRhs,
+    mul_assign_rhs,
+    mul_assign_rhs_fast,
+    alg_mul,
+    fast_mul
+);
+alg_float_op!(
+    DivRhs,
+    div_rhs,
+    div_rhs_fast,
+    DivAssignRhs,
+    div_assign_rhs,
+    div_assign_rhs_fast,
+    alg_div,
+    fast_div
+);
+alg_float_op!(
+    RemRhs,
+    rem_rhs,
+    rem_rhs_fast,
+    RemAssignRhs,
+    rem_assign_rhs,
+    rem_assign_rhs_fast,
+    alg_rem,
+    fast_rem
+);
 
 macro_rules! float_left {
     ($c:tt $b:tt $t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(

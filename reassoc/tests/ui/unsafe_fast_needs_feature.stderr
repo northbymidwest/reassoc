@@ -1,0 +1,13 @@
+error: `unsafe_fast` needs the `unstable-fast-math` feature of `reassoc` (nightly): the scope's float operators become `f*_fast` intrinsics, undefined behaviour on a NaN or infinity
+ --> tests/ui/unsafe_fast_needs_feature.rs:6:13
+  |
+6 | #[algebraic(unsafe_fast)]
+  |             ^^^^^^^^^^^
+
+error: `unsafe_fast!` needs the `unstable-fast-math` feature of `reassoc` (nightly): the scope's float operators become `f*_fast` intrinsics, undefined behaviour on a NaN or infinity
+  --> tests/ui/unsafe_fast_needs_feature.rs:12:13
+   |
+12 |     let _ = unsafe_fast!(1.0f32 + 2.0);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `unsafe_fast` (in Nightly builds, run with -Z macro-backtrace for more info)

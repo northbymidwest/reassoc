@@ -259,6 +259,21 @@
 //! `default-features = false` for core-only builds, which keep every
 //! primitive, every reference combination, and `Duration`.
 //!
+//! # `unsafe_fast` (nightly)
+//!
+//! The `unstable-fast-math` feature adds a second scope, `#[algebraic(unsafe_fast)]`
+//! and `unsafe_fast!`, whose float operators go to `core::intrinsics::f*_fast`
+//! instead of the algebraic methods: LLVM's full `fast` set, `nnan ninf`
+//! included. **Undefined behaviour on a NaN or infinity anywhere in the
+//! scope**, in an operand or a result, and nothing checks it: the macro
+//! writes the `unsafe` blocks, so a safe-looking function carries the
+//! contract its name states. What it buys over `#[algebraic]` is the folds
+//! that are wrong for NaN and infinity, `x * 0.0` to `0.0`, `x - x` to `0.0`,
+//! `x / x` to `1.0`; on a kernel with none of those the two modes compile
+//! identically. It adds a spelling and changes nothing about `#[algebraic]`,
+//! so a dependency turning the feature on cannot alter your scopes. Not
+//! combined with `const-fn`. A prototype; see the tracking issue.
+//!
 //! # `const-fn`
 //!
 //! On nightly, the `const-fn` feature lets `#[algebraic]` enter a `const fn`:
@@ -275,8 +290,16 @@
 // Nothing here needs `unsafe`, and the guarantee is worth stating: a crate
 // that rewrites arithmetic has to be trusted, and this removes one reason to
 // audit it. `forbid` rather than `deny` so a future `allow` cannot quietly
-// reopen it.
-#![forbid(unsafe_code)]
+// reopen it. The one exception is `unstable-fast-math`, whose whole point is
+// the `unsafe` intrinsics: with it on, `deny`, and exactly one `allow` in
+// `impls/float.rs` on the impls that call them.
+#![cfg_attr(not(feature = "unstable-fast-math"), forbid(unsafe_code))]
+#![cfg_attr(feature = "unstable-fast-math", deny(unsafe_code))]
+#![cfg_attr(
+    feature = "unstable-fast-math",
+    feature(core_intrinsics),
+    allow(internal_features)
+)]
 // docs.rs only (`--cfg docsrs`, set in `Cargo.toml`): annotates every
 // feature-gated impl with the feature it needs, which is most of what a
 // `no_std` reader wants from the `Passthrough` and `AddRhs` impl lists.
@@ -322,7 +345,15 @@ pub mod traits;
 mod macros;
 mod impls;
 
+// Exported without the feature too: the macro then refuses to expand and names
+// the feature, which beats an unresolved import.
+pub use reassoc_macros::unsafe_fast;
 pub use reassoc_macros::{alg, algebraic, algebraic_float, passthrough};
+
+// Prototype limit: the fast methods are not `const`, and a `const trait`
+// cannot carry them. Refuse the combination rather than half-support it.
+#[cfg(all(feature = "unstable-fast-math", feature = "const-fn"))]
+compile_error!("`unstable-fast-math` and `const-fn` cannot be enabled together yet");
 
 /// A bound for code generic over the primitive floats and nothing else, for
 /// a crate with no float trait of its own. Behind the

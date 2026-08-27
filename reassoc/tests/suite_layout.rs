@@ -40,6 +40,10 @@ fn every_test_file_is_included_in_the_edition_2021_twin() {
             "const_fn.rs",
             "nightly-only feature gates at crate level; a module cannot carry them",
         ),
+        (
+            "fast_math.rs",
+            "nightly-only feature gates at crate level; a module cannot carry them",
+        ),
         ("suite_layout.rs", "this file"),
         ("ui.rs", "trybuild, pinned toolchain"),
         ("codegen_matrix.rs", "shells out to the IR comparison"),

@@ -37,6 +37,13 @@ const-fn = ["reassoc-macros/const-fn"]
 # disappear in any release, which is what the `unstable-` prefix says, and
 # what makes `cargo-semver-checks` leave it out of the surface it compares.
 unstable-algebraic-float-trait = []
+# `#[algebraic(unsafe_fast)]` and `unsafe_fast!`: a scope whose float
+# operators go to `core::intrinsics::f*_fast` (LLVM's full `fast` set, `nnan
+# ninf` included) instead of the algebraic methods. Nightly only, and UB on a
+# NaN or infinity anywhere in the scope, which the spelling says and the
+# docs explain. Adds a spelling; changes nothing about `#[algebraic]`.
+# Prototype: not combined with `const-fn` yet (`lib.rs`).
+unstable-fast-math = ["reassoc-macros/unstable-fast-math"]
 
 # `--cfg docsrs` turns on `doc_cfg` (see `lib.rs`), which marks the `alloc`
 # and `std` impls with the feature they need. `f16`/`f128` are on because

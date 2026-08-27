@@ -17,25 +17,31 @@ help: the trait `MulRhs<Odd, _, _>` is not implemented for `Odd`
 help: the following other types implement trait `MulRhs<Lhs, O, Tag>`
  --> src/impls/float.rs
   |
-  |         $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for &F {
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<F, F, FloatTag>`
+  |           $($c)* impl<F: $($b)* Float> $rhs_trait<F, F, FloatTag> for &F {
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<F, F, FloatTag>`
 ...
-  |         $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for &F {
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<&F, F, FloatTag>`
+  |           $($c)* impl<F: $($b)* Float> $rhs_trait<&F, F, FloatTag> for &F {
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&F` implements `MulRhs<&F, F, FloatTag>`
 ...
-  | alg_float_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, alg_mul);
-  | --------------------------------------------------------------------- in this macro invocation
+  | / alg_float_op!(
+  | |     MulRhs,
+  | |     mul_rhs,
+  | |     mul_rhs_fast,
+... |
+  | |     fast_mul
+  | | );
+  | |_- in this macro invocation
   |
  ::: src/impls/int.rs
   |
-  |         $($c)* impl<I: $($b)* Int> $rhs_trait<I, I, IntTag> for &I {
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<I, I, IntTag>`
+  |           $($c)* impl<I: $($b)* Int> $rhs_trait<I, I, IntTag> for &I {
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<I, I, IntTag>`
 ...
-  |         $($c)* impl<I: $($b)* Int> $rhs_trait<&I, I, IntTag> for &I {
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<&I, I, IntTag>`
+  |           $($c)* impl<I: $($b)* Int> $rhs_trait<&I, I, IntTag> for &I {
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&I` implements `MulRhs<&I, I, IntTag>`
 ...
-  | plain_int_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, *, *=);
-  | ------------------------------------------------------------------- in this macro invocation
+  |   plain_int_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, *, *=);
+  |   ------------------------------------------------------------------- in this macro invocation
 note: required by a bound in `reassoc::ops::mul`
  --> src/ops.rs
   |

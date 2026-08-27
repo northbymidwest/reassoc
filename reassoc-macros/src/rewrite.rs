@@ -25,6 +25,8 @@ pub struct Rewriter {
     krate: String,
     /// Operators rewritten so far (binary and compound), for `REASSOC_TRACE`.
     pub ops: usize,
+    /// `ops::fast::*` instead of `ops::*`: the `unsafe_fast` scope.
+    pub fast: bool,
     /// Set while visiting the parts of a `const fn` body that a `const fn`
     /// actually evaluates. An operator met there cannot become a call
     /// (`ops::*` are not `const fn`), so it is left as written and recorded
@@ -41,13 +43,14 @@ pub struct Rewriter {
 impl Rewriter {
     /// Scope used by `alg!`: closures and nested items in, matching
     /// `#[algebraic]`'s default.
-    pub fn expression_scope() -> Self {
+    pub fn expression_scope(fast: bool) -> Self {
         Rewriter {
             closures: true,
             macros: true,
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
+            fast,
             const_context: false,
             const_arith: false,
         }
@@ -60,6 +63,7 @@ impl Rewriter {
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
+            fast: scope.fast,
             const_context: false,
             const_arith: false,
         }
@@ -68,14 +72,16 @@ impl Rewriter {
     /// `::reassoc::ops::<func>`, every token at `span` except the function
     /// name, which keeps the call site's.
     fn ops_fn(&self, span: Span, func: &str) -> Expr {
-        build::path(
-            span,
-            [
-                syn::Ident::new(&self.krate, span),
-                syn::Ident::new("ops", span),
-                syn::Ident::new(func, Span::call_site()),
-            ],
-        )
+        let mut segments = vec![
+            syn::Ident::new(&self.krate, span),
+            syn::Ident::new("ops", span),
+        ];
+        // `unit` is shared: it wraps the compound statement in both modes.
+        if self.fast && func != "unit" {
+            segments.push(syn::Ident::new("fast", span));
+        }
+        segments.push(syn::Ident::new(func, Span::call_site()));
+        build::path(span, segments)
     }
 
     /// A `const fn` met in an algebraic scope. `ops::*` are not `const fn`,

@@ -38,6 +38,7 @@ cargo fmt --all -- --check
 cargo +nightly test -p reassoc --features f16,f128      # nightly-only: f16/f128 as algebraic floats
 cargo +nightly test -p reassoc --features const-fn      # nightly-only: #[algebraic] enters const fn (const dispatch layer)
 cargo test -p reassoc --features unstable-algebraic-float-trait   # the unstable public bound and its tests; `ui` needs it on too
+cargo +nightly test -p reassoc --features unstable-fast-math      # nightly-only: the `unsafe_fast` scope (f*_fast intrinsics); never with const-fn
 ```
 
 `--all-features` is never used on stable: `f16`/`f128` need nightly gates.

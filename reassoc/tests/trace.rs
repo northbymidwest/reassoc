@@ -31,6 +31,13 @@ fn trace_logs_every_entered_function_and_nothing_else() {
             "--target-dir",
             target,
         ])
+        // The fixture's `unsafe_fast` section exists only with the feature, and
+        // this test reads the fixture's source: build it the same way.
+        .args(if cfg!(feature = "unstable-fast-math") {
+            &["--features", "unstable-fast-math"][..]
+        } else {
+            &[][..]
+        })
         .env("REASSOC_TRACE", &log)
         .env("CARGO_TARGET_DIR", target)
         .status()
@@ -56,6 +63,13 @@ fn trace_logs_every_entered_function_and_nothing_else() {
                 "--target-dir",
                 target,
             ])
+            // The fixture's `unsafe_fast` section exists only with the feature, and
+            // this test reads the fixture's source: build it the same way.
+            .args(if cfg!(feature = "unstable-fast-math") {
+                &["--features", "unstable-fast-math"][..]
+            } else {
+                &[][..]
+            })
             .env("REASSOC_TRACE", &log)
             .status()
             .unwrap();
@@ -88,7 +102,10 @@ fn trace_logs_every_entered_function_and_nothing_else() {
             let annotated = src_lines[i.saturating_sub(4)..i]
                 .iter()
                 .any(|a| a.contains("#[algebraic"));
-            if annotated {
+            // The fixture's `fast` module is behind the feature; without it those
+            // functions are in the source and not in the build.
+            let gated = rest.starts_with("fast_") && !cfg!(feature = "unstable-fast-math");
+            if annotated && !gated {
                 sugar_in_src.push(rest.split(['(', '<']).next().unwrap());
             }
         }

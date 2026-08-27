@@ -18,10 +18,32 @@ use syn::visit_mut::VisitMut;
 /// Rewrite arithmetic operators in a single expression to algebraic dispatch.
 #[proc_macro]
 pub fn alg(input: TokenStream) -> TokenStream {
+    expression(input, false)
+}
+
+/// `alg!` with the scope's float operators routed to the `f*_fast`
+/// intrinsics: undefined behaviour on a NaN or infinity anywhere in it.
+/// Nightly, behind `unstable-fast-math`; `reassoc`'s docs have the contract.
+#[proc_macro]
+pub fn unsafe_fast(input: TokenStream) -> TokenStream {
+    if !cfg!(feature = "unstable-fast-math") {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`unsafe_fast!` needs the `unstable-fast-math` feature of `reassoc` (nightly): the \
+             scope's float operators become `f*_fast` intrinsics, undefined behaviour on a NaN \
+             or infinity",
+        )
+        .to_compile_error()
+        .into();
+    }
+    expression(input, true)
+}
+
+fn expression(input: TokenStream, fast: bool) -> TokenStream {
     // An expression first, so the single-expression form behaves exactly as it
     // always has and never picks up braces it did not ask for.
     if let Ok(mut expr) = syn::parse::<syn::Expr>(input.clone()) {
-        let mut rewriter = rewrite::Rewriter::expression_scope();
+        let mut rewriter = rewrite::Rewriter::expression_scope(fast);
         rewriter.visit_expr_mut(&mut expr);
         trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
         return expr.to_token_stream().into();
@@ -37,7 +59,7 @@ pub fn alg(input: TokenStream) -> TokenStream {
                 brace_token: syn::token::Brace::default(),
                 stmts,
             };
-            let mut rewriter = rewrite::Rewriter::expression_scope();
+            let mut rewriter = rewrite::Rewriter::expression_scope(fast);
             rewriter.visit_block_mut(&mut block);
             trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
             block.to_token_stream().into()

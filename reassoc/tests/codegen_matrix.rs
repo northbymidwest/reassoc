@@ -70,6 +70,24 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
         // Negative controls: the optimizer must actually have been free to
         // reassociate the algebraic form, and the strict twin must not be
         // what it produced.
+        // The `unsafe_fast` scope must reach the intrinsics: its twins fold
+        // where the algebraic ones cannot, so each must differ from the
+        // algebraic sugar of the same body. A fast sugar identical to its
+        // algebraic sugar means the mode fell through to `ops::*`.
+        #[cfg(feature = "unstable-fast-math")]
+        for (fast, alg) in [
+            ("sugar_fast_self_sub", "sugar_self_sub"),
+            ("sugar_fast_self_div", "sugar_self_div"),
+            ("sugar_fast_times_zero", "sugar_times_zero"),
+        ] {
+            let fb = body(fast, &fns, &aliases).unwrap_or_default();
+            let ab = body(alg, &fns, &aliases).unwrap_or_default();
+            if canonical(&fb) == canonical(&ab) {
+                failures.push(format!(
+                    "-C opt-level={level}: {fast} compiles the same as {alg}: the fast scope fell through to the algebraic path"
+                ));
+            }
+        }
         for (s, p) in [
             ("sugar_chain_sum16", "plain_chain_sum16"),
             ("sugar_chain_compound8", "plain_chain_compound8"),
@@ -144,6 +162,11 @@ fn emit_ir(level: &str) -> String {
             "--example",
             "codegen_matrix",
         ])
+        .args(if cfg!(feature = "unstable-fast-math") {
+            &["--features", "unstable-fast-math"][..]
+        } else {
+            &[][..]
+        })
         .args(["--target-dir", &target, "--"])
         .args([
             "--emit=llvm-ir",

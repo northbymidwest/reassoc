@@ -41,7 +41,7 @@ use syn::visit_mut::{self, VisitMut};
 
 fn rewritten(src: &str) -> String {
     let mut f: syn::ItemFn = syn::parse_str(src).expect("parses");
-    Rewriter::expression_scope().visit_item_fn_mut(&mut f);
+    Rewriter::expression_scope(false).visit_item_fn_mut(&mut f);
     f.to_token_stream().to_string()
 }
 
@@ -71,7 +71,7 @@ fn attributes_on_a_grouped_operand_are_not_dropped() {
         group_token: syn::token::Group::default(),
         expr: Box::new(inner),
     });
-    Rewriter::expression_scope().visit_item_fn_mut(&mut f);
+    Rewriter::expression_scope(false).visit_item_fn_mut(&mut f);
     let out = f.to_token_stream().to_string();
     assert!(out.contains("allow"), "attribute dropped: {out}");
 }

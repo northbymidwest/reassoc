@@ -312,6 +312,15 @@ gate too). Const evaluation interprets the body as written, runtime code is
 optimized, so a `const` and the same call at runtime may differ in the last
 bits, as any two algebraic evaluations may.
 
+## `unsafe_fast` (nightly, prototype)
+
+The `unstable-fast-math` feature adds `#[algebraic(unsafe_fast)]` and
+`unsafe_fast!`, scopes whose float operators use the `f*_fast` intrinsics
+(LLVM's full `fast` set) instead of the algebraic methods. Undefined behaviour
+on a NaN or infinity anywhere in the scope; what it buys is the folds only
+that permits (`x * 0.0`, `x - x`, `x / x`), and nothing else, measured. It
+adds a spelling and leaves `#[algebraic]` alone.
+
 ## `f16` and `f128`
 
 On nightly, the `f16` and `f128` features make those floats algebraic as
