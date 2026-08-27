@@ -38,8 +38,11 @@ concurrency:
 jobs:
   test:
     strategy:
+      # `ubuntu-24.04-arm` is the one 64-bit Arm Linux target; macOS already
+      # covers Arm, but not the Linux ABI, and that is what a no_std or
+      # embedded consumer on aarch64 actually links against.
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
