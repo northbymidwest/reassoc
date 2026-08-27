@@ -53,6 +53,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
 
       - name: Preflight
+        id: preflight
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
@@ -82,18 +83,31 @@ jobs:
           [ "$pin" = "$VERSION" ] || fail "the facade pins reassoc-macros =$pin, not =$VERSION"
 
           # The tag must not already exist: it could not be replaced if it did.
+          # What each check found is recorded as well as judged, so the
+          # summary below reports the state rather than the expectation; on a
+          # dry run against a shipped version the two differ.
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
             soft "tag v$VERSION already exists, and protected tags cannot be moved"
+            echo "tag=already exists (protected: cannot be moved)" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=free" >> "$GITHUB_OUTPUT"
           fi
 
           # Neither version may already be on crates.io. A publish there is
           # irreversible, so finding out at upload time is finding out too late.
+          registry=""
           for crate in reassoc reassoc-macros; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' \
               -H 'User-Agent: reassoc-release-workflow' \
               "https://crates.io/api/v1/crates/$crate/$VERSION")
-            [ "$code" = "404" ] || soft "$crate $VERSION already exists on crates.io (HTTP $code)"
+            if [ "$code" = "404" ]; then
+              registry="$registry$crate: not published; "
+            else
+              soft "$crate $VERSION already exists on crates.io (HTTP $code)"
+              registry="$registry$crate: already published (HTTP $code); "
+            fi
           done
+          echo "registry=${registry% }" >> "$GITHUB_OUTPUT"
 
           # CI must already be green on this exact commit. Queried rather than
           # re-run: the suite is twelve jobs and it has already passed.
@@ -134,6 +148,8 @@ jobs:
           VERSION: ${{ inputs.version }}
           DRY: ${{ inputs.dry_run }}
           RUNS: ${{ github.server_url }}/${{ github.repository }}/actions/runs
+          TAG: ${{ steps.preflight.outputs.tag }}
+          REGISTRY: ${{ steps.preflight.outputs.registry }}
         run: |
           set -eu
           sha=$(git rev-parse HEAD)
@@ -153,9 +169,15 @@ jobs:
             echo "| version | \`$VERSION\` (both manifests agree) |"
             echo "| commit | \`$sha\` $subject |"
             echo "| CI | [green on this commit]($RUNS/$ci) |"
-            echo "| tag | \`v$VERSION\`, free |"
-            echo "| crates.io | neither crate has \`$VERSION\` |"
+            echo "| tag | \`v$VERSION\`: $TAG |"
+            echo "| crates.io | $REGISTRY |"
             echo "| archives | both assemble (\`cargo package\`) |"
+            echo
+            if [ "$DRY" = true ]; then
+              echo
+              echo "A taken tag or a published version is reported, not fatal, on a dry run;"
+              echo "a real run stops at either."
+            fi
             echo
             echo "### Release notes, verbatim from \`CHANGELOG.md\`"
             echo
