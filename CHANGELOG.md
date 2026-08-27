@@ -8,7 +8,7 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
-## Unreleased
+## 0.14.1 - 2026-08-27
 
 ### Changed
 
@@ -22,10 +22,8 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   deliberately is not: hidden, rustc stops trimming its paths and every
   "other types implement" line in a diagnostic would spell
   `reassoc::__private::traits::` (measured in `tests/ui`).
-- **The machinery says what it is on docs.rs.** The macros are the API;
-  `ops::*` and the dispatch traits are what they expand into, visible only
-  because generated code must name them and hiding them would untrim rustc's
-  paths in every diagnostic. docs.rs showed each as a bare signature. Each
+- **Whatever docs.rs shows says what it is.** The dispatch traits are on
+  docs.rs for the reason above, and showed as bare signatures; each item
   now carries a line saying it is emitted by the macros and what it
   dispatches, and `missing_docs` keeps it so.
 
