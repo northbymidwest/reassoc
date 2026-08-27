@@ -1,11 +1,11 @@
 error: the algebraic rewrite cannot reach the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
-  --> tests/ui/const_fn_member_with_arithmetic.rs:16:9
+  --> tests/ui/alg_const_fn_with_arithmetic.rs:15:9
    |
-16 |     pub const fn scale(self, k: f32) -> V {
+15 |         const fn inner(a: f64, b: f64) -> f64 {
    |         ^^^^^
 
 error: the algebraic rewrite cannot reach the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
-  --> tests/ui/const_fn_member_with_arithmetic.rs:24:5
+  --> tests/ui/alg_const_fn_with_arithmetic.rs:24:9
    |
-24 |     const fn twice(y: f32) -> f32 {
-   |     ^^^^^
+24 |         const fn inner(a: f64, b: f64) -> f64 {
+   |         ^^^^^

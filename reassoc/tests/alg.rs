@@ -371,3 +371,55 @@ fn compound_assignment_in_tail_and_arm_positions() {
     assert_eq!(arms(Dispatched(4.0), 1).0, 2.5); // (4-1)/2+1
     assert_eq!(arms(Dispatched(3.0), 9).0, 8.0); // 3*2+1+1
 }
+
+/// The way out the `const fn` error names, in both forms; the must-fail half
+/// is `tests/ui/alg_const_fn_with_arithmetic.rs`. `#[algebraic(skip)]` needs
+/// nothing in scope here, the rewriter stripping it before rustc sees it,
+/// which is why the unqualified spelling works inside a bare `alg!`.
+#[test]
+fn a_skipped_const_fn_inside_alg_is_left_alone() {
+    let block = alg! {
+        #[algebraic(skip)]
+        const fn inner(a: f64, b: f64) -> f64 {
+            a * b
+        }
+        inner(2.0, 3.0)
+    };
+    let expression = alg!({
+        #[reassoc::algebraic(skip)]
+        const fn inner(a: f64, b: f64) -> f64 {
+            a * b
+        }
+        inner(2.0, 3.0)
+    });
+    assert_eq!((block, expression), (6.0, 6.0));
+}
+
+/// A `const fn` with nothing of its own to rewrite is skipped in silence
+/// inside `alg!` too, and the closure in it is runtime code and *is*
+/// rewritten: the same rule `#[algebraic]` follows, through a type that only
+/// dispatch can add.
+#[test]
+fn a_const_fn_without_arithmetic_is_silent_and_its_nested_items_are_rewritten() {
+    // A `const fn` may *define* a nested `fn` but not call it (E0015), so the
+    // island is handed back as a closure and called outside.
+    let square = alg! {
+        const fn wrapper() -> impl Fn(Dispatched) -> Dispatched {
+            |v| v * v
+        }
+        wrapper()
+    };
+    assert_eq!(square(Dispatched(3.0)), Dispatched(9.0));
+}
+
+/// With no error to report, `alg!` emits the expression and nothing else: no
+/// block wrapper, no change of shape. `unused_braces` is denied here, so a
+/// wrapper around the single-expression form would fail this file.
+#[test]
+#[deny(unused_braces)]
+fn the_plain_forms_gain_no_block_wrapper() {
+    let (a, b) = (Dispatched(2.0), Dispatched(3.0));
+    assert_eq!(alg!(a * b), Dispatched(6.0));
+    let unit: () = alg!(());
+    assert_eq!(unit, ());
+}

@@ -1,10 +1,10 @@
-error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+error: the algebraic rewrite cannot reach the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
   --> tests/ui/const_fn_nested_const_fn_with_arithmetic.rs:23:9
    |
 23 |         const fn inner(b: f32) -> f32 {
    |         ^^^^^
 
-error: `#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
+error: the algebraic rewrite cannot reach the arithmetic in this `const fn`: the dispatch functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop `const`
   --> tests/ui/const_fn_nested_const_fn_with_arithmetic.rs:34:5
    |
 34 |     const fn outer(a: f32, b: f32) -> f32 {

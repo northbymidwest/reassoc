@@ -109,9 +109,13 @@ impl Rewriter {
         if core::mem::replace(&mut self.const_arith, outer_arith) {
             self.errors.push(syn::Error::new_spanned(
                 const_token,
-                "`#[algebraic]` cannot rewrite the arithmetic in this `const fn`: the dispatch \
-                 functions it would call (`reassoc::__private::ops::*`) are not `const fn`. Mark it \
-                 `#[algebraic(skip)]` to leave it as written, or drop `const`",
+                // Not "`#[algebraic]` cannot ..": `alg!` reaches this too, and
+                // names no attribute. `#[algebraic(skip)]` is the way out of
+                // both, the rewriter stripping it before rustc sees it.
+                "the algebraic rewrite cannot reach the arithmetic in this `const fn`: the \
+                 dispatch functions it would call (`reassoc::__private::ops::*`) are not \
+                 `const fn`. Mark it `#[algebraic(skip)]` to leave it as written, or drop \
+                 `const`",
             ));
         }
     }
@@ -198,6 +202,11 @@ impl VisitMut for Rewriter {
         }
     }
 
+    // An enum discriminant (`A = X * Y`) is a const position, so the variant
+    // is visited without it. Replacing this whole method with `()` is an
+    // equivalent mutant (`scripts/mutants.sh` reports it): it additionally
+    // skips the variant's attributes, ident and field types, none of which the
+    // rewriter changes.
     fn visit_variant_mut(&mut self, variant: &mut syn::Variant) {
         self.visit_attributes_mut(&mut variant.attrs);
         self.visit_ident_mut(&mut variant.ident);
@@ -723,6 +732,10 @@ fn is_integer_type(ty: &syn::Type) -> bool {
 }
 
 /// `f32`, `f64`, and any future `f<N>`, matched by shape.
+///
+/// `&&` -> `||` is an equivalent mutant (`scripts/mutants.sh` reports it): the
+/// two differ only for the suffix `f` exactly, which rustc rejects as an
+/// invalid suffix before this is consulted.
 fn is_float_suffix(suffix: &str) -> bool {
     suffix
         .strip_prefix('f')
@@ -830,6 +843,10 @@ fn item_attrs_mut(item: &mut syn::Item) -> Option<&mut Vec<Attribute>> {
         Static(i) => Some(&mut i.attrs),
         Struct(i) => Some(&mut i.attrs),
         Trait(i) => Some(&mut i.attrs),
+        // Deleting this arm is a survivor (`scripts/mutants.sh`) and the one
+        // arm no test can reach: `trait_alias` is nightly, so `#[algebraic(
+        // skip)]` on one cannot be written in a suite that builds on stable.
+        // Kept so a nightly user's `skip` is stripped like any other item's.
         TraitAlias(i) => Some(&mut i.attrs),
         Type(i) => Some(&mut i.attrs),
         Union(i) => Some(&mut i.attrs),

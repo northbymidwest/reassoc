@@ -32,7 +32,7 @@ pub fn alg(input: TokenStream) -> TokenStream {
         let mut rewriter = rewrite::Rewriter::expression_scope();
         rewriter.visit_expr_mut(&mut expr);
         trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
-        return expr.to_token_stream().into();
+        return with_expr_errors(expr.to_token_stream(), rewriter.errors).into();
     }
 
     // Otherwise a sequence of statements. Note the braces of `alg! { .. }` are
@@ -48,7 +48,7 @@ pub fn alg(input: TokenStream) -> TokenStream {
             let mut rewriter = rewrite::Rewriter::expression_scope();
             rewriter.visit_block_mut(&mut block);
             trace::record("alg", proc_macro2::Span::call_site(), "-", rewriter.ops);
-            block.to_token_stream().into()
+            with_expr_errors(block.to_token_stream(), rewriter.errors).into()
         }
         Err(err) => err.to_compile_error().into(),
     }
@@ -141,6 +141,27 @@ pub fn algebraic(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     }
+}
+
+/// The same for `alg!`, whose output is an *expression*: an error cannot
+/// simply follow the tokens as it does for an item, so it is emitted as a
+/// statement in a block whose tail is the expression. The value and its type
+/// survive, so the rest of the function still checks and the user reads one
+/// error rather than a cascade. Both arms need it: a `const fn` is a statement
+/// in the block form, and `alg!({ .. })` parses as an `Expr::Block` that can
+/// hold one too.
+///
+/// No error, no block: the tokens are the expression exactly as before, which
+/// `unused_braces` and every codegen and lint snapshot depend on.
+fn with_expr_errors(
+    tokens: proc_macro2::TokenStream,
+    errors: Vec<syn::Error>,
+) -> proc_macro2::TokenStream {
+    if errors.is_empty() {
+        return tokens;
+    }
+    let errors = errors.iter().map(syn::Error::to_compile_error);
+    quote::quote!({ #(#errors)* #tokens })
 }
 
 /// The rewritten item, followed by any errors the rewriter collected. The

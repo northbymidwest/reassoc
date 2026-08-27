@@ -8,6 +8,25 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Fixed
+
+- **`alg!` reported nothing when it could not rewrite a `const fn`.** The
+  rewriter collects that error the same way for both entry points, and
+  `#[algebraic]` emits it; `alg!` built the error and dropped it, so a `const
+  fn` written inside `alg! { .. }` (or inside `alg!({ .. })`, which parses as
+  a block expression) was left strict in silence. An expression macro cannot
+  let an error follow its tokens, so it is emitted as a statement beside the
+  value; with no error the output is the expression exactly as before, no
+  block wrapper.
+  `tests/ui/alg_const_fn_with_arithmetic.rs` pins both arms.
+- **The `const fn` message no longer names an attribute that may not be
+  there.** It read "`#[algebraic]` cannot rewrite .."; `alg!` reaches it too
+  and names no attribute. Now "the algebraic rewrite cannot reach ..". The way
+  out it names, `#[algebraic(skip)]`, works inside `alg!` as well: the
+  rewriter strips it before rustc sees it.
+
 ## 0.14.2 - 2026-08-27
 
 ### Changed
