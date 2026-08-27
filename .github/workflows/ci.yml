@@ -321,10 +321,14 @@ jobs:
   # zizmor is the security half: template injection, an action that is not
   # pinned to a commit, a checkout that leaves its credential on disk, a
   # permission a job does not use. Both are blocking, so a new finding is a
-  # red check rather than a note in a log.
+  # red check rather than a note in a log; zizmor's also go to code scanning,
+  # beside CodeQL's, which is what `security-events: write` is for.
   workflows:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -332,10 +336,12 @@ jobs:
       - run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - run: pipx install zizmor==1.29.0
       # SC2016 is "expressions don't expand in single quotes": the issue
       # bodies quote markdown code fences in single quotes on purpose.
       - run: actionlint
         env:
           SHELLCHECK_OPTS: -e SC2016
-      - run: zizmor --no-progress .github/workflows
+      - uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          version: 1.29.0
+          advanced-security: true
