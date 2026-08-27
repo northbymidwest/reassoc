@@ -32,6 +32,11 @@ f128 = []
 # `const` through `const_trait_impl`/`const_ops`. Forwarded to the macros,
 # which then enter `const fn` bodies instead of refusing them.
 const-fn = ["reassoc-macros/const-fn"]
+# `reassoc::AlgebraicFloat`, a bound over the primitive floats for a crate with
+# no float trait of its own. Unstable: not covered by semver, may change or
+# disappear in any release, which is what the `unstable-` prefix says, and
+# what makes `cargo-semver-checks` leave it out of the surface it compares.
+unstable-algebraic-float-trait = []
 
 # `--cfg docsrs` turns on `doc_cfg` (see `lib.rs`), which marks the `alloc`
 # and `std` impls with the feature they need. `f16`/`f128` are on because
@@ -41,11 +46,11 @@ const-fn = ["reassoc-macros/const-fn"]
 # `const-fn` is deliberately off: it adds no item, re-signs all ten `ops::*`
 # as `const fn`, and documents each a second time under `ops::konst`.
 [package.metadata.docs.rs]
-features = ["f16", "f128"]
+features = ["f16", "f128", "unstable-algebraic-float-trait"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-reassoc-macros = { version = "=0.13.0", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.14.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"

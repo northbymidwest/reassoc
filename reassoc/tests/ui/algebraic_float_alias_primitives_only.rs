@@ -2,8 +2,8 @@
 //! opted-in type never implements, so it reaches the primitive floats and
 //! nothing else, by construction rather than by a check. A type opted into a
 //! marked trait of the user's own does not satisfy it, and the error says
-//! what the alias is and where to go instead.
-#![allow(deprecated)]
+//! what the alias is and where to go instead. Needs the
+//! `unstable-algebraic-float-trait` feature, which the `ui` run turns on.
 use reassoc::{AlgebraicFloat, algebraic_float, passthrough};
 
 #[derive(Clone, Debug, PartialEq)]

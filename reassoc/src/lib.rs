@@ -235,9 +235,10 @@
 //! trait and the `impl` is implementation detail and may change; the
 //! attribute is the contract.
 //!
-//! For a crate with no float trait of its own, [`AlgebraicFloat`] is a bound
-//! over the primitive floats alone. It is unstable and warns as such on
-//! every use; see its docs.
+//! For a crate with no float trait of its own, `reassoc::AlgebraicFloat` is a
+//! bound over the primitive floats alone, behind the
+//! `unstable-algebraic-float-trait` feature, which is the only thing about it
+//! that is stable; see its docs.
 //!
 //! The public surface is the macros: [`alg!`], [`algebraic`], [`strict!`],
 //! [`passthrough`] and [`algebraic_float`]. The `ops` functions and dispatch traits
@@ -324,12 +325,12 @@ mod impls;
 pub use reassoc_macros::{alg, algebraic, algebraic_float, passthrough};
 
 /// A bound for code generic over the primitive floats and nothing else, for
-/// a crate with no float trait of its own. **Unstable**, and deprecated from
-/// birth so that every use says so: not covered by semver, may change or
-/// disappear in any release. `#[allow(deprecated)]` accepts that.
+/// a crate with no float trait of its own. Behind the
+/// `unstable-algebraic-float-trait` feature, and **unstable**: not covered by
+/// semver, may change or disappear in any release. Turning the feature on is
+/// accepting that.
 ///
 /// ```
-/// # #![allow(deprecated)]
 /// use reassoc::{algebraic, AlgebraicFloat};
 ///
 /// #[algebraic]
@@ -344,18 +345,12 @@ pub use reassoc_macros::{alg, algebraic, algebraic_float, passthrough};
 ///
 /// The supported spelling is [`algebraic_float`] on a float trait of your
 /// own, which this is an alias of at its default: that trait also admits
-/// other types through the attribute on their `impl`s, and what it writes
+/// other types through [`passthrough`] on their `impl`s, and what it writes
 /// can change behind it. This bound cannot be extended that way, by
 /// construction, so a trait that needs a bignum one day has to move to the
 /// attribute then. Whether keeping this alias is worth its cost is an open
 /// question; `tests/generic_float.rs` says where.
-#[deprecated(
-    since = "0.13.0",
-    note = "unstable: `reassoc::AlgebraicFloat` is not covered by semver and may change or \
-            disappear in any release. It is the primitive floats only; the supported spelling \
-            is `#[algebraic_float]` on a float trait of your own, which also admits other \
-            types. `#[allow(deprecated)]` accepts the risk"
-)]
+#[cfg(feature = "unstable-algebraic-float-trait")]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not a primitive float",
     label = "`reassoc::AlgebraicFloat` is `f32` and `f64` only",
@@ -364,7 +359,7 @@ pub use reassoc_macros::{alg, algebraic, algebraic_float, passthrough};
             and bound on that trait instead"
 )]
 pub trait AlgebraicFloat: __private::AlgebraicFloat {}
-#[allow(deprecated)]
+#[cfg(feature = "unstable-algebraic-float-trait")]
 impl<T: __private::AlgebraicFloat> AlgebraicFloat for T {}
 
 // The README's code blocks, compiled as doctests so that they cannot drift

@@ -240,12 +240,13 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   write the trait's path.
 
   `reassoc::AlgebraicFloat` also exists, a bound over the primitive floats
-  for a crate with no float trait of its own. It is the marker at its default
+  for a crate with no float trait of its own, behind the
+  `unstable-algebraic-float-trait` feature. It is the marker at its default
   slot, so an opted-in type never satisfies it and it cannot be extended to
-  one; a trait that needs a bignum moves to the attribute. It is deprecated
-  from birth so that every use warns it is unstable, not covered by semver,
-  and may change or disappear in any release; `#[allow(deprecated)]` accepts
-  that. Whether it earns its place is an open question.
+  one; a trait that needs a bignum moves to the attribute. The feature's name
+  is the promise: not covered by semver, may change or disappear in any
+  release, and `cargo-semver-checks` leaves features so named out of what it
+  compares. Whether it earns its place is an open question.
 
   A function generic over a bare `T: Mul<Output = T>`, with no such trait to
   mark, is still out of scope: `fn g<T: Mul<Output = T>>(a: T, b: T) -> T {

@@ -211,16 +211,17 @@ fn the_bound_reaches_both_floats() {
 /// `reassoc::AlgebraicFloat`, the public alias of the marker at its default
 /// slot: a bound for code generic over the primitive floats with no trait of
 /// its own, which is what the first adopter asked for. **Not a supported
-/// surface.** It is deprecated from birth so that every use warns (the
-/// `algebraic_float_alias_warns.rs` UI case pins that the warning fires),
-/// it is the primitive floats only by construction (the alias is the marker
+/// surface.** It is behind the `unstable-algebraic-float-trait` feature, whose
+/// name is the promise (`cargo-semver-checks` leaves such features out of
+/// what it compares, so a change here never trips CI); it is the primitive
+/// floats only by construction (the alias is the marker
 /// at `X = ()`, which an opted-in type never implements;
 /// `algebraic_float_alias_primitives_only.rs` pins that), and it may change
 /// or disappear in any release. Whether the convenience is worth carrying a
 /// second public spelling of the same thing is up for discussion; if the
 /// trade-off turns out poor, dropping it means deleting the alias, this test
-/// and those two UI cases, and nothing else.
-#[allow(deprecated)]
+/// and one UI case, and nothing else.
+#[cfg(feature = "unstable-algebraic-float-trait")]
 mod alias {
     use reassoc::{AlgebraicFloat, algebraic};
 

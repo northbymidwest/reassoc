@@ -21,3 +21,4 @@ foreign-types = { path = "../foreign-types" }
 default = ["std"]
 std = ["alloc", "reassoc/std"]
 alloc = ["reassoc/alloc"]
+unstable-algebraic-float-trait = ["reassoc/unstable-algebraic-float-trait"]

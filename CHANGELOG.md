@@ -12,6 +12,18 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Changed
 
+- **`reassoc::AlgebraicFloat` is behind a feature instead of a deprecation.**
+  The deprecation warned on every mention, in the crate writing the bound and
+  in anything depending on it by path, for something that was never stable to
+  begin with. It is now behind `unstable-algebraic-float-trait`, off by
+  default: turning it on is the acceptance, in one line of `Cargo.toml`
+  rather than an `#[allow]` on every bound. The name is the promise and the
+  mechanism: `cargo-semver-checks` leaves features with an `unstable` prefix
+  out of the surface it compares (measured: renaming the trait behind such a
+  feature is not flagged, and the same rename behind a plainly named feature
+  is), so a change to it never trips CI, matching what the docs say about it.
+  docs.rs builds with the feature on, so the trait is documented and badged.
+
 - **A pair's output is resolved, not named.** `#[passthrough(f32 * Vec3)]` is
   enough: the impl's output is `<f32 as Mul<Vec3>>::Output`, whatever the
   type's own operator says. `=> O` is still accepted and has to agree, since
