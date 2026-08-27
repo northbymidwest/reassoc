@@ -40,8 +40,7 @@ proc-macro-crate = { version = "3.5", optional = true }
 # Both said `1.0` until that job was added and said otherwise.
 #
 # `default-features = false` keeps the enabled set explicit. `clone-impls` is
-# needed because the rewriter clones `Expr` nodes, and `derive` because
-# `#[derive(Passthrough)]` parses a `DeriveInput`.
-syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
+# needed because the rewriter clones `Expr` nodes.
+syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.91"

@@ -277,8 +277,15 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
       # The offline expander shares the rewriter by `#[path]` but mirrors
-      # `krate` by hand; this catches the mirror drifting.
+      # `krate` by hand; this catches the mirror drifting. Under `-D warnings`,
+      # since a warning is the quiet half of that drift.
       - run: cargo build --release --manifest-path scripts/compile-bench/expander/Cargo.toml
+        env:
+          RUSTFLAGS: -D warnings
+      # `scripts/adopt/` emits `reassoc` source from constants in a Python file
+      # that nothing compiles, so a spelling can outlive what it names. Adopts a
+      # fixture, checks every item kind still gets its attribute, builds it.
+      - run: scripts/adopt/smoke.sh
       # The diagnostics comparison. Most of its table is wording and stays
       # informational, but it now asserts the column that is not: a case plain
       # Rust rejects and the macros accept means an algebraic scope swallowing

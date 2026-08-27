@@ -10,6 +10,13 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[features]
+# Never enabled. `rewrite.rs` is included by `#[path]` and reads
+# `cfg!(feature = "const-fn")` three times; without the feature declared here
+# those are `unexpected_cfgs` warnings, and the CI step that builds this (to
+# catch the mirror drifting) then cannot run under `-D warnings`.
+const-fn = []
+
 [dependencies]
 syn = { version = "3", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls", "derive"] }
 quote = "1"

@@ -44,8 +44,17 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   did not cover it. `E0432`, "unresolved import" and "the item is gated
   behind" are on that list now, and both commands carry the feature.
 
+### Changed
+
+- `syn`'s `derive` feature is gone from `reassoc-macros`: nothing has parsed a
+  `DeriveInput` since 0.14.0. `cargo machete` sees unused crates, not unused
+  features.
+
 ### Added
 
+- `scripts/adopt/smoke.sh`, run by CI: adopt a fixture with one of every item
+  kind the tool annotates, assert each still gets its attribute, and build the
+  result. Both bugs above fail it.
 - `suite_layout.rs` checks the fuzz corpora's recorded generator hash against
   the generator in the tree. The header says "a different generator hash is a
   different corpus" and nothing enforced it; both files carried the hash of a
@@ -54,6 +63,8 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   generator stamps into a header, so the check and the stamp cannot disagree
   about what a generator hashes to. Gated off Windows, the one CI job without
   a `python3` this can rely on.
+- CI builds the offline expander under `-D warnings`, which needed the
+  expander to declare the `const-fn` feature the shared rewriter reads.
 
 ## 0.14.2 - 2026-08-27
 
