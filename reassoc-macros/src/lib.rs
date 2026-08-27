@@ -8,7 +8,7 @@
 // and should not start. `forbid` rather than `deny` so a future `allow`
 // cannot quietly reopen it.
 #![forbid(unsafe_code)]
-// As in `reassoc`: every public item says what it is.
+// As in `reassoc`: whatever docs.rs shows says what it is.
 #![warn(missing_docs)]
 
 mod build;

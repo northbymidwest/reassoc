@@ -12,10 +12,12 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Changed
 
-- **Every public item is documented, and stays so.** The ten `ops::*`
-  functions, `ops::unit`, the dispatch traits' methods and the macros crate
-  itself had no doc comment; docs.rs showed a signature and nothing else.
-  `missing_docs` is now an error in both published crates.
+- **The machinery says what it is on docs.rs.** The macros are the API;
+  `ops::*` and the dispatch traits are what they expand into, visible only
+  because generated code must name them and hiding them would untrim rustc's
+  paths in every diagnostic. docs.rs showed each as a bare signature. Each
+  now carries a line saying it is emitted by the macros and what it
+  dispatches, and `missing_docs` keeps it so.
 
 ## 0.14.0 - 2026-08-27
 

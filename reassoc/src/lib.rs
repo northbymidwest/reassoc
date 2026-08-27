@@ -277,10 +277,12 @@
 // audit it. `forbid` rather than `deny` so a future `allow` cannot quietly
 // reopen it.
 #![forbid(unsafe_code)]
-// Every public item says what it is. A crate-root attribute rather than
-// `[lints]` in the manifest: that would reach the test targets, whose
-// public fixtures document nothing on purpose. CI's `-D warnings` makes
-// this an error.
+// Everything `pub` here is on docs.rs, and almost all of it is machinery
+// the macros expand into rather than an API (`ops`, `traits`); a reader
+// who lands on it should be told so rather than shown a bare signature. A
+// crate-root attribute rather than `[lints]` in the manifest: that would
+// reach the test targets, whose public fixtures document nothing on
+// purpose. CI's `-D warnings` makes this an error.
 #![warn(missing_docs)]
 // docs.rs only (`--cfg docsrs`, set in `Cargo.toml`): annotates every
 // feature-gated impl with the feature it needs, which is most of what a
