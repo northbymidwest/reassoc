@@ -26,6 +26,15 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
   and names no attribute. Now "the algebraic rewrite cannot reach ..". The way
   out it names, `#[algebraic(skip)]`, works inside `alg!` as well: the
   rewriter strips it before rustc sees it.
+- **`scripts/adopt/adopt.py` wrote an attribute that no longer exists.** It
+  emitted `#[derive(::reassoc::Passthrough)]` on every type, and 0.14.0
+  removed the derive, so `apply` produced a tree that failed with `E0433` on
+  its first type.
+- **`adopt.py` silently left whole items native.** An item whose body was
+  entirely on its head line (`const fn raw(self) -> f32 { self.0 }`) left a
+  "pending cover" set, and the next item to open a block inherited it: one
+  such member made the following `trait` unannotated. Adoption reports counted
+  that as clean.
 
 ## 0.14.2 - 2026-08-27
 

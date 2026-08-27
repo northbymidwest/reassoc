@@ -36,7 +36,7 @@ from pathlib import Path
 
 ATTR = "#[::reassoc::algebraic]"
 SKIP = "#[::reassoc::algebraic(skip)]"
-DERIVE = "#[derive(::reassoc::Passthrough)]"
+OPT_IN = "#[::reassoc::passthrough]"
 
 VIS = r"(?:(?:pub(?:\([^)]*\))?|\$\w+)\s+)?"
 QUAL = r"(?:(?:const|async|unsafe|default|extern\s+\"[^\"]*\")\s+)*"
@@ -343,8 +343,13 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
         pad = " " * indent
         covered = bool(cover)
         # Idempotent: `apply` on an already-annotated tree is a no-op.
-        already = i > 0 and lines[i - 1].strip() in (ATTR, SKIP, DERIVE)
+        already = i > 0 and lines[i - 1].strip() in (ATTR, SKIP, OPT_IN)
         opens = code.count("{") - code.count("}") > 0
+        # The whole body was on the head line (`const fn raw(self) -> f32 {
+        # self.0 }`), so it neither opens a block to cover nor leaves one
+        # pending. Without it the kind leaks to the next item that opens a
+        # block, leaving that item silently native.
+        self_contained = not opens and "{" in code
 
         if method_calls and not (cover and cover[-1][1] == "native") and not stripped.startswith("//"):
             new = rewrite_method_calls(line, stats, self_is_ref=bool(ref_self_fn))
@@ -372,7 +377,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                     out.append(pad + ATTR)
                 if opens:
                     cover.append((depth, "alg"))
-                else:
+                elif not self_contained:
                     pending = "alg"
                 stats["mod"] += 1
         elif (
@@ -401,7 +406,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
-            else:
+            elif not self_contained:
                 pending = "alg"
             stats["impl/trait"] += 1
         elif items and skip_generic and (RE_IMPL.match(stripped) or RE_TRAIT.match(stripped)) and declares_type_params(lines, i) and not covered:
@@ -412,7 +417,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
             stats["generic impl/trait (left native)"] += 1
             if opens:
                 cover.append((depth, "native"))
-            else:
+            elif not self_contained:
                 pending = "native"
         elif items and const_fn != "enter" and RE_CONST_FN.match(line) and not (cover and cover[-1][1] == "native"):
             # Inside an annotated impl too: the rewriter refuses a `const fn`
@@ -427,7 +432,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 stats["const fn (left; errors if it has arithmetic)"] += 1
             if opens:
                 cover.append((depth, "native"))
-            else:
+            elif not self_contained:
                 pending = "native"
         elif (
             not covered
@@ -440,7 +445,7 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 out.append(pad + ATTR)
             if opens:
                 cover.append((depth, "alg"))
-            else:
+            elif not self_contained:
                 pending = "alg"
             stats["fn"] += 1
         elif items and skip_generic and RE_FN.match(line) and not is_bodiless_fn(lines, i) and declares_type_params(lines, i):
@@ -456,16 +461,16 @@ def annotate(text: str, *, items: bool, types: bool, const_fn: str, stats: colle
                 stats["generic fn (left native)"] += 1
             if opens:
                 cover.append((depth, "native"))
-            else:
+            elif not self_contained:
                 pending = "native"
         elif types and RE_TYPE.match(line) and not (cover and cover[-1][1] == "opaque"):
-            # A derive is fine anywhere a type is *declared* (an enclosing
+            # The attribute is fine anywhere a type is *declared* (an enclosing
             # `#[algebraic]` does not opt the type in) but never inside a
             # macro invocation, where the declaration is the macro's argument
-            # and a derive breaks the call (faer-ffi's `cerr! { pub enum .. }`).
+            # and an attribute breaks the call (faer-ffi's `cerr! { pub enum .. }`).
             if not already:
-                out.append(pad + DERIVE)
-            stats["type (derive Passthrough)"] += 1
+                out.append(pad + OPT_IN)
+            stats["type (passthrough)"] += 1
         out.append(line)
         depth += code.count("{") - code.count("}")
     return "\n".join(out)
@@ -866,8 +871,8 @@ FOREIGN_LHS = re.compile(
 
 def imported_paths(src: Path) -> dict[str, str]:
     """`use a::b::T;` / `pub use a::b::{T, U};` -> {"T": "a::b::T"}. A type
-    re-exported from another crate reads bare in diagnostics, but
-    `passthrough!(foreign ..)` at the crate root needs the full path."""
+    re-exported from another crate reads bare in diagnostics, but the
+    `#[passthrough] type` alias at the crate root needs the full path."""
     out: dict[str, str] = {}
     single = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([\w:]+)::(\w+)\s*;")
     group = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+([\w:]+)::\{([^}]*)\}\s*;")
@@ -901,7 +906,7 @@ def local_types(src: Path) -> set[str]:
 def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
     """Types named as the left operand of a failed dispatch that look like
     they come from another crate: a path with `::`, no generic arguments and
-    no reference, exactly what `passthrough!(foreign T)` takes. A generic
+    no reference, exactly what a `#[passthrough] type` alias takes. A generic
     foreign type (`Complex<T>`) has no form yet and is reported, not emitted."""
     local = local or set()
     seen, out, generic = set(), [], set()
@@ -1002,7 +1007,7 @@ def main() -> int:
                    help="skip: put #[algebraic(skip)] on every const fn (default); leave: let members with arithmetic error, to count them; "
                         "enter: annotate const fns like any fn (needs reassoc's nightly `const-fn` feature: --dep-features const-fn and RUSTUP_TOOLCHAIN=nightly)")
     p.add_argument("--dep-features", default="", help="comma-separated features for the reassoc dependency, e.g. const-fn")
-    p.add_argument("--no-types", action="store_true", help="do not derive Passthrough on types")
+    p.add_argument("--no-types", action="store_true", help="do not put `#[passthrough]` on types")
     p.add_argument("--no-items", action="store_true", help="do not put #[algebraic] on items")
     p.add_argument("--no-dep", action="store_true", help="do not touch Cargo.toml")
     p.add_argument("--exclude", action="append", default=[], help="glob (relative to src/ or a file name) to leave alone; repeatable")
@@ -1028,7 +1033,7 @@ def main() -> int:
     p.add_argument("crate")
     p.add_argument("cargo_args", nargs="*", help="extra `cargo rustc` arguments, e.g. --features scalar-math (after --)")
     p.set_defaults(fn=cmd_ir)
-    p = sub.add_parser("opt-in", help="emit passthrough!(foreign ..) for every foreign type the last report's errors named")
+    p = sub.add_parser("opt-in", help="emit `#[passthrough]` type aliases for every foreign type the last report's errors named")
     p.add_argument("crate")
     p.set_defaults(fn=cmd_opt_in)
     p = sub.add_parser("revert", help="git checkout -- Cargo.toml src")

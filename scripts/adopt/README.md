@@ -14,13 +14,23 @@ python3 scripts/adopt/adopt.py report ../glam-rs --baseline -- --release      # 
 python3 scripts/adopt/adopt.py report ../glam-rs -- --release --features scalar-math
 python3 scripts/adopt/adopt.py ir     ../glam-rs -- --features scalar-math    # which functions still have strict float ops
 python3 scripts/adopt/adopt.py revert ../glam-rs                              # git checkout -- Cargo.toml src
+
+scripts/adopt/smoke.sh                                                        # this tool's own guard, run by CI
 ```
+
+The measurement tables below were taken before 0.14.0 and name the opt-in
+forms of the release they ran on (`passthrough!(foreign ..)` and friends);
+they are a record of those runs, not current syntax. `#[passthrough]` is the
+one opt-in now, on whichever item introduces the type.
 
 ## What `apply` does
 
 - Adds `reassoc = { path = .. }` (or a version) to `[dependencies]`.
-- `#[derive(::reassoc::Passthrough)]` on every `struct`/`enum`/`union` in
-  `src/`, a marker, so a type with no operators costs nothing.
+- `#[::reassoc::passthrough]` on every `struct`/`enum`/`union` in `src/`, a
+  marker, so a type with no operators costs nothing. (It was
+  `#[derive(::reassoc::Passthrough)]` until 0.14.0 removed the derive.
+  Nothing compiled this tool, so the dead spelling shipped for a release and
+  every adopted tree failed on its first type; `smoke.sh` is the guard.)
 - `#[::reassoc::algebraic]` on every free `fn`, `impl`, `trait` and inline
   `mod` that is not already inside an annotated one; items inside a `mod`
   that *cannot* be annotated (one holding `mod x;` file modules: rustc
