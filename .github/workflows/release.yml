@@ -147,9 +147,11 @@ jobs:
           else
             registry="neither published"
           fi
-          echo "registry=$registry" >> "$GITHUB_OUTPUT"
-          echo "publish_macros=$publish_macros" >> "$GITHUB_OUTPUT"
-          echo "publish_facade=$publish_facade" >> "$GITHUB_OUTPUT"
+          {
+            echo "registry=$registry"
+            echo "publish_macros=$publish_macros"
+            echo "publish_facade=$publish_facade"
+          } >> "$GITHUB_OUTPUT"
 
           # CI must already be green on this exact commit. Queried rather than
           # re-run: the suite is twelve jobs and it has already passed.
