@@ -1,13 +1,18 @@
 name: mutants
 
 # Mutation-test the rewriter: a surviving mutant is a line of `rewrite.rs`
-# that no test observes. The whole `reassoc` suite runs once per mutant, so
-# this is far too slow to gate a pull request, so it runs weekly and on demand,
-# and what it produces is a debt report, not a verdict on anyone's change.
+# that no test observes. The whole `reassoc` suite runs once per mutant, which
+# once looked too slow to put in front of a change; measured with a warm
+# cache it is about ten minutes, and a change to the rewriter that loses the
+# test observing it is exactly what a push should hear about, not the
+# following Monday. So it runs on every push and pull request like `ci.yml`,
+# and weekly besides, so a toolchain moving under the suite is still seen.
 #
-# An hour after CI's own Monday run, so a red here is never just the toolchain
-# having moved underneath it.
+# The Monday run is an hour after CI's own, so a red here is never just the
+# toolchain having moved underneath it.
 on:
+  push:
+  pull_request:
   schedule:
     - cron: '43 7 * * 1'
   workflow_dispatch:
@@ -18,16 +23,19 @@ on:
         type: string
 
 # `issues: write` is for the reporting step: a survivor that appears on a
-# Monday and is never read about is the same as no job at all.
+# Monday and is never read about is the same as no job at all. Only the
+# unattended runs file anything; a push or pull request has a red check that
+# somebody is already looking at.
 permissions:
   contents: read
   issues: write
 
-# Nobody is waiting on a weekly run; let one finish rather than cancelling it
-# for the next.
+# Same rule as `ci.yml`: a second push to a branch makes the first answer
+# irrelevant, but main keeps a result for every commit, and the weekly run is
+# its own group that nothing cancels.
 concurrency:
-  group: mutants
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'schedule' }}
 
 jobs:
   mutants:
@@ -94,7 +102,7 @@ jobs:
       # Only for a genuine regression in the count. An install that failed or
       # a runner that died is not a finding about the suite.
       - name: File a survivor regression
-        if: always() && steps.mutate.outputs.regression == 'true'
+        if: always() && steps.mutate.outputs.regression == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
           MISSED: ${{ steps.mutate.outputs.missed }}

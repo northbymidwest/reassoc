@@ -8,7 +8,14 @@ name: fuzz
 # What makes the corpus worth fuzzing is that each case carries the value
 # computed offline in rational arithmetic, so a wrong answer is caught by a
 # number derived independently of both the macro and Rust's evaluator.
+#
+# Under a minute with a warm cache, so it runs on every push and pull request
+# like `ci.yml`: a change gets a corpus it has never seen, and the weekly run
+# keeps a quiet repository covered. Two pushes on one day share a seed, which
+# is the reproducibility rule below doing its job rather than a gap.
 on:
+  push:
+  pull_request:
   schedule:
     - cron: '19 8 * * 1'
   workflow_dispatch:
@@ -20,14 +27,18 @@ on:
 
 # `issues: write` is what the reporting step below needs. A seed that fails is
 # a bug report with a reproducer attached, and nobody reads a weekly cron's
-# logs on the off chance.
+# logs on the off chance. Only the unattended runs file one; a push or pull
+# request has a red check that somebody is already looking at.
 permissions:
   contents: read
   issues: write
 
+# Same rule as `ci.yml`: a second push to a branch makes the first answer
+# irrelevant, but main keeps a result for every commit, and the weekly run is
+# its own group that nothing cancels.
 concurrency:
-  group: fuzz
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'schedule' }}
 
 jobs:
   fuzz:
@@ -83,7 +94,7 @@ jobs:
       # generator that would not run, is not a finding about this crate, and
       # filing it as one would train the label to be ignored.
       - name: File the failing seed
-        if: failure() && steps.test.outcome == 'failure'
+        if: failure() && steps.test.outcome == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
           SEED: ${{ steps.gen.outputs.seed }}
