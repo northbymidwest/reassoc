@@ -52,7 +52,7 @@ jobs:
       # the point. Raising it needs a reason in the commit message.
       BASELINE: ${{ inputs.baseline || '18' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # The pinned toolchain with `rust-src`, for the same reason the `ui` job
@@ -62,12 +62,12 @@ jobs:
         with:
           toolchain: 1.98.0
           components: rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Pinned deliberately. `scripts/mutants.sh` wraps `cargo` to redirect a
       # flag that 27.x passes regardless of `--test-package`; a release that
       # stopped doing that would quietly test the wrong package and report
       # everything as caught.
-      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2
+      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
         with:
           tool: cargo-mutants@27.1.0
 
@@ -137,7 +137,7 @@ jobs:
             gh issue create --title "$TITLE" --label ci-failure --body-file /tmp/mutants-issue.md
           fi
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: mutants

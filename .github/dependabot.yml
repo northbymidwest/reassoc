@@ -12,6 +12,10 @@
 # and `msrv` reads its version from `Cargo.toml`; none of those is a
 # dependency this file can see.
 #
+# A week's cooldown on both: a release is not offered until it has been out
+# that long, which is the window in which a compromised or broken release
+# tends to be noticed and pulled. Security updates ignore the cooldown.
+#
 # The `cargo` ecosystem is on for advisories only. The dependency versions in
 # `Cargo.toml` are floors, the minimum each package actually needs
 # (`RELEASING.md`), and raising a floor because a newer version exists is the
@@ -26,6 +30,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
     labels: []
@@ -33,6 +39,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 0
     commit-message:
       prefix: "deps"
