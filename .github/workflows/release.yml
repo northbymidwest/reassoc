@@ -1,4 +1,9 @@
 name: release
+# The version in the run's title: the `release` environment pauses the job
+# before its first step, so the approval page shows nothing but this line
+# and the dispatch inputs. A dry run says so, since it is the run that looks
+# identical and does nothing.
+run-name: release ${{ inputs.version }}${{ inputs.dry_run && ' (dry run)' || '' }}
 
 # Publishes both packages, then tags. That order is the whole design.
 #
