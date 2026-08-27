@@ -8,6 +8,14 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Changed
+
+- **`reassoc-macros` has its own README.** crates.io showed it the facade's
+  whole README, as if it were the crate to use. It now says what it is and
+  points at `reassoc`; docs.rs was already separate.
+
 ## 0.14.1 - 2026-08-27
 
 ### Changed
