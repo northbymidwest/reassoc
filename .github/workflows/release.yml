@@ -46,6 +46,15 @@ jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # `actions: read` is for the CI-is-green query below. A public repository
+    # allows it implicitly; naming it keeps that true if this one stops being
+    # public.
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      publish_macros: ${{ steps.preflight.outputs.publish_macros }}
+      publish_facade: ${{ steps.preflight.outputs.publish_facade }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,19 +106,50 @@ jobs:
 
           # Neither version may already be on crates.io. A publish there is
           # irreversible, so finding out at upload time is finding out too late.
-          registry=""
-          for crate in reassoc reassoc-macros; do
+          #
+          # One exception: the macros crate live, the facade not, and no tag,
+          # which is what a release that died between its two uploads leaves.
+          # Refusing it would burn a version number for what is usually a
+          # propagation hiccup, so it resumes instead, uploading the facade
+          # alone at the same commit with every other check still applying. The
+          # reverse, which no release can produce, is still fatal.
+          live() {
             code=$(curl -sS -o /dev/null -w '%{http_code}' \
               -H 'User-Agent: reassoc-release-workflow' \
-              "https://crates.io/api/v1/crates/$crate/$VERSION")
-            if [ "$code" = "404" ]; then
-              registry="$registry$crate: not published; "
+              "https://crates.io/api/v1/crates/$1/$VERSION")
+            case "$code" in
+              404) return 1 ;;
+              200) return 0 ;;
+              *) fail "crates.io answered HTTP $code for $1 $VERSION; cannot tell whether it is published" ;;
+            esac
+          }
+          macros_live=false
+          facade_live=false
+          if live reassoc-macros; then macros_live=true; fi
+          if live reassoc; then facade_live=true; fi
+          publish_macros=true
+          publish_facade=true
+
+          if [ "$macros_live" = true ] && [ "$facade_live" = true ]; then
+            soft "both crates already have $VERSION on crates.io"
+            registry="both already published"
+          elif [ "$macros_live" = true ]; then
+            if [ "$DRY" = "true" ]; then
+              echo "::warning::(dry run) reassoc-macros $VERSION is published and reassoc is not"
             else
-              soft "$crate $VERSION already exists on crates.io (HTTP $code)"
-              registry="$registry$crate: already published (HTTP $code); "
+              echo "::notice::resuming a half-finished release: reassoc-macros $VERSION is already published, reassoc is not"
             fi
-          done
-          echo "registry=${registry% }" >> "$GITHUB_OUTPUT"
+            publish_macros=false
+            registry="RESUME: reassoc-macros already published, reassoc is not; only the facade will be uploaded"
+          elif [ "$facade_live" = true ]; then
+            soft "reassoc $VERSION is on crates.io but reassoc-macros $VERSION is not, which no release can produce; check by hand"
+            registry="reassoc published, reassoc-macros not: inconsistent"
+          else
+            registry="neither published"
+          fi
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+          echo "publish_macros=$publish_macros" >> "$GITHUB_OUTPUT"
+          echo "publish_facade=$publish_facade" >> "$GITHUB_OUTPUT"
 
           # CI must already be green on this exact commit. Queried rather than
           # re-run: the suite is twelve jobs and it has already passed.
@@ -120,7 +160,7 @@ jobs:
 
           # The notes are that version's own CHANGELOG section; an empty one
           # means the entry was never written.
-          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          awk -v v="$VERSION" 'index($0, "## " v " ") == 1 {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
           [ -s /tmp/notes.md ] || fail "CHANGELOG.md has no section for $VERSION"
 
           # Entries accumulate under `## Unreleased` and releasing retitles
@@ -158,7 +198,7 @@ jobs:
           subject=$(git log -1 --format=%s)
           ci=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$sha&status=completed" \
             --jq '[.workflow_runs[] | select(.name == "CI")] | .[0].id // empty')
-          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          awk -v v="$VERSION" 'index($0, "## " v " ") == 1 {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
           {
             if [ "$DRY" = true ]; then
               echo "## Dry run: \`$VERSION\` (nothing will be published or tagged)"
@@ -216,14 +256,16 @@ jobs:
       # Order is mandatory: the facade pins `=<version>` and resolves it
       # against the registry, not the workspace, so the macros crate must be
       # live first.
+      # Skipped when preflight found it already published: that is the
+      # half-finished release being resumed, not a fresh one.
       - name: Publish reassoc-macros
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && needs.preflight.outputs.publish_macros == 'true' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish -p reassoc-macros
 
       - name: Publish reassoc
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && needs.preflight.outputs.publish_facade == 'true' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish -p reassoc
@@ -254,7 +296,7 @@ jobs:
           gh api meta --jq '.ssh_keys[] | "github.com \(.)"' > "$dir/known_hosts"
           GIT_SSH_COMMAND="ssh -F /dev/null -i $dir/key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" \
             git push "git@github.com:${{ github.repository }}.git" "$sha:refs/tags/v$VERSION"
-          awk -v v="$VERSION" '$0 ~ "^## " v " " {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+          awk -v v="$VERSION" 'index($0, "## " v " ") == 1 {f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
           # Pre-release, as every release here is: the README calls the crate
           # experimental, and a 0.x moving this fast should not present any
           # version as the settled one.

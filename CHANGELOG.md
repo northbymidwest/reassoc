@@ -46,6 +46,19 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Changed
 
+- **A release that dies between its two uploads can be resumed.** Preflight
+  refused any version either crate already had on crates.io, so the likely
+  half-published state (macros live, facade not, nothing tagged) meant burning
+  the version and bumping. It is now recognised and reported as `RESUME`: the
+  same version at the same commit uploads only the facade. The reverse state,
+  which no release can produce, is still fatal.
+- `RELEASING.md`'s "if the workflow is unavailable" fallback said to
+  `git push` the tag, which the `v*` ruleset refuses: its one bypass actor is
+  the deploy key held by the `release` environment. It now says so.
+- `preflight` declares `actions: read`, the scope it uses to check CI is
+  green. It worked implicitly because the repository is public.
+- The release workflow matches a CHANGELOG heading with `index()` rather than
+  a regex, the version's dots being metacharacters in the latter.
 - `syn`'s `derive` feature is gone from `reassoc-macros`: nothing has parsed a
   `DeriveInput` since 0.14.0. `cargo machete` sees unused crates, not unused
   features.

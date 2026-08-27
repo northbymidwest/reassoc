@@ -45,7 +45,9 @@ instead of stopping there. Every other check still stops.
 
 - a version that does not match both manifests
 - a version whose tag already exists
-- a version either crate already has on crates.io
+- a version both crates already have on crates.io
+- a version `reassoc` has and `reassoc-macros` does not (no release can
+  produce that; check by hand)
 - a commit whose CI is not green
 - a version with no `CHANGELOG.md` section, or one left empty
 - a `CHANGELOG.md` still carrying entries under `## Unreleased`
@@ -53,6 +55,19 @@ instead of stopping there. Every other check still stops.
 
 A failed preflight leaves nothing behind: no tag, no burnt version number, one
 red run to fix and dispatch again.
+
+## Resuming a release that died between the two uploads
+
+The one state that is *not* refused: `reassoc-macros` published and `reassoc`
+not. That is what a failure between the two uploads leaves, and it is the
+likely one (index propagation, a missing trusted-publisher entry for the
+facade). Nothing was tagged, because the tag is last.
+
+Dispatch the same version again at the same commit. Preflight reports
+`RESUME` in its summary, the publish job skips the macros crate and uploads
+only the facade, and the tag is created as usual. Every other check still
+applies, so the commit, the CHANGELOG and CI are verified exactly as on a
+first attempt.
 
 ## Why the order is what it is
 
@@ -105,8 +120,9 @@ publish. Each package has a trusted-publisher entry on crates.io:
 All four must match the workflow. A mismatch fails at the token exchange,
 before anything is published. Both `reassoc` and `reassoc-macros` need their
 own entry: the token is scoped to the crates whose config matches, so one
-missing entry publishes the macros crate and then fails on the facade, which
-costs a version number.
+missing entry publishes the macros crate and then fails on the facade. Add the
+entry and dispatch the same version again: that is the resume path above, and
+costs no version number.
 
 ## After a release
 
@@ -118,14 +134,31 @@ is the authority.
 
 ## If the workflow is unavailable
 
-The same thing by hand, in the same order:
+The publishing half can be done by hand, in the same order:
 
 ```bash
 cargo publish -p reassoc-macros
 # wait for it to be live on crates.io
 cargo publish -p reassoc
+```
+
+**The tag cannot.** `git push origin v0.11.3` from a laptop is refused with a
+rule violation: the `v*` ruleset's one bypass actor for `creation` is the
+deploy key, whose private half is the `release` environment's
+`RELEASE_TAG_KEY` and is readable only by an approved job (above). That is
+the point of the ruleset, so the way to tag is to make the workflow
+available again, then dispatch it: preflight will find `reassoc-macros` and
+`reassoc` both published, which a real run refuses, so this path ends with an
+untagged release until the ruleset is changed by hand or a new version is
+cut. Prefer fixing the workflow.
+
+If the ruleset is being changed deliberately (its bypass list is the only
+thing standing between a person and a permanent tag), the rest is:
+
+```bash
 git tag -a v0.11.3 -m v0.11.3 && git push origin v0.11.3
-awk '/^## 0\.11\.3 /{f=1;next} /^## /{f=0} f' CHANGELOG.md > /tmp/notes.md
+awk -v v=0.11.3 'index($0, "## " v " ") == 1 {f=1;next} /^## /{f=0} f' \
+    CHANGELOG.md > /tmp/notes.md
 gh release create v0.11.3 --title v0.11.3 --notes-file /tmp/notes.md \
     --prerelease --verify-tag
 ```
