@@ -1,0 +1,73 @@
+name: audit
+# The dependency tree is small (`syn`, `quote`, `proc-macro2`, a renamer, and
+# the test harnesses) and nothing in it handles input from outside the
+# compiler, but an advisory against a floor in `Cargo.toml` is still the one
+# reason a floor should move, and nothing else here would notice one.
+# `cargo audit` checks the resolved lockfile against the RustSec database.
+#
+# On a push or pull request only when the manifests or the lockfile change,
+# since nothing else can alter the answer; weekly regardless, because the
+# database changes without a commit here. Off the hour, and after CI's own
+# Monday run, for the reason `ci.yml` gives.
+on:
+  push:
+    paths: ['Cargo.toml', 'Cargo.lock', '**/Cargo.toml']
+  pull_request:
+    paths: ['Cargo.toml', 'Cargo.lock', '**/Cargo.toml']
+  schedule:
+    - cron: '53 9 * * 1'
+  workflow_dispatch:
+# `issues: write` is for the reporting step: an advisory that lands on a
+# Monday and is never read about is the same as no job at all. Only the
+# unattended runs file anything; a push or pull request has a red check that
+# somebody is already looking at.
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'schedule' }}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2
+        with:
+          tool: cargo-audit@0.22.2
+      - id: audit
+        run: |
+          set -o pipefail
+          cargo audit --color never 2>&1 | tee audit.log
+      # Only for an advisory. A database that would not download, or a runner
+      # that died, is not a finding about this crate's dependencies.
+      - name: File the advisory
+        if: failure() && steps.audit.outcome == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TITLE="audit: an advisory against a dependency"
+          export TITLE
+          {
+            printf '%s\n\n' '`cargo audit` found an advisory against the resolved dependency tree. If it is against a floor in `Cargo.toml`, this is the one case where raising the floor is right (`RELEASING.md`); Dependabot should open the same pull request, since its `cargo` entry is on for advisories.'
+            printf 'Run: %s\n\n' "$RUN"
+            printf '%s\n' '```'
+            cat audit.log
+            printf '%s\n' '```'
+          } > /tmp/audit-issue.md
+          # One rolling issue: an unresolved advisory is a single ongoing
+          # condition, not a fresh bug each week.
+          existing=$(gh issue list --state open --label ci-failure --limit 100 \
+            --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file /tmp/audit-issue.md
+          else
+            gh issue create --title "$TITLE" --label ci-failure --body-file /tmp/audit-issue.md
+          fi

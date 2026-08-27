@@ -1,23 +1,25 @@
-# Only the GitHub Actions this workflow pins, and only monthly.
+# Monthly, and only the GitHub Actions the workflows pin.
 #
-# In practice `actions/checkout` and `github/codeql-action`. The point is not
-# freshness but the upgrades that arrive as deadlines: a runner's Node version
-# reaching end of life takes unattended workflows down with it. It is also the
-# only thing that moves a SHA pin, which is frozen by definition.
+# The point is not freshness but the upgrades that arrive as deadlines: a
+# runner's Node version reaching end of life takes unattended workflows down
+# with it. Every action is pinned to a commit, with the tag in a comment, so
+# this is also the only thing that ever moves one of those pins.
 #
-# `dtolnay/rust-toolchain` is ignored. Its refs are not dependencies: `stable`
-# and `nightly` are branches that already follow each Rust release, and
-# `1.98.0` is a pin two jobs are built around. `msrv` uses it because that is
-# the crate's declared `rust-version`, so raising it would leave the MSRV
-# claim untested while the job still passed; `ui` uses it because trybuild
-# compares rustc's rendered diagnostics byte-for-byte and a newer toolchain
-# fails those for reasons that have nothing to do with this crate. Dependabot
-# proposed 1.98.0 -> 1.100.0 on its first run and it was closed.
+# `dtolnay/rust-toolchain` is pinned like the others and chooses the compiler
+# through its `toolchain:` input, never through the ref, so a bump here moves
+# the action and not the toolchain. `1.98.0` in `ui` and `mutants` is
+# deliberate (trybuild compares rustc's rendered diagnostics byte for byte),
+# and `msrv` reads its version from `Cargo.toml`; none of those is a
+# dependency this file can see.
 #
-# Deliberately not the `cargo` ecosystem: the dependency versions in
+# The `cargo` ecosystem is on for advisories only. The dependency versions in
 # `Cargo.toml` are floors, the minimum each package actually needs
-# (`RELEASING.md`), and this crate ships no lockfile. Raising a floor because
-# a newer version exists is the opposite of what those numbers mean.
+# (`RELEASING.md`), and raising a floor because a newer version exists is the
+# opposite of what those numbers mean; `open-pull-requests-limit: 0` turns
+# version updates off. A floor with a security advisory against it is the
+# one case where raising it is right, and that is what still opens a pull
+# request. `audit.yml` is the same check from the other side, against the
+# lockfile every run resolves.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -27,5 +29,11 @@ updates:
     commit-message:
       prefix: "ci"
     labels: []
-    ignore:
-      - dependency-name: dtolnay/rust-toolchain
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "deps"
+    labels: []
