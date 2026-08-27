@@ -30,12 +30,15 @@ permissions:
   contents: read
   issues: write
 
-# Same rule as `ci.yml`: a second push to a branch makes the first answer
-# irrelevant, but main keeps a result for every commit, and the weekly run is
-# its own group that nothing cancels.
+# A newer push cancels the run in progress, on main included. `ci.yml` keeps
+# a result for every commit on main because those are verdicts on the
+# commit; this is a report on the suite, twelve minutes long, and the run on
+# the newest commit says everything the superseded one would have. Commits
+# pushed directly to main in a burst otherwise queue behind each other for
+# the rest of the hour. The weekly run is its own group that nothing cancels.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'schedule' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'schedule' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && 'schedule' || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
   mutants:
