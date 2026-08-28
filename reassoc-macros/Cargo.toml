@@ -39,10 +39,9 @@ proc-macro-crate = { version = "3.5", optional = true }
 # what our own syn floor forces is a range that cannot be resolved at all.
 # Both said `1.0` until that job was added and said otherwise.
 #
-# `default-features = false` keeps the enabled set explicit, and every feature
-# below is load-bearing: removing any one of them fails the build. `clone-impls`
-# is the one that does not look it, and covers two things, `syn::Path::clone`
-# in `opt_in.rs` and `syn::token::Const` being `Copy` in `rewrite.rs`.
+# `default-features = false` keeps the enabled set explicit. `clone-impls`
+# covers `syn::Path::clone` in `opt_in.rs` and `syn::token::Const` being `Copy`
+# in `rewrite.rs`.
 syn = { version = "3.0", default-features = false, features = ["full", "visit-mut", "parsing", "printing", "proc-macro", "clone-impls"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.91"
