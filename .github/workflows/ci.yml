@@ -132,7 +132,7 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
+      - uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
         with:
           tool: cargo-hack@0.6.45
       - run: cargo hack check -p reassoc --all-targets --feature-powerset --exclude-features f16,f128,const-fn
@@ -300,10 +300,10 @@ jobs:
       - run: scripts/check-ascii.sh
       # Spelling, over the whole tree. `_typos.toml` holds the words it is
       # wrong about; it has been wrong about two.
-      - uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f # v1.49.0
+      - uses: crate-ci/typos@4d9c206a77c041268485162b8e2579ad7a5cb9a3 # v1.50.0
       # A dependency nothing imports. Six today, so this is cheap, and a
       # dependency that stops being used is also a floor nobody rechecks.
-      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2.86.8
+      - uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
         with:
           tool: cargo-machete@0.9.2
       - run: cargo machete
