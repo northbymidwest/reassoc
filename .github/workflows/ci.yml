@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   # Nothing here is pinned to this repository's own activity: `stable` moves
   # every six weeks, `beta` every day it is rebuilt, `nightly` every night.
