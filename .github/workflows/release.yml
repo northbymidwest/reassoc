@@ -30,7 +30,8 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Must exceed release-preflight's ci-wait-minutes (30).
+    timeout-minutes: 40
     permissions:
       contents: read
       actions: read
@@ -41,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
       - id: pre
-        uses: northbymidwest/gh-actions/release-preflight@fbbaaad718a8294de0a132bc76a2a4e3a7ccea01 # v0.2.2
+        uses: northbymidwest/gh-actions/release-preflight@4127b2885745883cf2219237a78d20c0d172771d # v0.3.0
         with:
           version: ${{ inputs.version }}
           dry-run: ${{ inputs.dry_run }}
@@ -51,7 +52,7 @@ jobs:
             reassoc
           pins: reassoc/Cargo.toml|reassoc-macros|
           token: ${{ github.token }}
-      - uses: northbymidwest/gh-actions/release-review-summary@fbbaaad718a8294de0a132bc76a2a4e3a7ccea01 # v0.2.2
+      - uses: northbymidwest/gh-actions/release-review-summary@4127b2885745883cf2219237a78d20c0d172771d # v0.3.0
         with:
           version: ${{ inputs.version }}
           dry-run: ${{ inputs.dry_run }}
@@ -75,14 +76,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
-      - uses: northbymidwest/gh-actions/release-publish-crate@fbbaaad718a8294de0a132bc76a2a4e3a7ccea01 # v0.2.2
+      - uses: northbymidwest/gh-actions/release-publish-crate@4127b2885745883cf2219237a78d20c0d172771d # v0.3.0
         with:
           packages: |
             reassoc-macros
             reassoc
           publish: ${{ needs.preflight.outputs.publish }}
           dry-run: ${{ inputs.dry_run }}
-      - uses: northbymidwest/gh-actions/release-tag@fbbaaad718a8294de0a132bc76a2a4e3a7ccea01 # v0.2.2
+      - uses: northbymidwest/gh-actions/release-tag@4127b2885745883cf2219237a78d20c0d172771d # v0.3.0
         with:
           version: ${{ inputs.version }}
           deploy-key: ${{ secrets.RELEASE_TAG_KEY }}
