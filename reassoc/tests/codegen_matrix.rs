@@ -74,6 +74,7 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
             ("sugar_chain_sum16", "plain_chain_sum16"),
             ("sugar_chain_compound8", "plain_chain_compound8"),
             ("sugar_dot_loop_f32", "plain_dot_loop_f32"),
+            ("sugar_sum_iter_f32", "plain_sum_iter_f32"),
         ] {
             let sb = body(s, &fns, &aliases).unwrap_or_default();
             let pb = body(p, &fns, &aliases).unwrap_or_default();
@@ -94,11 +95,10 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
             }
         }
         // The headline: at -O3 the algebraic f32 dot reduces as a vector,
-        // the strict one does not. Vectorization needs the loop vectorizer
-        // (O2+) and a target with vector float adds; every CI target has one.
+        // the strict one does not; `.sum()` over an `f32` iterator the same.
+        // Vectorization needs the loop vectorizer (O2+) and a target with
+        // vector float adds; every CI target has one.
         if level == "3" {
-            let sb = body("sugar_dot_loop_f32", &fns, &aliases).unwrap_or_default();
-            let pb = body("plain_dot_loop_f32", &fns, &aliases).unwrap_or_default();
             // A vector `fadd` *instruction* (`= fadd .. <4 x float>`); the
             // strict twin may still use an in-order `llvm.vector.reduce.fadd`
             // intrinsic, which is a serial reduction and does not count.
@@ -106,17 +106,22 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
                 b.lines()
                     .any(|l| l.contains("= fadd ") && l.contains("x float>"))
             };
-            if !vector_fadd(&sb) {
-                failures.push(
-                    "-C opt-level=3: sugar_dot_loop_f32 has no vector `fadd`: the algebraic reduction did not vectorize"
-                        .to_owned(),
-                );
-            }
-            if vector_fadd(&pb) {
-                failures.push(
-                    "-C opt-level=3: plain_dot_loop_f32 reduces as a vector: strict IEEE is being reassociated, or the control is broken"
-                        .to_owned(),
-                );
+            for (s, p) in [
+                ("sugar_dot_loop_f32", "plain_dot_loop_f32"),
+                ("sugar_sum_iter_f32", "plain_sum_iter_f32"),
+            ] {
+                let sb = body(s, &fns, &aliases).unwrap_or_default();
+                let pb = body(p, &fns, &aliases).unwrap_or_default();
+                if !vector_fadd(&sb) {
+                    failures.push(format!(
+                        "-C opt-level=3: {s} has no vector `fadd`: the algebraic reduction did not vectorize"
+                    ));
+                }
+                if vector_fadd(&pb) {
+                    failures.push(format!(
+                        "-C opt-level=3: {p} reduces as a vector: strict IEEE is being reassociated, or the control is broken"
+                    ));
+                }
             }
         }
     }

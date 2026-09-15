@@ -1,0 +1,172 @@
+//! `.sum()` and `.product()` inside an algebraic scope go through the
+//! dispatch layer: a float output folds with the algebraic operators, every
+//! other output through its own `core::iter::Sum` / `Product`. `Summed`
+//! implements the two dispatch traits and not `core::iter::Sum`, so each
+//! call on it below compiles only because the call was rewritten; the
+//! opt-out direction is `tests/ui/reductions_false_opts_out.rs`.
+#![allow(clippy::all)]
+
+use core::num::Wrapping;
+use core::time::Duration;
+use reassoc::__private::traits::{MulRhs, ProductOf, SumOf};
+use reassoc::{alg, algebraic, passthrough};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Summed(f32);
+impl SumOf<Summed> for Summed {
+    fn sum_of<I: Iterator<Item = Summed>>(iter: I) -> Summed {
+        Summed(iter.map(|s| s.0).sum())
+    }
+}
+impl<'a> SumOf<&'a Summed> for Summed {
+    fn sum_of<I: Iterator<Item = &'a Summed>>(iter: I) -> Summed {
+        Summed(iter.map(|s| s.0).sum())
+    }
+}
+impl ProductOf<Summed> for Summed {
+    fn product_of<I: Iterator<Item = Summed>>(iter: I) -> Summed {
+        Summed(iter.map(|s| s.0).product())
+    }
+}
+impl<'a> ProductOf<&'a Summed> for Summed {
+    fn product_of<I: Iterator<Item = &'a Summed>>(iter: I) -> Summed {
+        Summed(iter.map(|s| s.0).product())
+    }
+}
+impl MulRhs<Summed, Summed> for Summed {
+    fn mul_rhs(self, lhs: Summed) -> Summed {
+        Summed(lhs.0 * self.0)
+    }
+}
+
+#[test]
+fn sum_actually_dispatches() {
+    let v = [Summed(1.0), Summed(2.0), Summed(4.0)];
+    assert_eq!(alg!(v.iter().sum::<Summed>()), Summed(7.0));
+    assert_eq!(alg!(v.iter().copied().sum::<Summed>()), Summed(7.0));
+    let annotated: Summed = alg!(v.iter().sum());
+    assert_eq!(annotated, Summed(7.0));
+}
+
+#[test]
+fn product_actually_dispatches() {
+    let v = [Summed(1.0), Summed(2.0), Summed(4.0)];
+    assert_eq!(alg!(v.iter().product::<Summed>()), Summed(8.0));
+    assert_eq!(alg!(v.iter().copied().product::<Summed>()), Summed(8.0));
+    let annotated: Summed = alg!(v.iter().product());
+    assert_eq!(annotated, Summed(8.0));
+}
+
+#[algebraic]
+fn total(v: &[Summed]) -> Summed {
+    v.iter().sum()
+}
+
+#[algebraic]
+fn scaled_total(v: &[Summed], k: Summed) -> Summed {
+    // The receiver is rewritten before the call: the `*` inside the closure
+    // has no `std::ops` to fall back on either.
+    v.iter().map(|&x| x * k).sum()
+}
+
+#[test]
+fn the_attribute_form_and_a_rewritten_receiver() {
+    let v = [Summed(1.0), Summed(2.0), Summed(4.0)];
+    assert_eq!(total(&v), Summed(7.0));
+    assert_eq!(scaled_total(&v, Summed(2.0)), Summed(14.0));
+}
+
+#[test]
+fn float_values_and_identities_match_core() {
+    let v = [1.5f32, 2.5, 4.0];
+    assert_eq!(alg!(v.iter().sum::<f32>()), 8.0);
+    assert_eq!(alg!(v.iter().copied().sum::<f32>()), 8.0);
+    assert_eq!(alg!(v.iter().product::<f32>()), 15.0);
+    let w = [1.5f64, 2.5, 4.0];
+    assert_eq!(alg!(w.iter().sum::<f64>()), 8.0);
+    assert_eq!(alg!(w.into_iter().product::<f64>()), 15.0);
+    // core's identities: `-0.0` for a sum, so a sum of negative zeros is
+    // negative zero, and `1.0` for a product.
+    let empty_sum: f32 = alg!(core::iter::empty::<f32>().sum());
+    assert!(empty_sum == 0.0 && empty_sum.is_sign_negative());
+    let neg: f32 = alg!([-0.0f32, -0.0].iter().sum());
+    assert!(neg.is_sign_negative());
+    let empty_product: f64 = alg!(core::iter::empty::<f64>().product());
+    assert_eq!(empty_product, 1.0);
+}
+
+#[test]
+fn the_output_type_is_inferred_as_natively() {
+    fn from_return(v: &[f32]) -> f32 {
+        alg!(v.iter().sum())
+    }
+    assert_eq!(from_return(&[1.0, 2.0]), 3.0);
+    // An unsuffixed literal iterator resolves from the annotated output.
+    let s: f64 = alg!([1.0, 2.0, 3.0].into_iter().sum());
+    assert_eq!(s, 6.0);
+    let s: f64 = alg!([1.0, 2.0, 3.0].iter().sum());
+    assert_eq!(s, 6.0);
+    // The sum then takes part in further inference like any operand.
+    let t = alg!([1.0f32, 2.0].iter().sum::<f32>() * 2.0);
+    assert_eq!(t, 6.0);
+}
+
+#[test]
+fn integers_and_std_types_use_their_own_sum_and_product() {
+    let v = [1i32, 2, 3];
+    assert_eq!(alg!(v.iter().sum::<i32>()), 6);
+    assert_eq!(alg!(v.iter().copied().product::<i32>()), 6);
+    let big = vec![u64::MAX / 2, 1];
+    assert_eq!(alg!(big.into_iter().sum::<u64>()), u64::MAX / 2 + 1);
+    let n: usize = alg!((0..10).sum());
+    assert_eq!(n, 45);
+    let w = [Wrapping(200u8), Wrapping(100)];
+    assert_eq!(alg!(w.iter().sum::<Wrapping<u8>>()), Wrapping(44));
+    let d = [Duration::from_millis(500), Duration::from_millis(750)];
+    assert_eq!(
+        alg!(d.iter().sum::<Duration>()),
+        Duration::from_millis(1250)
+    );
+    // `Option` and `Result`, which core sums into, short-circuiting.
+    let some = [Some(1.0f32), Some(2.0)];
+    assert_eq!(alg!(some.iter().copied().sum::<Option<f32>>()), Some(3.0));
+    let none = [Some(1.0f32), None];
+    assert_eq!(alg!(none.into_iter().sum::<Option<f32>>()), None);
+    let ok: Result<i32, &str> = alg!([Ok(2), Ok(3)].into_iter().product());
+    assert_eq!(ok, Ok(6));
+    let err: Result<i32, &str> = alg!([Ok(2), Err("no")].into_iter().sum());
+    assert_eq!(err, Err("no"));
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[passthrough]
+struct Money(i64);
+impl core::iter::Sum for Money {
+    fn sum<I: Iterator<Item = Money>>(iter: I) -> Money {
+        Money(iter.map(|m| m.0).sum())
+    }
+}
+impl<'a> core::iter::Sum<&'a Money> for Money {
+    fn sum<I: Iterator<Item = &'a Money>>(iter: I) -> Money {
+        Money(iter.map(|m| m.0).sum())
+    }
+}
+
+#[test]
+fn an_opted_in_type_uses_its_own_sum() {
+    let v = [Money(5), Money(7)];
+    assert_eq!(alg!(v.iter().sum::<Money>()), Money(12));
+    assert_eq!(alg!(v.into_iter().sum::<Money>()), Money(12));
+}
+
+#[test]
+fn a_sum_method_with_arguments_is_not_iterator_sum() {
+    struct Grid(Vec<f32>);
+    impl Grid {
+        fn sum(&self, from: usize) -> f32 {
+            self.0[from..].iter().sum()
+        }
+    }
+    let g = Grid(vec![1.0, 2.0, 3.0]);
+    assert_eq!(alg!(g.sum(1)), 5.0);
+}

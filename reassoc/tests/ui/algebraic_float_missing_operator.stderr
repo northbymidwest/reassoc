@@ -1,7 +1,7 @@
 error[E0277]: binary assignment operation `%=` cannot be applied to type `NoRem`
-  --> tests/ui/algebraic_float_missing_operator.rs:26:16
+  --> tests/ui/algebraic_float_missing_operator.rs:39:16
    |
-26 | impl Float for NoRem {}
+39 | impl Float for NoRem {}
    |                ^^^^^ binary assignment operation `%=` cannot be applied to type `NoRem`
    |
 help: the trait `RemAssign` is not implemented for `NoRem`
@@ -31,9 +31,9 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
-  --> tests/ui/algebraic_float_missing_operator.rs:26:16
+  --> tests/ui/algebraic_float_missing_operator.rs:39:16
    |
-26 | impl Float for NoRem {}
+39 | impl Float for NoRem {}
    |                ^^^^^ cannot calculate the remainder of `NoRem` divided by `NoRem`
    |
 help: the trait `Rem` is not implemented for `NoRem`
@@ -65,34 +65,34 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: binary assignment operation `%=` cannot be applied to type `NoRem`
-  --> tests/ui/algebraic_float_missing_operator.rs:26:16
+  --> tests/ui/algebraic_float_missing_operator.rs:39:16
    |
-26 | impl Float for NoRem {}
+39 | impl Float for NoRem {}
    |                ^^^^^ binary assignment operation `%=` cannot be applied to type `NoRem`
    |
    = note: the place's type needs the matching `std::ops` impl (`AddAssign<Rhs>` for `+=`), and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
    = note: if the place is a reference, dereference it: `*place` rather than `place`
 help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not implemented for `NoRem`
       but trait `AlgebraicFloat<__ReassocTag_Float>` is implemented for it
-  --> tests/ui/algebraic_float_missing_operator.rs:25:1
+  --> tests/ui/algebraic_float_missing_operator.rs:38:1
    |
-25 | #[passthrough]
+38 | #[passthrough]
    | ^^^^^^^^^^^^^^
    = note: required for `NoRem` to implement `RemAssignRhs<NoRem, __ReassocOptIn>`
    = note: required for `NoRem` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_operator.rs:22:1
+  --> tests/ui/algebraic_float_missing_operator.rs:35:1
    |
-22 | #[algebraic_float]
+35 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-23 | pub trait Float: Clone {}
+36 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `passthrough` which comes from the expansion of the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
-  --> tests/ui/algebraic_float_missing_operator.rs:26:16
+  --> tests/ui/algebraic_float_missing_operator.rs:39:16
    |
-26 | impl Float for NoRem {}
+39 | impl Float for NoRem {}
    |                ^^^^^ cannot calculate the remainder of `NoRem` divided by `NoRem`
    |
    = note: operands are never converted implicitly, inside an `#[algebraic]` scope or outside one
@@ -100,17 +100,17 @@ error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
    = note: if `NoRem` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
 help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not implemented for `NoRem`
       but trait `AlgebraicFloat<__ReassocTag_Float>` is implemented for it
-  --> tests/ui/algebraic_float_missing_operator.rs:25:1
+  --> tests/ui/algebraic_float_missing_operator.rs:38:1
    |
-25 | #[passthrough]
+38 | #[passthrough]
    | ^^^^^^^^^^^^^^
    = note: required for `NoRem` to implement `RemRhs<NoRem, NoRem, __ReassocOptIn>`
    = note: required for `NoRem` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_operator.rs:22:1
+  --> tests/ui/algebraic_float_missing_operator.rs:35:1
    |
-22 | #[algebraic_float]
+35 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-23 | pub trait Float: Clone {}
+36 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `passthrough` which comes from the expansion of the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

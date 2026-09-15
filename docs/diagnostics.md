@@ -45,6 +45,8 @@ plain operators; "reassoc" is the same expression through `alg!` / `#[algebraic]
 | `(1.0 * 2.0).sqrt()` | `E0689` ambiguous numeric type `{float}` | **identical** |
 | `fn f<T: Mul<Output = T>>(a: T, b: T) { a * b }` | compiles | `E0277`, *put `#[reassoc::algebraic_float]` on the float trait it is bounded by, or mark the function `#[algebraic(skip)]`* |
 | `f64 + f64` in a fn returning `f32` | `E0308` expected `f32`, found `f64` | **identical** |
+| `let s = v.iter().sum();`, unannotated | `E0283` type annotations needed, *the type must implement `Sum<&f32>`*, ninety implementors listed | `E0283` type annotations needed, *multiple `impl`s satisfying `_: SumOf<&f32, _>`*, two listed, **preceded by an `E0282`** for the binding (measured 2026-09-15 on 1.98.1) |
+| `g.sum()`, a zero-argument `sum` method on a non-iterator | compiles | `E0277` "`&Grid` is not an iterator" (matched by name; `#[algebraic(reductions = false)]` is the way out) |
 
 ## What to read off it
 

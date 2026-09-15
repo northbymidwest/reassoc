@@ -206,6 +206,12 @@ nested `fn`/`impl`/`mod`/`trait` items, and the arguments of the std macros
 whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
 `write!`, `dbg!`, `vec!` and their relatives, and the scrutinee of
 `matches!`). Any other macro is opaque, which is what makes `strict!` work.
+`.sum()` and `.product()` are rewritten too: into `f32` or `f64` they fold
+with the algebraic operator, so a reduction over an iterator vectorizes like
+the loop above; into anything else they are the type's own `Sum` /
+`Product`. Matched by name, like the macros, so a `sum()` method of your own
+on something that is not an iterator needs `reductions = false`
+([Limitations](#limitations)).
 `#[algebraic(skip)]` on any item (a nested item, a container member of any
 kind, a standalone `const fn`) excludes it. A `const fn`'s own arithmetic
 cannot be rewritten; one without any is skipped, one with some is an error
@@ -216,6 +222,7 @@ or a closure body, is ordinary runtime code and is rewritten as usual.
 | --- | --- | --- |
 | `closures` | `true` | `false` leaves closure bodies alone |
 | `macros` | `true` | `false` leaves every macro's arguments alone |
+| `reductions` | `true` | `false` leaves `.sum()` and `.product()` calls alone |
 
 ## Correctness
 

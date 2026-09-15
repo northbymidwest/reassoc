@@ -67,6 +67,50 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   A `methods` parameter that treats the `core::ops` method names as their
   operators inside an algebraic scope is a potential to-do, not a decision:
   covering them may be revisited.
+- `.sum()` and `.product()` are the one method-call shape that *is*
+  rewritten, and they are matched by name, as the std macros are: a call
+  named `sum` or `product` with no arguments and at most one type argument,
+  on any receiver. `iter.sum::<S>()` becomes `ops::sum::<S, _, _>(iter)`,
+  dispatched on the output type: `f32` and `f64` fold with the algebraic
+  operator from the identity `core` uses (`-0.0` for a sum, `1.0` for a
+  product), which is what lets the reduction vectorize; an integer,
+  `Option`, `Result`, `Duration`, `Wrapping` or opted-in output goes through
+  its own `Sum` / `Product` unchanged, and a type parameter bounded by an
+  `#[algebraic_float]` trait reaches the same impls. Two things follow from
+  matching by name. A macro does not know the receiver's type, so a
+  zero-argument `sum` method on a type that is not an iterator (ndarray's
+  `ArrayBase::sum` is one) is rewritten too and fails at the call with
+  "`&Grid` is not an iterator"; `#[algebraic(reductions = false)]` leaves both
+  calls as written in that scope, and a `sum` that takes arguments is never
+  matched. And only the method-call shape is seen: `Iterator::sum(iter)`
+  stays strict, as `a.mul(b)` does. An unannotated `let s = v.iter().sum();`
+  is `E0283` in plain Rust and here; the candidate list is shorter, and one
+  more `E0282` precedes it (`docs/diagnostics.md`). `Iterator::sum` inside a
+  dependency is that crate's code and stays strict, as before. One output is
+  dispatched but still strict: a sum or product *into* `Option<f32>` or
+  `Result<f32, E>` goes to `core`'s short-circuiting impl, whose inner fold
+  over the float is the strict one `core` wrote. Reaching it means a shunt of
+  this crate's own (stop at the first `None`, hand the rest to the float's
+  dispatched sum) under a tag of its own; not done yet.
+- The other float arithmetic `core` writes behind a method name stays
+  strict, since only operator tokens and the two reductions are seen. Each
+  of these is a few operators in `core`'s source, and inside a scope the
+  spelled-out form is algebraic where the call is not: `recip()` is
+  `1.0 / self`, `to_degrees()` and `to_radians()` are one multiply by a
+  constant, `midpoint()` is an add and a halving (through `f64` on most
+  targets), `rem_euclid()` and `div_euclid()` wrap `%` and `/` with a
+  correction. Measured at `-O` on aarch64: `x.recip() * y` is a division
+  then a multiply, `(1.0 / x) * y` folds to one division; the single
+  multiply in `to_radians` and the like has nothing to reassociate with
+  until it meets a neighbour, so the cost is a missed contraction, not a
+  missed reduction. Not gaps, also measured or by construction: `powi(2)`
+  expands to the same multiplies as `x * x` and contracts with what follows;
+  `mul_add` is an explicit FMA; `sqrt`, `abs`, `copysign`, `min`, `max` and
+  `clamp` are exact and have no algebraic form; `sin`, `exp`, `powf` and
+  the rest are libm calls with nothing to rewrite to. Covering the first
+  group is the same shape as the reductions (a name-matched rule and a
+  dispatch trait per method), and `recip` is the only one of them that
+  changes generated code on its own; it may be revisited.
 
 - User-defined types need a one-line opt-in, `#[passthrough]` on the
   definition. After it, every operator the type implements is
@@ -138,9 +182,10 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   feature removes the limit: the dispatch layer is `const` there and a
   `const fn` is entered like any other (the using crate enables
   `const_trait_impl` as well); on stable it waits for that gate. (kurbo also
-  showed two things no feature reaches: arithmetic inlined from `core`
-  (`Iterator::sum::<f64>()`) and from a dependency that is not adopted, stay
-  strict.)
+  showed what no feature reaches: arithmetic in a dependency that is not
+  adopted stays strict. Its `Iterator::sum::<f64>()` calls were the other
+  finding, and those are reached now: a `.sum()` written in the scope is
+  rewritten, though not one written inside a dependency.)
 - Compound assignment is one emitted shape, where plain Rust's `+=` is two
   operations chosen by type. On a primitive it is a builtin read-modify-write:
   no reference is taken, and the right-hand side is evaluated first. On an
@@ -231,7 +276,9 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   tags, and a concrete operator on the type is then `E0283`, the hazard a
   foreign opt-in already has). Three
   limits follow. The type needs all five operators with `Output = Self` and
-  the five `op=` forms, since the bound names every one. It implements one
+  the five `op=` forms, and `Sum` and `Product` by value and by reference,
+  since the bound names every one and generic code may `.sum()`
+  (`tests/ui/algebraic_float_missing_sum.rs` is the error without). It implements one
   marked trait, for the same two-tags reason. And the impl form names a
   hidden type the trait form put beside the trait, through the trait's own
   path: `impl a::Float for Big` works anywhere, `impl Float for Big` beside

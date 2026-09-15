@@ -15,8 +15,8 @@
 //! `f32: Passthrough<()>` never holding.
 
 use crate::traits::{
-    AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, MulAssignRhs, MulRhs, Passthrough, RemAssignRhs,
-    RemRhs, SubAssignRhs, SubRhs,
+    AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, MulAssignRhs, MulRhs, Passthrough, ProductOf,
+    RemAssignRhs, RemRhs, SubAssignRhs, SubRhs, SumOf,
 };
 
 use crate::traits::FloatTag;
@@ -40,6 +40,11 @@ macro_rules! float_trait {
 macro_rules! float_trait_k {
     (($($c:tt)*) ($($b:tt)*)) => {
         pub $($c)* trait Float: sealed::Sealed + Copy {
+            /// The identities `core` folds a sum and a product from:
+            /// `-0.0`, so that a sum of negative zeros is negative zero,
+            /// and `1.0`.
+            const NEG_ZERO: Self;
+            const ONE: Self;
             fn alg_add(self, o: Self) -> Self;
             fn alg_sub(self, o: Self) -> Self;
             fn alg_mul(self, o: Self) -> Self;
@@ -62,6 +67,8 @@ macro_rules! float_k {
 macro_rules! float_one {
     (($($c:tt)*) ($($b:tt)*) $t:ty) => {
         $($c)* impl Float for $t {
+            const NEG_ZERO: $t = -0.0;
+            const ONE: $t = 1.0;
             #[inline(always)] fn alg_add(self, o: $t) -> $t { <$t>::algebraic_add(self, o) }
             #[inline(always)] fn alg_sub(self, o: $t) -> $t { <$t>::algebraic_sub(self, o) }
             #[inline(always)] fn alg_mul(self, o: $t) -> $t { <$t>::algebraic_mul(self, o) }
@@ -128,6 +135,30 @@ alg_float_op!(SubRhs, sub_rhs, SubAssignRhs, sub_assign_rhs, alg_sub);
 alg_float_op!(MulRhs, mul_rhs, MulAssignRhs, mul_assign_rhs, alg_mul);
 alg_float_op!(DivRhs, div_rhs, DivAssignRhs, div_assign_rhs, alg_div);
 alg_float_op!(RemRhs, rem_rhs, RemAssignRhs, rem_assign_rhs, alg_rem);
+
+// `iter.sum::<F>()` and `iter.product::<F>()`: the fold `core` writes, with
+// the algebraic operator in place of the strict one, so the reduction is
+// free to vectorize. By value and by reference, as `core::iter::Sum` is
+// implemented for both. Not `const` under `const-fn`: `Iterator::fold` is
+// not.
+macro_rules! float_reduce {
+    ($trait:ident, $method:ident, $identity:ident, $alg:ident) => {
+        impl<F: Float> $trait<F, FloatTag> for F {
+            #[inline(always)]
+            fn $method<I: Iterator<Item = F>>(iter: I) -> F {
+                iter.fold(F::$identity, |acc, x| acc.$alg(x))
+            }
+        }
+        impl<'a, F: Float> $trait<&'a F, FloatTag> for F {
+            #[inline(always)]
+            fn $method<I: Iterator<Item = &'a F>>(iter: I) -> F {
+                iter.fold(F::$identity, |acc, x| acc.$alg(*x))
+            }
+        }
+    };
+}
+float_reduce!(SumOf, sum_of, NEG_ZERO, alg_add);
+float_reduce!(ProductOf, product_of, ONE, alg_mul);
 
 macro_rules! float_left {
     ($c:tt $b:tt $t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(

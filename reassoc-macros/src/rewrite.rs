@@ -16,6 +16,8 @@ pub struct Rewriter {
     pub closures: bool,
     /// Enter the arguments of the std macros whose arguments are expressions.
     pub macros: bool,
+    /// Rewrite `.sum()` and `.product()` into `ops::sum` / `ops::product`.
+    pub reductions: bool,
     /// Errors to report alongside the rewritten item: a `const fn` whose
     /// arithmetic would have been rewritten.
     pub errors: Vec<syn::Error>,
@@ -23,7 +25,8 @@ pub struct Rewriter {
     /// expansion: with `resolve-crate-name` the lookup reads the manifest,
     /// and it used to run once per operator.
     krate: String,
-    /// Operators rewritten so far (binary and compound), for `REASSOC_TRACE`.
+    /// Operators rewritten so far (binary, compound, and the two iterator
+    /// reductions), for `REASSOC_TRACE`.
     pub ops: usize,
     /// Set while visiting the parts of a `const fn` body that a `const fn`
     /// actually evaluates. An operator met there cannot become a call
@@ -45,6 +48,7 @@ impl Rewriter {
         Rewriter {
             closures: true,
             macros: true,
+            reductions: true,
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
@@ -57,6 +61,7 @@ impl Rewriter {
         Rewriter {
             closures: scope.closures,
             macros: scope.macros,
+            reductions: scope.reductions,
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
@@ -296,6 +301,13 @@ impl VisitMut for Rewriter {
         visit_mut::visit_expr_mut(self, expr);
         reparen_tight_positions(expr);
 
+        if let Expr::MethodCall(call) = expr
+            && self.reductions
+            && let Some(func) = reduction_fn(call)
+        {
+            return self.reduce(expr, func);
+        }
+
         let Expr::Binary(binary) = expr else { return };
         let Some(func) = dispatch_fn(&binary.op) else {
             return;
@@ -410,6 +422,28 @@ impl VisitMut for Rewriter {
 }
 
 impl Rewriter {
+    /// `iter.sum()` becomes `ops::sum(iter)`, and `iter.sum::<S>()` becomes
+    /// `ops::sum::<S, _, _>(iter)`: the output type is the dispatch
+    /// function's first parameter so a turbofish travels as written. The
+    /// receiver was visited already; the method's own attributes move onto
+    /// the call. Spanned at the method name, as an operator is at its token.
+    fn reduce(&mut self, expr: &mut Expr, func: &'static str) {
+        let Expr::MethodCall(call) = core::mem::replace(expr, Expr::PLACEHOLDER) else {
+            unreachable!("matched `Expr::MethodCall` above");
+        };
+        let span = call.method.span();
+        let receiver = unparen(*call.receiver);
+        let mut ops_fn = self.ops_fn(span, func);
+        if let Some(turbofish) = call.turbofish {
+            let Some(syn::GenericArgument::Type(output)) = turbofish.args.into_iter().next() else {
+                unreachable!("`reduction_fn` accepted exactly one type argument");
+            };
+            ops_fn = build::turbofish(span, ops_fn, output, 2);
+        }
+        self.ops += 1;
+        *expr = build::call(span, ops_fn, [receiver], call.attrs);
+    }
+
     /// Enters the arguments of a listed std macro. Only a macro whose last
     /// path segment is on the list, and only when its tokens parse as
     /// comma-separated expressions (or `vec!`'s `elem; len`, or `matches!`'s
@@ -528,6 +562,32 @@ fn is_listed_macro(path: &syn::Path) -> bool {
     path.segments
         .last()
         .is_some_and(|s| LISTED_MACROS.iter().any(|m| s.ident == m))
+}
+
+/// The dispatch function for a method call that has `Iterator::sum`'s or
+/// `Iterator::product`'s shape: that name, no arguments, and at most one
+/// type argument. Matched by name, as the std macros are: the receiver's
+/// type is not known here, so a `sum` method on some other type is caught
+/// too (and fails to compile, with the error naming the receiver as not an
+/// iterator); `reductions = false` turns the rule off.
+fn reduction_fn(call: &syn::ExprMethodCall) -> Option<&'static str> {
+    let func = if call.method == "sum" {
+        "sum"
+    } else if call.method == "product" {
+        "product"
+    } else {
+        return None;
+    };
+    if !call.args.is_empty() {
+        return None;
+    }
+    if let Some(turbofish) = &call.turbofish
+        && !(turbofish.args.len() == 1
+            && matches!(turbofish.args[0], syn::GenericArgument::Type(_)))
+    {
+        return None;
+    }
+    Some(func)
 }
 
 /// The dispatch function for an arithmetic operator: `ops::add` for `+`,

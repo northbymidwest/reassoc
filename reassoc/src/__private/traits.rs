@@ -150,3 +150,58 @@ declare_op_trait!(
     RemRhs, rem_rhs, "cannot calculate the remainder of `{Lhs}` divided by `{Self}`", Rem, %,
     RemAssignRhs, rem_assign_rhs, "binary assignment operation `%=` cannot be applied to type `{Lhs}`", RemAssign, %=
 );
+
+/// The output of `Iterator::sum` over items of type `Item`: `S::sum_of(iter)`
+/// is `iter.sum::<S>()`. Implemented on the output, as `core::iter::Sum` is,
+/// with the item and the tag as parameters. Floats fold with the algebraic
+/// add under `FloatTag`, integers under `IntTag`, `Option` and `Result`
+/// concretely; the blanket below routes every opted-in type through its own
+/// `Sum`. Not `const` under `const-fn`: there is no const `Iterator::fold`
+/// to build the float fold on.
+#[diagnostic::on_unimplemented(
+    message = "a value of type `{Self}` cannot be made by summing an iterator over elements of type `{Item}`",
+    label = "value of type `{Self}` cannot be made by summing a `std::iter::Iterator<Item={Item}>`",
+    note = "the output type needs `Sum<{Item}>`, and a type that is not a primitive needs \
+            `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in \
+            from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` \
+            as written"
+)]
+pub trait SumOf<Item, Tag = ()>: Sized {
+    /// `iter.sum::<Self>()`.
+    fn sum_of<I: Iterator<Item = Item>>(iter: I) -> Self;
+}
+
+impl<S, Item, Tag: OptInTag> SumOf<Item, Tag> for S
+where
+    S: Passthrough<Tag> + core::iter::Sum<Item>,
+{
+    #[inline(always)]
+    fn sum_of<I: Iterator<Item = Item>>(iter: I) -> S {
+        iter.sum()
+    }
+}
+
+/// The output of `Iterator::product` over items of type `Item`; see
+/// [`SumOf`].
+#[diagnostic::on_unimplemented(
+    message = "a value of type `{Self}` cannot be made by multiplying all elements of type `{Item}` from an iterator",
+    label = "value of type `{Self}` cannot be made by multiplying all elements of type `{Item}` from a `std::iter::Iterator`",
+    note = "the output type needs `Product<{Item}>`, and a type that is not a primitive needs \
+            `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in \
+            from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` \
+            as written"
+)]
+pub trait ProductOf<Item, Tag = ()>: Sized {
+    /// `iter.product::<Self>()`.
+    fn product_of<I: Iterator<Item = Item>>(iter: I) -> Self;
+}
+
+impl<S, Item, Tag: OptInTag> ProductOf<Item, Tag> for S
+where
+    S: Passthrough<Tag> + core::iter::Product<Item>,
+{
+    #[inline(always)]
+    fn product_of<I: Iterator<Item = Item>>(iter: I) -> S {
+        iter.product()
+    }
+}

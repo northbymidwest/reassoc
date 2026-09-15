@@ -1,0 +1,38 @@
+error[E0277]: a value of type `Summed` cannot be made by summing an iterator over elements of type `&Summed`
+  --> tests/ui/reductions_false_opts_out.rs:21:20
+   |
+21 |     v.iter().sum::<Summed>() + k
+   |              ---   ^^^^^^ value of type `Summed` cannot be made by summing a `std::iter::Iterator<Item=&Summed>`
+   |              |
+   |              required by a bound introduced by this call
+   |
+help: the trait `Sum<&Summed>` is not implemented for `Summed`
+  --> tests/ui/reductions_false_opts_out.rs:7:1
+   |
+ 7 | struct Summed(f32);
+   | ^^^^^^^^^^^^^
+   = help: the following other types implement trait `Sum<A>`:
+             `Duration` implements `Sum<&'a Duration>`
+             `Duration` implements `Sum`
+             `Option<T>` implements `Sum<Option<U>>`
+             `Result<T, E>` implements `Sum<Result<U, E>>`
+             `Saturating<u128>` implements `Sum<&'a Saturating<u128>>`
+             `Saturating<u128>` implements `Sum`
+             `Saturating<u16>` implements `Sum<&'a Saturating<u16>>`
+             `Saturating<u16>` implements `Sum`
+           and $N others
+note: the method call chain might not have had the expected associated types
+  --> tests/ui/reductions_false_opts_out.rs:21:7
+   |
+21 |     v.iter().sum::<Summed>() + k
+   |     - ^^^^^^ `Iterator::Item` is `&Summed` here
+   |     |
+   |     this expression has type `&[Summed]`
+note: required by a bound in `std::iter::Iterator::sum`
+  --> $RUST/core/src/iter/traits/iterator.rs
+   |
+   |     fn sum<S>(self) -> S
+   |        --- required by a bound in this associated function
+...
+   |         S: [const] Sum<Self::Item>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Iterator::sum`

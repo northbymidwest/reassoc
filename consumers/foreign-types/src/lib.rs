@@ -125,6 +125,29 @@ big_ops! {
     Div div / DivAssign div_assign /=;
     Rem rem % RemAssign rem_assign %=;
 }
+// `Sum` and `Product`, by value and by reference, as a bignum crate ships
+// them: what an opt-in on a marked float trait requires beside the
+// operators.
+impl core::iter::Sum for Big {
+    fn sum<I: Iterator<Item = Big>>(iter: I) -> Big {
+        iter.fold(Big::new(0.0), |a, b| a + b)
+    }
+}
+impl<'a> core::iter::Sum<&'a Big> for Big {
+    fn sum<I: Iterator<Item = &'a Big>>(iter: I) -> Big {
+        iter.fold(Big::new(0.0), |a, b| a + b.clone())
+    }
+}
+impl core::iter::Product for Big {
+    fn product<I: Iterator<Item = Big>>(iter: I) -> Big {
+        iter.fold(Big::new(1.0), |a, b| a * b)
+    }
+}
+impl<'a> core::iter::Product<&'a Big> for Big {
+    fn product<I: Iterator<Item = &'a Big>>(iter: I) -> Big {
+        iter.fold(Big::new(1.0), |a, b| a * b.clone())
+    }
+}
 
 /// A foreign scalar with every operator a *primitive on the left* can have
 /// with it, binary and in place: `f64 + Q`, `f64 += Q`, and so on for all

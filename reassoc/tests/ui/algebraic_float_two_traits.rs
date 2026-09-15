@@ -21,6 +21,19 @@ ops! {
     Div div / DivAssign div_assign /=;
     Rem rem % RemAssign rem_assign %=;
 }
+// `Sum` and `Product`, by value and by reference: the marker asks for them
+// beside the operators (`algebraic_float_missing_sum.rs` is the case
+// without).
+macro_rules! reduce {
+    ($($t:ident $m:ident $start:literal $op:tt;)*) => {$(
+        impl core::iter::$t for Big { fn $m<I: Iterator<Item = Big>>(iter: I) -> Big { iter.fold(Big(Box::new($start)), |a, b| a $op b) } }
+        impl<'a> core::iter::$t<&'a Big> for Big { fn $m<I: Iterator<Item = &'a Big>>(iter: I) -> Big { iter.fold(Big(Box::new($start)), |a, b| a $op b.clone()) } }
+    )*};
+}
+reduce! {
+    Sum sum 0.0 +;
+    Product product 1.0 *;
+}
 
 #[algebraic_float]
 pub trait Float: Clone {}

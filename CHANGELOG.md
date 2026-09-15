@@ -8,6 +8,40 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Added
+
+- **`.sum()` and `.product()` are rewritten.** Inside an algebraic scope
+  `iter.sum::<f32>()` was the one reduction that stayed strict: `Sum for
+  f32` is a fold over `+` written in `core`, out of the rewriter's reach,
+  so a kernel spelled as an iterator kept a serial chain of scalar adds
+  where the loop form vectorized. A call named `sum` or `product`, with no
+  arguments and at most one type argument, now becomes `ops::sum` /
+  `ops::product` (the turbofish carried as the output type), dispatched on
+  the output: `f32` and `f64` fold with the algebraic operator from `core`'s
+  identities (`-0.0`, `1.0`), which lets the reduction vectorize
+  (`examples/codegen_matrix.rs`: the sum through dispatch is the hand-written
+  algebraic fold, and at `-O3` it is a vector reduction where `Iterator::sum`
+  is not); integers, `Option`, `Result`, `Duration`, `Wrapping`, `Saturating`
+  and every opted-in type go through their own `Sum` / `Product`, unchanged;
+  a type parameter bounded by an `#[algebraic_float]` trait reaches the same
+  impls. Matched by name, like the std macros, so a zero-argument `sum`
+  method on a type that is not an iterator is rewritten too and fails with
+  "is not an iterator"; `docs/limitations.md` has the rule.
+- **`#[algebraic(reductions = false)]`** leaves `.sum()` and `.product()` as
+  written in that scope.
+
+### Changed
+
+- **A type opted into an `#[algebraic_float]` trait needs `Sum` and
+  `Product`, by value and by reference**, beside the five operators: the
+  hidden marker names the two reductions so that generic code over the
+  trait may `.sum()`. A type without them fails at its `#[passthrough]`
+  impl, naming the one it lacks (`tests/ui/algebraic_float_missing_sum.rs`).
+  The primitive floats need nothing, as before.
+- The unknown-parameter error for `#[algebraic(..)]` lists `sum`.
+
 ## 0.14.3 - 2026-08-31
 
 ### Fixed

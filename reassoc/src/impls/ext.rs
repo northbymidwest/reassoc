@@ -8,7 +8,7 @@
 //! operand once the impl is unique, a step a generic dispatch function never
 //! takes, so those are spelled out.
 
-use crate::traits::Passthrough;
+use crate::traits::{Passthrough, ProductOf, SumOf};
 use core::num::{NonZero, Saturating, Wrapping};
 use core::time::Duration;
 
@@ -28,6 +28,35 @@ macro_rules! nonzero_divisor {
     )*};
 }
 nonzero_divisor!(u8 u16 u32 u64 u128 usize);
+
+// `Option` and `Result` are what `core` sums and multiplies *into*
+// (`iter.sum::<Option<f32>>()` stops at the first `None`). Neither is marked,
+// as neither has an operator, so the two reductions are spelled out under
+// the default tag, as `String`'s `+` is; the element type's own `Sum` /
+// `Product` does the work, which for a float is the strict one `core`
+// wrote.
+macro_rules! sum_into {
+    ($($wrap:ident<$($p:ident),*>: $item:ty;)*) => {$(
+        impl<$($p),*, U> SumOf<$item> for $wrap<$($p),*>
+        where
+            $wrap<$($p),*>: core::iter::Sum<$item>,
+        {
+            #[inline(always)]
+            fn sum_of<I: Iterator<Item = $item>>(iter: I) -> Self { iter.sum() }
+        }
+        impl<$($p),*, U> ProductOf<$item> for $wrap<$($p),*>
+        where
+            $wrap<$($p),*>: core::iter::Product<$item>,
+        {
+            #[inline(always)]
+            fn product_of<I: Iterator<Item = $item>>(iter: I) -> Self { iter.product() }
+        }
+    )*};
+}
+sum_into! {
+    Option<T>: Option<U>;
+    Result<T, E>: Result<U, E>;
+}
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {

@@ -71,8 +71,11 @@
 //! `assert!` and friends, `panic!` and friends, the `print`/`format`/`write`
 //! families, `dbg!`, `vec!`, and the scrutinee of `matches!`. Any other macro
 //! is opaque, which is exactly what makes [`strict!`] an escape hatch.
-//! `#[algebraic(closures = false)]` and `#[algebraic(macros = false)]` turn
-//! those two off; `#[algebraic(skip)]` on any item (a nested item, a
+//! `.sum()` and `.product()` calls are rewritten as well: into `f32` or
+//! `f64` they fold with the algebraic operator, into anything else they are
+//! the type's own `Sum` / `Product`. `#[algebraic(closures = false)]`,
+//! `#[algebraic(macros = false)]` and `#[algebraic(reductions = false)]` turn
+//! those three off; `#[algebraic(skip)]` on any item (a nested item, a
 //! container member of any kind, or a standalone `const fn`) leaves it
 //! alone.
 //!
@@ -213,7 +216,12 @@
 //! # )*}; }
 //! # ops! { Add add + AddAssign add_assign +=; Sub sub - SubAssign sub_assign -=; Mul mul * MulAssign mul_assign *=;
 //! #        Div div / DivAssign div_assign /=; Rem rem % RemAssign rem_assign %=; }
-//! // .. its `+ - * / %` and `op=` impls ..
+//! # macro_rules! reduce { ($($t:ident $m:ident $start:literal $op:tt;)*) => {$(
+//! #     impl core::iter::$t for Big { fn $m<I: Iterator<Item = Big>>(i: I) -> Big { i.fold(Big(Box::new($start)), |a, b| a $op b) } }
+//! #     impl<'a> core::iter::$t<&'a Big> for Big { fn $m<I: Iterator<Item = &'a Big>>(i: I) -> Big { i.fold(Big(Box::new($start)), |a, b| a $op b.clone()) } }
+//! # )*}; }
+//! # reduce! { Sum sum 0.0 +; Product product 1.0 *; }
+//! // .. its `+ - * / %` and `op=` impls, and `Sum` / `Product` ..
 //!
 //! #[passthrough]
 //! impl Float for Big { fn zero() -> Big { Big(Box::new(0.0)) } }
@@ -231,7 +239,8 @@
 //! The same generic body runs on `f64` and on `Big`; on `Big` the operators
 //! are its own, there being nothing algebraic about a bignum. Such a type
 //! needs all five operators with `Output = Self` and the five `op=` forms,
-//! and implements one marked trait. What the attribute writes into the
+//! `Sum` and `Product` by value and by reference (generic code may
+//! `.sum()`), and implements one marked trait. What the attribute writes into the
 //! trait and the `impl` is implementation detail and may change; the
 //! attribute is the contract.
 //!

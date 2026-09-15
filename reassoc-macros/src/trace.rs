@@ -7,6 +7,8 @@
 //! <file>:<line>\t<kind>\t<name>\t<operators rewritten>
 //! ```
 //!
+//! A rewritten `.sum()` or `.product()` counts as one operator.
+//!
 //! `kind` is `fn` (a function body entered by `#[algebraic]`, directly or as a
 //! member of an annotated container), `const fn` (met in an algebraic scope and
 //! left as written, so always 0), or `alg` (one `alg!`, named `-`). A `const

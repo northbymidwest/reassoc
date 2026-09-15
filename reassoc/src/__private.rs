@@ -23,8 +23,8 @@ pub mod ops;
 pub mod traits;
 
 use traits::{
-    AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, FloatTag, MulAssignRhs, MulRhs, RemAssignRhs,
-    RemRhs, SubAssignRhs, SubRhs,
+    AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, FloatTag, MulAssignRhs, MulRhs, ProductOf,
+    RemAssignRhs, RemRhs, SubAssignRhs, SubRhs, SumOf,
 };
 
 /// The bound `#[algebraic_float]` appends to a user's float trait:
@@ -49,7 +49,8 @@ use traits::{
     label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
     note = "a primitive float needs nothing; any other type is opted in by putting \
             `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
-            to have all five operators (`+ - * / %` and their `op=` forms)",
+            to have all five operators (`+ - * / %` and their `op=` forms) and `Sum` and \
+            `Product`, by value and by reference",
     note = "a type can implement one marked trait, and that `impl` is its one opt-in",
     note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
             only and cannot be extended: bound on a float trait of your own carrying \
@@ -67,6 +68,10 @@ pub trait AlgebraicFloat<X = ()>:
     + MulAssignRhs<Self, Self::Tag>
     + DivAssignRhs<Self, Self::Tag>
     + RemAssignRhs<Self, Self::Tag>
+    + SumOf<Self, Self::Tag>
+    + for<'a> SumOf<&'a Self, Self::Tag>
+    + ProductOf<Self, Self::Tag>
+    + for<'a> ProductOf<&'a Self, Self::Tag>
 {
     type Tag;
 }

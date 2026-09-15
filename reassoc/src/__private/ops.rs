@@ -8,6 +8,7 @@ use crate::traits::{
     AddAssignRhs, AddRhs, DivAssignRhs, DivRhs, MulAssignRhs, MulRhs, RemAssignRhs, RemRhs,
     SubAssignRhs, SubRhs,
 };
+use crate::traits::{ProductOf, SumOf};
 
 // The operand bound hangs off `B`, deliberately: naming `B: AddRhs<A, O>` puts
 // rustc's caret on the right operand, where plain Rust points too.
@@ -126,4 +127,23 @@ pub fn div_assign<A, B: DivAssignRhs<A, T>, T>(a: &mut A, b: B) {
 #[track_caller]
 pub fn rem_assign<A, B: RemAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.rem_assign_rhs(a)
+}
+
+/// `iter.sum()` as the macros emit it: `ops::sum(iter)`, or
+/// `ops::sum::<S, _, _>(iter)` for `iter.sum::<S>()`, dispatched through
+/// [`SumOf`] on the output type, so a float folds with the algebraic add
+/// and everything else is its own `Sum`. Plain `fn` under `const-fn` too:
+/// `Iterator::fold` is not `const`.
+#[inline(always)]
+#[track_caller]
+pub fn sum<S: SumOf<I::Item, T>, I: Iterator, T>(iter: I) -> S {
+    S::sum_of(iter)
+}
+
+/// `iter.product()` as the macros emit it, through [`ProductOf`]; see
+/// [`sum`].
+#[inline(always)]
+#[track_caller]
+pub fn product<S: ProductOf<I::Item, T>, I: Iterator, T>(iter: I) -> S {
+    S::product_of(iter)
 }

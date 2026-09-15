@@ -9,7 +9,7 @@ help: the trait `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>` is not 
    |
 20 | struct Mine(f32);
    | ^^^^^^^^^^^
-   = note: a primitive float needs nothing; any other type is opted in by putting `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type to have all five operators (`+ - * / %` and their `op=` forms)
+   = note: a primitive float needs nothing; any other type is opted in by putting `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type to have all five operators (`+ - * / %` and their `op=` forms) and `Sum` and `Product`, by value and by reference
    = note: a type can implement one marked trait, and that `impl` is its one opt-in
    = note: if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats only and cannot be extended: bound on a float trait of your own carrying `#[algebraic_float]` instead
 help: the following other types implement trait `reassoc::__private::AlgebraicFloat<X>`

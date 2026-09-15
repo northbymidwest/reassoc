@@ -116,6 +116,12 @@ reverts to a worse result if undone.
 - Macros are opaque (`strict!` depends on it) except the std expression macros
   (`LISTED_MACROS` in `rewrite.rs`), matched on the last path segment and only
   when the arguments parse as expressions; `macros = false` turns it off.
+- `.sum()` / `.product()` are the other name-matched rule (`reduction_fn`):
+  no arguments, at most one type argument, any receiver; `reductions = false` turns
+  it off. Dispatch is on the output type (`SumOf`/`ProductOf<Item, Tag>`);
+  floats fold from `-0.0`/`1.0` with the algebraic op, `Option`/`Result` are
+  concrete, the marker carries all four bounds so a bignum opt-in needs
+  `Sum`/`Product` by value and by reference. Not `const` under `const-fn`.
 - `unparen` strips groups, then exactly one paren layer.
 - A non-float literal, or a cast to an integer type, on either side leaves the
   operation native. Do not widen to all literals (drops algebraic on float

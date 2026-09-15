@@ -344,6 +344,72 @@ pub fn plain_dot_loop_f32(a: &[f32], b: &[f32]) -> f32 {
     }
     sum
 }
+// ---- iterator reductions ----
+//
+// `.sum()` and `.product()` become `ops::sum` / `ops::product`, whose float
+// impls are the fold `core` writes with the algebraic operator in place of
+// the strict one; the twins are that fold by hand. `plain_sum_iter_f32` is
+// `Iterator::sum` itself, the strict negative control, and the `-O3` check
+// below asks that the algebraic sum vectorize where it does not.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_sum_iter_f32(v: &[f32]) -> f32 {
+    v.iter().sum()
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_sum_iter_f32(v: &[f32]) -> f32 {
+    v.iter().fold(-0.0f32, |acc, x| acc.algebraic_add(*x))
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn plain_sum_iter_f32(v: &[f32]) -> f32 {
+    v.iter().sum()
+}
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_product_iter_f64(v: &[f64]) -> f64 {
+    v.iter().copied().product()
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_product_iter_f64(v: &[f64]) -> f64 {
+    v.iter()
+        .copied()
+        .fold(1.0f64, |acc, x| acc.algebraic_mul(x))
+}
+/// A dot product as `map` then `sum`, the receiver rewritten before the call.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_map_sum_f32(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_map_sum_f32(a: &[f32], b: &[f32]) -> f32 {
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| (*x).algebraic_mul(*y))
+        .fold(-0.0f32, |acc, p| acc.algebraic_add(p))
+}
+/// The turbofish form, and an `Option` output, which goes to `core`'s own
+/// short-circuiting sum: the twin is that call, so this pins that dispatch
+/// adds nothing on the way to it.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_sum_option_f32(v: &[Option<f32>]) -> Option<f32> {
+    v.iter().copied().sum::<Option<f32>>()
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_sum_option_f32(v: &[Option<f32>]) -> Option<f32> {
+    v.iter().copied().sum::<Option<f32>>()
+}
+
 // ---- generic code over a user float trait (`#[algebraic_float]`) ----
 //
 // The dispatch path is the same sealed-generic float impl the concrete

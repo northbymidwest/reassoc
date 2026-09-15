@@ -62,6 +62,31 @@ output through the blanket would see `{integer}` fall back to `i32` first and
 fail with `E0271`, the hazard that once argued against associated-type
 outputs, in a new place.
 
+**The reductions dispatch on the output type**: `SumOf<Item, Tag>` and
+`ProductOf<Item, Tag>` are implemented for the output, as `core::iter::Sum`
+is, with the item and the tag as parameters; `ops::sum<S, I, T>` is bounded
+`S: SumOf<I::Item, T>`. The floats fold from `core`'s identities (`-0.0`,
+`1.0`) with `alg_add` / `alg_mul`, generic over `Float` under `FloatTag` so
+that `let s: f64 = [1.0, 2.0].iter().sum()` resolves the literals as
+natively; the integers call `core`'s own under `IntTag`; `Option` and
+`Result` are concrete under the default tag, as `String`'s `+` is, since
+neither is marked and both are what `core` sums *into*; every marked type
+goes through the blanket to its own `Sum` / `Product`. Unannotated, the
+call is `E0283` with two candidates listed where `core` lists ninety. The
+marker (`AlgebraicFloat`) carries the four bounds (`Self` and `&Self`, each
+reduction) so generic code over a marked trait may `.sum()`; the price is
+that a bignum opted in on its `impl` needs `Sum` and `Product` by value and
+by reference, which `rug`, `num-bigint` and `half` all have, and a type
+without fails at the opt-in naming the one it lacks
+(`tests/ui/algebraic_float_missing_sum.rs`). Not `const` under `const-fn`:
+there is no const `Iterator::fold` to build the float fold on, and the two
+functions are plain `fn` in both configurations. Codegen: the fold through
+dispatch is the hand-written fold at every level (`sugar_sum_iter_f32`,
+`sugar_product_iter_f64`, `sugar_map_sum_f32` in the matrix), the strict
+`Iterator::sum` is the negative control, and at `-O3` the algebraic sum must
+vectorize where it does not. Adding the four bounds and the float impls
+moved no instruction in any existing pair.
+
 **A float or integer on the left of an opted-in type is a separate blanket,
 per concrete primitive, under the default tag.** `2.0 * v` is `MulRhs<f32, ..>
 for V` and `n * v` is `MulRhs<u32, ..> for V`, and `f32: Passthrough<()>`
@@ -143,6 +168,25 @@ the one argument that is an expression. A listed name whose arguments do not
 parse is left whole, so a user macro sharing a std name keeps its grammar
 unless it takes expressions and reads their tokens. `strict!` is never on the
 list; `macros = false` turns the entry off.
+
+**`.sum()` and `.product()` are the second name-matched exception**, since
+0.15.0. Inside a scope, `v.iter().sum::<f32>()` was the one reduction that
+stayed strict: `Sum for f32` is a fold over `+` written in `core`, which the
+rewriter never sees, so a kernel whose loop vectorized had a serial chain
+of scalar adds the moment it was spelled as an iterator (kurbo's adoption
+found 84 operators out of reach in `const fn`s and this beside them).
+Measured on this host at `-O3`: `Iterator::sum` over `&[f32]` is sixteen
+dependent `fadd`s per unrolled iteration; the same call rewritten is four
+`fadd.4s` accumulators, and the linker folds it into the hand-written
+algebraic fold as identical code. The rule is a method call named `sum` or
+`product`, no arguments, at most one type argument, on any receiver; the
+receiver's type is unknowable to a macro, so a `sum(&self)` on a
+non-iterator is caught too and fails at `ops::sum`'s `Iterator` bound
+(`tests/ui/sum_on_non_iterator.rs`, `c16` in `diag-compare`). `reductions = false`
+is the opt-out, and a `sum` with arguments is never matched. The turbofish
+travels as the dispatch function's first type parameter
+(`ops::sum::<S, _, _>`), so `iter.sum::<f32>()` needs no annotation it did
+not need before.
 
 **`unparen` strips invisible groups, then exactly one paren layer.** Groups are
 what a `macro_rules!` `$e:expr` arrives in; not looking through them made

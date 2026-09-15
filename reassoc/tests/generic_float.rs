@@ -120,6 +120,25 @@ local_ops! {
     Div div / DivAssign div_assign /=;
     Rem rem % RemAssign rem_assign %=;
 }
+// The marker also asks for the two reductions, by value and by reference.
+macro_rules! local_reduce {
+    ($($t:ident $m:ident $start:literal $op:tt;)*) => {$(
+        impl core::iter::$t for Local {
+            fn $m<I: Iterator<Item = Local>>(iter: I) -> Local {
+                iter.fold(Local(Box::new($start)), |a, b| a $op b)
+            }
+        }
+        impl<'a> core::iter::$t<&'a Local> for Local {
+            fn $m<I: Iterator<Item = &'a Local>>(iter: I) -> Local {
+                iter.fold(Local(Box::new($start)), |a, b| a $op b.clone())
+            }
+        }
+    )*};
+}
+local_reduce! {
+    Sum sum 0.0 +;
+    Product product 1.0 *;
+}
 #[passthrough]
 impl Wide for Local {
     fn zero() -> Local {
@@ -266,4 +285,38 @@ mod alias {
         assert_eq!(horner(&[1.0f32, 2.0, 3.0], 2.0), 11.0);
         assert_eq!(horner(&[1.0f64, 2.0, 3.0], 2.0), 11.0);
     }
+}
+
+// `.sum()` and `.product()` on a bare type parameter: the marker carries the
+// two reductions as well as the ten operators, so generic code that sums
+// is rewritten like concrete code. `Float` has no `Sum` bound of its own,
+// so these compile only through the marker.
+#[algebraic]
+fn total<T: Float>(v: &[T]) -> T {
+    v.iter().sum()
+}
+#[algebraic]
+fn total_owned<T: Float>(v: Vec<T>) -> T {
+    v.into_iter().sum()
+}
+#[algebraic]
+fn product<T: Float>(v: &[T]) -> T {
+    v.iter().product()
+}
+#[algebraic]
+fn total_wide<T: Wide>(v: &[T]) -> T {
+    v.iter().sum()
+}
+
+#[test]
+fn reductions_over_a_type_parameter() {
+    assert_eq!(total(&[1.0f32, 2.0, 4.0]), 7.0);
+    assert_eq!(total(&[1.0f64, 2.0, 4.0]), 7.0);
+    assert_eq!(total_owned(vec![1.0f32, 2.0, 4.0]), 7.0);
+    assert_eq!(product(&[1.0f64, 2.0, 4.0]), 8.0);
+    assert_eq!(total_wide(&[Big::new(1.0), Big::new(2.0)]), Big::new(3.0));
+    assert_eq!(
+        total_wide(&[Local(Box::new(1.0)), Local(Box::new(2.0))]),
+        Local(Box::new(3.0))
+    );
 }

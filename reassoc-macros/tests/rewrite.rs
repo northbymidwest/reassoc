@@ -172,3 +172,81 @@ fn syn_never_puts_attributes_on_a_binary_node() {
         Assert(src).visit_item_fn_mut(&mut f);
     }
 }
+
+// ---- `.sum()` / `.product()` ----
+//
+// The emission shape for the two reductions, which `reassoc/tests/reduce.rs`
+// then proves observable by compiling. Here: the exact tokens, since a
+// turbofish must travel as the *first* type argument and nothing else about
+// the call may change.
+
+#[test]
+fn sum_and_product_calls_become_dispatch_calls() {
+    let out = rewritten("fn f(v: &[f32]) -> f32 { v.iter().sum() }");
+    assert!(
+        out.contains(":: reassoc :: __private :: ops :: sum (v . iter ())"),
+        "{out}"
+    );
+    let out = rewritten("fn f(v: &[f32]) -> f32 { v.iter().product() }");
+    assert!(
+        out.contains(":: reassoc :: __private :: ops :: product (v . iter ())"),
+        "{out}"
+    );
+}
+
+#[test]
+fn a_turbofish_on_sum_becomes_the_first_type_argument() {
+    let out = rewritten("fn f(v: &[f32]) -> f32 { v.iter().sum::<f32>() }");
+    assert!(
+        out.contains("ops :: sum :: < f32 , _ , _ > (v . iter ())"),
+        "{out}"
+    );
+    let out = rewritten("fn f(v: &[f32]) -> f32 { v.iter().product::<_>() }");
+    assert!(
+        out.contains("ops :: product :: < _ , _ , _ > (v . iter ())"),
+        "{out}"
+    );
+}
+
+#[test]
+fn a_sum_with_arguments_or_a_different_turbofish_shape_is_left_alone() {
+    // `Iterator::sum` takes nothing: a `sum(x)` is some other method.
+    let out = rewritten("fn f(g: G) -> f32 { g.sum(1) }");
+    assert!(!out.contains("ops :: sum"), "{out}");
+    // Two type arguments cannot be `Iterator::sum` either.
+    let out = rewritten("fn f(g: G) -> f32 { g.sum::<f32, u8>() }");
+    assert!(!out.contains("ops :: sum"), "{out}");
+}
+
+#[test]
+fn the_receiver_is_rewritten_before_the_call() {
+    let out = rewritten("fn f(v: &[f32], k: f32) -> f32 { v.iter().map(|x| x * k).sum() }");
+    assert!(
+        out.contains(
+            "ops :: sum (v . iter () . map (| x | :: reassoc :: __private :: ops :: mul (x , k)))"
+        ),
+        "{out}"
+    );
+}
+
+#[test]
+fn a_redundant_paren_layer_around_the_receiver_is_stripped() {
+    let out = rewritten("fn f(v: &[f32]) -> f32 { (v.iter()).sum() }");
+    assert!(out.contains("ops :: sum (v . iter ())"), "{out}");
+}
+
+#[test]
+fn reductions_false_leaves_both_calls_alone() {
+    let scope = scope::Scope::parse(quote::quote!(reductions = false)).unwrap();
+    let mut f: syn::ItemFn = syn::parse_str(
+        "fn f(v: &[f32]) -> f32 { v.iter().sum::<f32>() + v.iter().product::<f32>() }",
+    )
+    .unwrap();
+    Rewriter::from_scope(scope).visit_item_fn_mut(&mut f);
+    let out = f.to_token_stream().to_string();
+    assert!(out.contains("v . iter () . sum :: < f32 > ()"), "{out}");
+    assert!(out.contains("v . iter () . product :: < f32 > ()"), "{out}");
+    // The `+` between them is still rewritten: the switch is about the two
+    // calls, nothing else.
+    assert!(out.contains("ops :: add"), "{out}");
+}

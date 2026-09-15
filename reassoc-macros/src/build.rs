@@ -52,6 +52,33 @@ pub fn call(
     })
 }
 
+/// `func::<first, _, _>`: a turbofish on the path's last segment, the given
+/// type first and then `infer` underscores, every token but the type at
+/// `span`.
+pub fn turbofish(span: Span, func: Expr, first: syn::Type, infer: usize) -> Expr {
+    let Expr::Path(mut path) = func else {
+        unreachable!("`turbofish` is applied to a path built by `path`");
+    };
+    let mut args: Punctuated<syn::GenericArgument, Token![,]> = Punctuated::new();
+    args.push(syn::GenericArgument::Type(first));
+    for _ in 0..infer {
+        args.push(syn::GenericArgument::Type(syn::Type::Infer(
+            syn::TypeInfer {
+                attrs: Vec::new(),
+                underscore_token: Token![_](span),
+            },
+        )));
+    }
+    let last = path.path.segments.last_mut().expect("a path has a segment");
+    last.arguments = syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+        colon2_token: Some(Token![::](span)),
+        lt_token: Token![<](span),
+        args,
+        gt_token: Token![>](span),
+    });
+    Expr::Path(path)
+}
+
 /// `&mut place`.
 pub fn ref_mut(span: Span, place: Expr) -> Expr {
     Expr::Reference(syn::ExprReference {

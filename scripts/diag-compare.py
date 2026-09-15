@@ -62,6 +62,12 @@ DIVERGENT = {
         " that would satisfy it is this crate's internals, not a contract to"
         " write into a signature",
     ),
+    "c16_sum_on_non_iterator": (
+        "strict",
+        "a zero-argument `sum` method on a type that is not an iterator."
+        " `.sum()` and `.product()` are matched by name, the receiver's type"
+        " being unknown to a macro; `#[algebraic(reductions = false)]` is the way out",
+    ),
     "c15_vec_index_compound_assign": (
         "lenient",
         "the right-hand side is bound before the place, so `index` runs before"

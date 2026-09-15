@@ -11,7 +11,7 @@ use crate::traits::{
 };
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
-use crate::traits::{IntTag, Passthrough};
+use crate::traits::{IntTag, Passthrough, ProductOf, SumOf};
 
 mod sealed {
     pub trait Sealed {}
@@ -91,6 +91,30 @@ macro_rules! plain_int_op_k {
         }
     };
 }
+
+// `iter.sum::<I>()` and `iter.product::<I>()`: `core`'s own, which panic on
+// overflow in a debug build exactly as the operators do. Under `IntTag`
+// like the operators, so that `{integer}` meets one candidate.
+macro_rules! plain_int_reduce {
+    ($trait:ident, $method:ident, $std:ident, $call:ident) => {
+        impl<I: Int + core::iter::$std<I>> $trait<I, IntTag> for I {
+            #[inline(always)]
+            #[track_caller]
+            fn $method<It: Iterator<Item = I>>(iter: It) -> I {
+                iter.$call()
+            }
+        }
+        impl<'a, I: Int + core::iter::$std<&'a I>> $trait<&'a I, IntTag> for I {
+            #[inline(always)]
+            #[track_caller]
+            fn $method<It: Iterator<Item = &'a I>>(iter: It) -> I {
+                iter.$call()
+            }
+        }
+    };
+}
+plain_int_reduce!(SumOf, sum_of, Sum, sum);
+plain_int_reduce!(ProductOf, product_of, Product, product);
 
 plain_int_op!(AddRhs, add_rhs, AddAssignRhs, add_assign_rhs, +, +=);
 plain_int_op!(SubRhs, sub_rhs, SubAssignRhs, sub_assign_rhs, -, -=);
