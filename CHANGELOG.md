@@ -12,35 +12,45 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Added
 
-- **`.sum()` and `.product()` are rewritten.** Inside an algebraic scope
-  `iter.sum::<f32>()` was the one reduction that stayed strict: `Sum for
-  f32` is a fold over `+` written in `core`, out of the rewriter's reach,
-  so a kernel spelled as an iterator kept a serial chain of scalar adds
-  where the loop form vectorized. A call named `sum` or `product`, with no
-  arguments and at most one type argument, now becomes `ops::sum` /
-  `ops::product` (the turbofish carried as the output type), dispatched on
-  the output: `f32` and `f64` fold with the algebraic operator from `core`'s
-  identities (`-0.0`, `1.0`), which lets the reduction vectorize
-  (`examples/codegen_matrix.rs`: the sum through dispatch is the hand-written
-  algebraic fold, and at `-O3` it is a vector reduction where `Iterator::sum`
-  is not); integers, `Option`, `Result`, `Duration`, `Wrapping`, `Saturating`
-  and every opted-in type go through their own `Sum` / `Product`, unchanged;
-  a type parameter bounded by an `#[algebraic_float]` trait reaches the same
-  impls. Matched by name, like the std macros, so a zero-argument `sum`
-  method on a type that is not an iterator is rewritten too and fails with
-  "is not an iterator"; `docs/limitations.md` has the rule.
-- **`#[algebraic(reductions = false)]`** leaves `.sum()` and `.product()` as
-  written in that scope.
+- **`.sum()`, `.product()` and `.powi(n)` are rewritten.** Inside an
+  algebraic scope `iter.sum::<f32>()` was the one reduction that stayed
+  strict: `Sum for f32` is a fold over `+` written in `core`, out of the
+  rewriter's reach, so a kernel spelled as an iterator kept a serial chain
+  of scalar adds where the loop form vectorized; `f32::powi` likewise is an
+  intrinsic whose multiplies carry no flags. A call named `sum` or
+  `product` with no arguments and at most one type argument, or `powi` with
+  exactly one argument, now becomes a method call on a hidden extension
+  trait (the turbofish carried as the output type): `f32` and `f64` fold
+  with the algebraic operator from `core`'s identities (`-0.0`, `1.0`),
+  which lets the reduction vectorize, and `powi` is square-and-multiply
+  with the algebraic multiply; integers, `Option`, `Result`, `Duration`,
+  `Wrapping`, `Saturating` and every opted-in type go through their own
+  `Sum` / `Product`, unchanged; a type parameter bounded by an
+  `#[algebraic_float]` trait reaches the same impls. `examples/codegen_matrix.rs`
+  pins each against its hand-written twin and against the strict call as a
+  negative control, and at `-O3` the algebraic sum is a vector reduction
+  where `Iterator::sum` is not. A *method* call rather than a function so
+  that a `&mut` iterator receiver is reborrowed and a `&f32` receiver of
+  `powi` auto-derefs, as natively. Matched by name, like the std macros, so
+  a zero-argument `sum` method on a type that is not an iterator, or a
+  `powi` of an opted-in type's own, is rewritten too and fails with an error
+  naming the switch; `docs/limitations.md` has the rule.
+- **`#[algebraic(reductions = false)]`** leaves `.sum()` and `.product()`
+  as written in that scope, and **`#[algebraic(powi = false)]`** the
+  `.powi(n)` calls: one switch per rule.
 
 ### Changed
 
 - **A type opted into an `#[algebraic_float]` trait needs `Sum` and
-  `Product`, by value and by reference**, beside the five operators: the
-  hidden marker names the two reductions so that generic code over the
-  trait may `.sum()`. A type without them fails at its `#[passthrough]`
-  impl, naming the one it lacks (`tests/ui/algebraic_float_missing_sum.rs`).
-  The primitive floats need nothing, as before.
-- The unknown-parameter error for `#[algebraic(..)]` lists `sum`.
+  `Product`, by value and by reference, and a `powi(self, i32) -> Self`
+  method**, beside the five operators: the hidden marker names the two
+  reductions and `powi` so that generic code over the trait may `.sum()`
+  and `.powi(n)`. A type without them fails at its `#[passthrough]` impl,
+  naming what it lacks (`tests/ui/algebraic_float_missing_sum.rs`,
+  `algebraic_float_missing_powi.rs`). The primitive floats need nothing, as
+  before.
+- The unknown-parameter error for `#[algebraic(..)]` lists `reductions` and
+  `powi`.
 
 ## 0.14.3 - 2026-08-31
 

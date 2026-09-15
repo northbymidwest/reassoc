@@ -1,0 +1,28 @@
+error[E0599]: the method `__reassoc_powi` exists for struct `Gain`, but its trait bounds were not satisfied
+  --> tests/ui/powi_on_own_method.rs:25:7
+   |
+10 | struct Gain(f32);
+   | ----------- method `__reassoc_powi` not found for this struct because it doesn't satisfy `Gain: reassoc::__private::ops::Powi<FloatTag>` or `Gain: reassoc::impls::float::Float`
+...
+25 |     g.powi(2) * g
+   |       ^^^^
+   |
+   = note: the following trait bounds were not satisfied:
+           `Gain: reassoc::impls::float::Float`
+           which is required by `Gain: reassoc::__private::ops::Powi<FloatTag>`
+           `&Gain: reassoc::impls::float::Float`
+           which is required by `&Gain: reassoc::__private::ops::Powi<FloatTag>`
+           `&mut Gain: reassoc::impls::float::Float`
+           which is required by `&mut Gain: reassoc::__private::ops::Powi<FloatTag>`
+note: the trait `reassoc::impls::float::Float` must be implemented
+  --> src/impls/float.rs
+   |
+   |         pub $($c)* trait Float: sealed::Sealed + Copy {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+   | float_trait!();
+   | -------------- in this macro invocation
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `__reassoc_powi`, perhaps you need to implement it:
+           candidate #1: `reassoc::__private::ops::Powi`
+   = note: this error originates in the macro `float_trait_k` which comes from the expansion of the macro `float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)

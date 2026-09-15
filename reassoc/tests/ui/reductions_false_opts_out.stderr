@@ -1,15 +1,15 @@
 error[E0277]: a value of type `Summed` cannot be made by summing an iterator over elements of type `&Summed`
-  --> tests/ui/reductions_false_opts_out.rs:21:20
+  --> tests/ui/reductions_false_opts_out.rs:22:20
    |
-21 |     v.iter().sum::<Summed>() + k
+22 |     v.iter().sum::<Summed>() + k
    |              ---   ^^^^^^ value of type `Summed` cannot be made by summing a `std::iter::Iterator<Item=&Summed>`
    |              |
    |              required by a bound introduced by this call
    |
 help: the trait `Sum<&Summed>` is not implemented for `Summed`
-  --> tests/ui/reductions_false_opts_out.rs:7:1
+  --> tests/ui/reductions_false_opts_out.rs:8:1
    |
- 7 | struct Summed(f32);
+ 8 | struct Summed(f32);
    | ^^^^^^^^^^^^^
    = help: the following other types implement trait `Sum<A>`:
              `Duration` implements `Sum<&'a Duration>`
@@ -22,9 +22,9 @@ help: the trait `Sum<&Summed>` is not implemented for `Summed`
              `Saturating<u16>` implements `Sum`
            and $N others
 note: the method call chain might not have had the expected associated types
-  --> tests/ui/reductions_false_opts_out.rs:21:7
+  --> tests/ui/reductions_false_opts_out.rs:22:7
    |
-21 |     v.iter().sum::<Summed>() + k
+22 |     v.iter().sum::<Summed>() + k
    |     - ^^^^^^ `Iterator::Item` is `&Summed` here
    |     |
    |     this expression has type `&[Summed]`

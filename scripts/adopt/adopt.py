@@ -864,7 +864,17 @@ TYPE_PARAM = re.compile(r"^(?:[A-Z][A-Z0-9]?|_|\{\w+\}|Self)$")
 FOREIGN_LHS = re.compile(
     r"^error\[E0277\]: (?:cannot \w+(?: the remainder of)? |"
     r"binary assignment operation `[^`]+` cannot be applied to type |"
-    r"no `reassoc` dispatch for )`([^`]+)`",
+    r"no `reassoc` dispatch for |"
+    # `.sum()` / `.product()` into a foreign type not opted in.
+    r"a value of type )`([^`]+)`",
+    re.M,
+)
+# `.sum()`, `.product()` or `.powi(n)` matched by name on a type that has a
+# method of that name and is not what the rewrite expects: not an opt-in
+# problem, reported as such rather than aliased.
+NAME_COLLISION = re.compile(
+    r"^error\[E0277\]: `([^`]+)` is not an iterator|"
+    r"^error\[E0599\]: the method `__reassoc_powi` exists for [^`]*`([^`]+)`",
     re.M,
 )
 
@@ -910,6 +920,11 @@ def foreign_types(log: str, local: set[str] | None = None) -> list[str]:
     foreign type (`Complex<T>`) has no form yet and is reported, not emitted."""
     local = local or set()
     seen, out, generic = set(), [], set()
+    collisions = sorted({a or b for a, b in NAME_COLLISION.findall(log)})
+    if collisions:
+        print(f"  (a `sum`, `product` or `powi` method of the type's own was matched by "
+              f"name; `#[algebraic(reductions = false)]` or `powi = false` on the function "
+              f"is the way out: {', '.join(collisions[:4])})")
     for lhs in FOREIGN_LHS.findall(log):
         ty = lhs.removeprefix("&mut ").removeprefix("&").strip()
         if "<" in ty:

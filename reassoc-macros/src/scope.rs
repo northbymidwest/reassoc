@@ -7,8 +7,10 @@ pub struct Scope {
     /// Enter the arguments of the std macros whose arguments are
     /// expressions (`assert!`, `println!`, `vec!`, ..).
     pub macros: bool,
-    /// Rewrite `.sum()` and `.product()` calls into the dispatch layer.
+    /// Rewrite `.sum()` and `.product()` into the dispatch layer.
     pub reductions: bool,
+    /// Rewrite `.powi(n)` into the dispatch layer.
+    pub powi: bool,
     pub skip: bool,
 }
 
@@ -25,6 +27,7 @@ impl Default for Scope {
             closures: true,
             macros: true,
             reductions: true,
+            powi: true,
             skip: false,
         }
     }
@@ -47,6 +50,9 @@ impl Scope {
             } else if meta.path.is_ident("reductions") {
                 scope.reductions = meta.value()?.parse::<syn::LitBool>()?.value();
                 Ok(())
+            } else if meta.path.is_ident("powi") {
+                scope.powi = meta.value()?.parse::<syn::LitBool>()?.value();
+                Ok(())
             } else if meta.path.is_ident("skip") {
                 scope.skip = true;
                 Ok(())
@@ -59,7 +65,7 @@ impl Scope {
                 ))
             } else {
                 Err(meta.error(
-                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, `reductions`, or `skip`",
+                    "unknown `#[algebraic]` parameter; expected `closures`, `macros`, `reductions`, `powi`, or `skip`",
                 ))
             }
         });

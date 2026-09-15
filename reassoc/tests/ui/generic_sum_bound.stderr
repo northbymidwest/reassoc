@@ -1,0 +1,22 @@
+error[E0277]: a value of type `T` cannot be made by summing an iterator over elements of type `T`
+  --> tests/ui/generic_sum_bound.rs:10:8
+   |
+10 |     it.sum()
+   |        ^^^ value of type `T` cannot be made by summing a `std::iter::Iterator<Item=T>`
+   |
+   = note: the output type needs `Sum<T>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `T` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
+   = help: the following other types implement trait `SumOf<Item, Tag>`:
+             `F` implements `SumOf<&F, FloatTag>`
+             `F` implements `SumOf<F, FloatTag>`
+             `I` implements `SumOf<&I, IntTag>`
+             `I` implements `SumOf<I, IntTag>`
+             `S` implements `SumOf<Item, Tag>`
+note: required by a bound in `reassoc::__private::ops::Reduce::__reassoc_sum`
+  --> src/__private/ops.rs
+   |
+   |     fn __reassoc_sum<S, T>(self) -> S
+   |        ------------- required by a bound in this associated function
+...
+   |         S: SumOf<<Self as Reducible>::Item, T>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Reduce::__reassoc_sum`

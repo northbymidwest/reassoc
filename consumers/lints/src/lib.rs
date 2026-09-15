@@ -3,6 +3,7 @@
 //! deserves. The deny is on the specific lints, not the whole group, so a
 //! new pedantic lint about our *test* code cannot break the build.
 #![deny(
+    clippy::blocks_in_conditions,
     clippy::unnecessary_semicolon,
     clippy::semicolon_if_nothing_returned,
     clippy::match_single_binding,
@@ -116,4 +117,23 @@ pub fn users_tail_without_semicolon(mut x: f32, k: f32) -> f32 {
         x += k
     }
     x
+}
+
+/// The name-matched methods expand to a block (`{ use ..; recv.m() }`),
+/// which clippy's `blocks_in_conditions` would flag as the condition of an
+/// `if` or the scrutinee of a `match` if it read the expansion as user
+/// code; every position it looks at, with the block as the whole condition
+/// and as an operand of it.
+#[algebraic]
+pub fn methods_in_conditions(v: &[f32], x: f32, k: f32) -> f32 {
+    if v.iter().sum::<f32>() > k {
+        return x.powi(2);
+    }
+    if x.powi(2) > k && v.iter().product::<f32>() < k {
+        return k;
+    }
+    match v.iter().map(|y| y.powi(2)).sum::<f32>() {
+        s if s > k => s,
+        s => s + k,
+    }
 }

@@ -71,11 +71,11 @@
 //! `assert!` and friends, `panic!` and friends, the `print`/`format`/`write`
 //! families, `dbg!`, `vec!`, and the scrutinee of `matches!`. Any other macro
 //! is opaque, which is exactly what makes [`strict!`] an escape hatch.
-//! `.sum()` and `.product()` calls are rewritten as well: into `f32` or
-//! `f64` they fold with the algebraic operator, into anything else they are
-//! the type's own `Sum` / `Product`. `#[algebraic(closures = false)]`,
-//! `#[algebraic(macros = false)]` and `#[algebraic(reductions = false)]` turn
-//! those three off; `#[algebraic(skip)]` on any item (a nested item, a
+//! `.sum()`, `.product()` and `.powi(n)` calls are rewritten as well: into
+//! `f32` or `f64` the reductions fold with the algebraic operator and
+//! `powi` is algebraic multiplies, on anything else they are the type's own. `#[algebraic(closures = false)]`,
+//! `#[algebraic(macros = false)]`, `#[algebraic(reductions = false)]` and
+//! `#[algebraic(powi = false)]` turn those off; `#[algebraic(skip)]` on any item (a nested item, a
 //! container member of any kind, or a standalone `const fn`) leaves it
 //! alone.
 //!
@@ -221,7 +221,8 @@
 //! #     impl<'a> core::iter::$t<&'a Big> for Big { fn $m<I: Iterator<Item = &'a Big>>(i: I) -> Big { i.fold(Big(Box::new($start)), |a, b| a $op b.clone()) } }
 //! # )*}; }
 //! # reduce! { Sum sum 0.0 +; Product product 1.0 *; }
-//! // .. its `+ - * / %` and `op=` impls, and `Sum` / `Product` ..
+//! # impl Big { fn powi(self, n: i32) -> Big { Big(Box::new(self.0.powi(n))) } }
+//! // .. its `+ - * / %` and `op=` impls, `Sum` / `Product`, and `powi` ..
 //!
 //! #[passthrough]
 //! impl Float for Big { fn zero() -> Big { Big(Box::new(0.0)) } }
@@ -239,8 +240,9 @@
 //! The same generic body runs on `f64` and on `Big`; on `Big` the operators
 //! are its own, there being nothing algebraic about a bignum. Such a type
 //! needs all five operators with `Output = Self` and the five `op=` forms,
-//! `Sum` and `Product` by value and by reference (generic code may
-//! `.sum()`), and implements one marked trait. What the attribute writes into the
+//! `Sum` and `Product` by value and by reference and a `powi(self, i32)`
+//! method (generic code may `.sum()` and `.powi(n)`), and implements one
+//! marked trait. What the attribute writes into the
 //! trait and the `impl` is implementation detail and may change; the
 //! attribute is the contract.
 //!

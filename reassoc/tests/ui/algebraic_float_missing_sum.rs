@@ -20,6 +20,8 @@ ops! {
     Rem rem % RemAssign rem_assign %=;
 }
 
+impl NoSum { fn powi(self, n: i32) -> NoSum { NoSum(Box::new(self.0.powi(n))) } }
+
 #[algebraic_float]
 pub trait Float: Clone {}
 

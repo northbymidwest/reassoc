@@ -29,7 +29,8 @@ use traits::{
 
 /// The bound `#[algebraic_float]` appends to a user's float trait:
 /// "some type the dispatch layer can rewrite arithmetic on". Generic code
-/// bounded on that trait reaches every operator through the supertraits
+/// bounded on that trait reaches every operator, the two iterator
+/// reductions and `powi` through the supertraits
 /// here, with the dispatch tag carried as an associated type so that each
 /// implementor names the impls it already has: the primitive floats their
 /// algebraic ones under `FloatTag`, an opted-in type the marker blankets
@@ -49,8 +50,8 @@ use traits::{
     label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
     note = "a primitive float needs nothing; any other type is opted in by putting \
             `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
-            to have all five operators (`+ - * / %` and their `op=` forms) and `Sum` and \
-            `Product`, by value and by reference",
+            to have all five operators (`+ - * / %` and their `op=` forms), `Sum` and \
+            `Product` by value and by reference, and a `powi(self, i32) -> Self` method",
     note = "a type can implement one marked trait, and that `impl` is its one opt-in",
     note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
             only and cannot be extended: bound on a float trait of your own carrying \
@@ -72,6 +73,7 @@ pub trait AlgebraicFloat<X = ()>:
     + for<'a> SumOf<&'a Self, Self::Tag>
     + ProductOf<Self, Self::Tag>
     + for<'a> ProductOf<&'a Self, Self::Tag>
+    + ops::Powi<Self::Tag>
 {
     type Tag;
 }

@@ -163,8 +163,10 @@ declare_op_trait!(
     label = "value of type `{Self}` cannot be made by summing a `std::iter::Iterator<Item={Item}>`",
     note = "the output type needs `Sum<{Item}>`, and a type that is not a primitive needs \
             `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in \
-            from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` \
-            as written"
+            from another crate)",
+    note = "if `{Self}` is a generic type parameter, put `#[reassoc::algebraic_float]` on the \
+            float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), \
+            or mark the function `#[algebraic(skip)]`"
 )]
 pub trait SumOf<Item, Tag = ()>: Sized {
     /// `iter.sum::<Self>()`.
@@ -188,8 +190,10 @@ where
     label = "value of type `{Self}` cannot be made by multiplying all elements of type `{Item}` from a `std::iter::Iterator`",
     note = "the output type needs `Product<{Item}>`, and a type that is not a primitive needs \
             `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in \
-            from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` \
-            as written"
+            from another crate)",
+    note = "if `{Self}` is a generic type parameter, put `#[reassoc::algebraic_float]` on the \
+            float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), \
+            or mark the function `#[algebraic(skip)]`"
 )]
 pub trait ProductOf<Item, Tag = ()>: Sized {
     /// `iter.product::<Self>()`.

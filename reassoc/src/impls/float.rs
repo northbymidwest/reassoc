@@ -160,6 +160,47 @@ macro_rules! float_reduce {
 float_reduce!(SumOf, sum_of, NEG_ZERO, alg_add);
 float_reduce!(ProductOf, product_of, ONE, alg_mul);
 
+// `x.powi(n)`: square-and-multiply with the algebraic multiply, in the
+// order compiler-rt's `__powisf2` and LLVM's constant-exponent expansion
+// use, so the values agree with `f32::powi` wherever the multiplies are
+// not reassociated. The exponents up to four are spelled out first, in
+// the loop's own order: a constant `n` then folds to those multiplies at
+// every opt level, `-C opt-level=z` included, where the loop below would
+// not be unrolled (`sugar_powi_f32` in the codegen matrix, whose twin is
+// this by hand); the loop is the rest, inline rather than a libcall for a
+// runtime `n`. `n == 0` is `1.0` for every `x`, NaN included, as natively.
+impl<F: Float> crate::__private::ops::Powi<FloatTag> for F {
+    #[inline(always)]
+    fn __reassoc_powi(self, n: i32) -> F {
+        let x = self;
+        match n {
+            0 => return F::ONE,
+            1 => return x,
+            2 => return x.alg_mul(x),
+            3 => return x.alg_mul(x.alg_mul(x)),
+            4 => {
+                let sq = x.alg_mul(x);
+                return sq.alg_mul(sq);
+            }
+            _ => {}
+        }
+        let mut base = x;
+        let mut exp = n.unsigned_abs();
+        let mut acc = F::ONE;
+        loop {
+            if exp & 1 == 1 {
+                acc = acc.alg_mul(base);
+            }
+            exp >>= 1;
+            if exp == 0 {
+                break;
+            }
+            base = base.alg_mul(base);
+        }
+        if n < 0 { F::ONE.alg_div(acc) } else { acc }
+    }
+}
+
 macro_rules! float_left {
     ($c:tt $b:tt $t:ty; $($rhs_trait:ident, $rhs_method:ident, $std:ident, $op:tt);* $(;)?) => {$(
         float_left_one!($c $b $t; $rhs_trait, $rhs_method, $std, $op);

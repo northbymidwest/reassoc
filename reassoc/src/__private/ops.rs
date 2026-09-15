@@ -129,21 +129,84 @@ pub fn rem_assign<A, B: RemAssignRhs<A, T>, T>(a: &mut A, b: B) {
     b.rem_assign_rhs(a)
 }
 
-/// `iter.sum()` as the macros emit it: `ops::sum(iter)`, or
-/// `ops::sum::<S, _, _>(iter)` for `iter.sum::<S>()`, dispatched through
-/// [`SumOf`] on the output type, so a float folds with the algebraic add
-/// and everything else is its own `Sum`. Plain `fn` under `const-fn` too:
-/// `Iterator::fold` is not `const`.
-#[inline(always)]
-#[track_caller]
-pub fn sum<S: SumOf<I::Item, T>, I: Iterator, T>(iter: I) -> S {
-    S::sum_of(iter)
+// The name-matched methods are emitted as *method* calls on extension
+// traits, inside a block that brings the trait into scope:
+//
+//     { use ::reassoc::__private::ops::Reduce as _; iter.__reassoc_sum() }
+//
+// not as `ops::sum(iter)`. A function argument is moved, where method
+// syntax reborrows a `&mut` iterator receiver and auto-derefs a `&f32`
+// one; both compile natively, so both must here (`tests/methods.rs`,
+// `docs/design.md`).
+
+/// The methods a rewritten `.sum()` / `.product()` call. Implemented for
+/// every type, so the method is always found and a receiver that is not an
+/// iterator fails on [`Reducible`]'s bound, whose note names the way out,
+/// rather than on "no method named `__reassoc_sum`".
+pub trait Reduce: Sized {
+    /// `iter.sum::<S>()`, through [`SumOf`] on the output type.
+    #[inline(always)]
+    #[track_caller]
+    fn __reassoc_sum<S, T>(self) -> S
+    where
+        Self: Reducible,
+        S: SumOf<<Self as Reducible>::Item, T>,
+    {
+        Reducible::reduce_sum(self)
+    }
+
+    /// `iter.product::<P>()`, through [`ProductOf`] on the output type.
+    #[inline(always)]
+    #[track_caller]
+    fn __reassoc_product<P, T>(self) -> P
+    where
+        Self: Reducible,
+        P: ProductOf<<Self as Reducible>::Item, T>,
+    {
+        Reducible::reduce_product(self)
+    }
+}
+impl<X> Reduce for X {}
+
+/// An iterator, as the receiver of a rewritten `.sum()` / `.product()`.
+/// Its own trait rather than a bare `Iterator` bound so that the error on a
+/// receiver that is not one reads "required for `&Grid` to implement
+/// `reassoc::__private::ops::Reducible`, required by a bound in
+/// `Reduce::__reassoc_sum`": the chain that says the call was rewritten. A
+/// note of this trait's own naming `reductions = false` does not surface:
+/// rustc reports the leaf obligation's (`Iterator`'s) `on_unimplemented`,
+/// and `#[diagnostic::do_not_recommend]` on the impl below keeps that
+/// message and only shortens the chain (measured; `docs/design.md`).
+pub trait Reducible: Sized {
+    /// `Iterator::Item`.
+    type Item;
+    /// `Iterator::sum`, dispatched.
+    fn reduce_sum<S: SumOf<Self::Item, T>, T>(self) -> S;
+    /// `Iterator::product`, dispatched.
+    fn reduce_product<P: ProductOf<Self::Item, T>, T>(self) -> P;
+}
+impl<I: Iterator> Reducible for I {
+    type Item = I::Item;
+    #[inline(always)]
+    fn reduce_sum<S: SumOf<I::Item, T>, T>(self) -> S {
+        S::sum_of(self)
+    }
+    #[inline(always)]
+    fn reduce_product<P: ProductOf<I::Item, T>, T>(self) -> P {
+        P::product_of(self)
+    }
 }
 
-/// `iter.product()` as the macros emit it, through [`ProductOf`]; see
-/// [`sum`].
-#[inline(always)]
-#[track_caller]
-pub fn product<S: ProductOf<I::Item, T>, I: Iterator, T>(iter: I) -> S {
-    S::product_of(iter)
+/// The method a rewritten `.powi(n)` calls. The primitive floats implement
+/// it under `FloatTag` (`impls/float.rs`): square-and-multiply with the
+/// algebraic multiply, which is what `llvm.powi` expands a constant
+/// exponent to, now free to contract and reassociate with its neighbours. A
+/// type opted into an `#[algebraic_float]` trait gets an impl under its own
+/// tag from `#[passthrough]`, calling the type's own `powi`. Not for every
+/// type, so that method probing auto-derefs a `&f32` receiver as it does
+/// natively; a `powi` method of some other type's own is then "no method
+/// named `__reassoc_powi`" inside a scope (`docs/limitations.md`).
+pub trait Powi<Tag = ()>: Sized {
+    /// `self.powi(n)`.
+    fn __reassoc_powi(self, n: i32) -> Self;
 }

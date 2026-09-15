@@ -1,15 +1,8 @@
 error[E0277]: `&Grid` is not an iterator
-  --> tests/ui/sum_on_non_iterator.rs:18:5
+  --> tests/ui/sum_on_non_iterator.rs:17:5
    |
-16 | #[algebraic]
-   | ------------ required by a bound introduced by this call
-17 | fn f(g: &Grid) -> f32 {
-18 |     g.sum()
-   |     ^ `&Grid` is not an iterator
+17 |     g.sum()
+   |     ^^^^^ `&Grid` is not an iterator
    |
    = help: the trait `Iterator` is not implemented for `&Grid`
-note: required by a bound in `reassoc::__private::ops::sum`
-  --> src/__private/ops.rs
-   |
-   | pub fn sum<S: SumOf<I::Item, T>, I: Iterator, T>(iter: I) -> S {
-   |                                     ^^^^^^^^ required by this bound in `sum`
+   = note: required for `&Grid` to implement `reassoc::__private::ops::Reducible`

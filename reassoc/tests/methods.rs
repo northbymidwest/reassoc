@@ -1,9 +1,15 @@
-//! `.sum()` and `.product()` inside an algebraic scope go through the
-//! dispatch layer: a float output folds with the algebraic operators, every
-//! other output through its own `core::iter::Sum` / `Product`. `Summed`
-//! implements the two dispatch traits and not `core::iter::Sum`, so each
-//! call on it below compiles only because the call was rewritten; the
-//! opt-out direction is `tests/ui/reductions_false_opts_out.rs`.
+//! The name-matched methods. `.sum()` and `.product()` inside an algebraic
+//! scope go through the dispatch layer: a float output folds with the
+//! algebraic operators, every other output through its own
+//! `core::iter::Sum` / `Product`. `Summed` implements the two dispatch
+//! traits and not `core::iter::Sum`, so each call on it below compiles only
+//! because the call was rewritten; the opt-out direction is
+//! `tests/ui/reductions_false_opts_out.rs`. `.powi(n)` on a float is
+//! square-and-multiply with the algebraic multiply; its trait is sealed to
+//! the floats, so the rewrite is observable through the codegen matrix
+//! (`sugar_powi_f32` against its strict control) and
+//! `tests/ui/powi_on_own_method.rs`, and the tests here pin values and
+//! receiver shapes.
 #![allow(clippy::all)]
 
 use core::num::Wrapping;
@@ -169,4 +175,94 @@ fn a_sum_method_with_arguments_is_not_iterator_sum() {
     }
     let g = Grid(vec![1.0, 2.0, 3.0]);
     assert_eq!(alg!(g.sum(1)), 5.0);
+}
+
+/// Method syntax reborrows a `&mut` iterator receiver; a function argument
+/// would move it. Both shapes compile in plain Rust, so both must here.
+#[test]
+fn a_mutable_iterator_receiver_is_reborrowed_not_moved() {
+    let mut it = [1.0f32, 2.0, 4.0].into_iter();
+    let r = &mut it;
+    let first: f32 = alg!(r.sum());
+    let rest: f32 = alg!(r.sum());
+    assert_eq!((first, rest), (7.0, 0.0));
+
+    struct Stream<'a> {
+        it: &'a mut core::slice::Iter<'a, f32>,
+    }
+    impl Stream<'_> {
+        #[algebraic]
+        fn drain(&mut self) -> f32 {
+            self.it.sum()
+        }
+    }
+    let v = [1.0f32, 2.0];
+    let mut it = v.iter();
+    let mut s = Stream { it: &mut it };
+    assert_eq!(s.drain(), 3.0);
+    assert_eq!(s.drain(), 0.0);
+}
+
+#[test]
+fn powi_values_match_core() {
+    assert_eq!(alg!(3.0f32.powi(3)), 27.0);
+    assert_eq!(alg!(2.0f64.powi(-2)), 0.25);
+    assert_eq!(alg!(2.0f32.powi(10)), 1024.0);
+    assert_eq!(alg!(0.0f32.powi(0)), 1.0);
+    assert_eq!(alg!(f32::NAN.powi(0)), 1.0);
+    assert_eq!(alg!(2.0f32.powi(i32::MIN)), 0.0);
+    assert_eq!(alg!(1.5f64.powi(1)), 1.5);
+    let n = 5;
+    assert_eq!(alg!(2.0f32.powi(n)), 32.0);
+}
+
+#[test]
+fn powi_auto_derefs_its_receiver_as_natively() {
+    let x = 3.0f32;
+    let r = &x;
+    let rr = &r;
+    assert_eq!(alg!(r.powi(2)), 9.0);
+    assert_eq!(alg!(rr.powi(2)), 9.0);
+    let mut y = 2.0f64;
+    let m = &mut y;
+    assert_eq!(alg!(m.powi(3)), 8.0);
+    // The everyday shape: a borrowed item inside `map`, then a sum.
+    let v = [1.0f32, 2.0, 3.0];
+    assert_eq!(alg!(v.iter().map(|x| x.powi(2)).sum::<f32>()), 14.0);
+}
+
+/// `powi = false` is its own switch: with it, a `powi` of a type's own is
+/// called as written (with the rule on, this does not compile:
+/// `tests/ui/powi_on_own_method.rs`), while the sum beside it is still
+/// rewritten.
+#[test]
+fn powi_false_leaves_a_types_own_powi_alone() {
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    #[passthrough]
+    struct Gain(f32);
+    impl Gain {
+        fn powi(self, n: i32) -> Gain {
+            Gain(self.0.powi(n))
+        }
+    }
+    #[algebraic(powi = false)]
+    fn f(g: Gain, v: &[Summed]) -> (Gain, Summed) {
+        (g.powi(2), v.iter().sum())
+    }
+    assert_eq!(
+        f(Gain(3.0), &[Summed(1.0), Summed(2.0)]),
+        (Gain(9.0), Summed(3.0))
+    );
+}
+
+#[test]
+fn a_powi_with_another_arity_is_not_f32_powi() {
+    struct Poly(Vec<f32>);
+    impl Poly {
+        fn powi(&self, n: i32, at: f32) -> f32 {
+            self.0.iter().sum::<f32>().powi(n) * at
+        }
+    }
+    let p = Poly(vec![1.0, 2.0]);
+    assert_eq!(alg!(p.powi(2, 0.5)), 4.5);
 }

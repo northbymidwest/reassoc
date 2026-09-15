@@ -282,6 +282,14 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                     impl #impl_generics ::#krate::__private::AlgebraicFloat<#tag_path> for #self_ty #where_clause {
                         type Tag = #tag;
                     }
+                    // Generic `x.powi(n)` over the trait reaches this: the
+                    // type's own `powi`, whichever is in scope here.
+                    impl #impl_generics ::#krate::__private::ops::Powi<#tag> for #self_ty #where_clause {
+                        #[inline(always)]
+                        fn __reassoc_powi(self, n: i32) -> Self {
+                            self.powi(n)
+                        }
+                    }
                     #(#pair_impls)*
                 };
                 #item

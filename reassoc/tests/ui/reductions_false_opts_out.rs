@@ -1,6 +1,7 @@
-//! `reductions = false` leaves `.sum()` and `.product()` as written: `Summed` has
-//! the dispatch traits and no `core::iter::Sum`, so the native call must
-//! fail with E0277. The `+` beside it is still rewritten.
+//! `reductions = false` leaves `.sum()` and `.product()` as written:
+//! `Summed` has the dispatch traits and no `core::iter::Sum`, so the native
+//! call must fail with E0277. The `+` beside it is still rewritten; `powi`
+//! has a switch of its own (`tests/methods.rs`).
 use reassoc::algebraic;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

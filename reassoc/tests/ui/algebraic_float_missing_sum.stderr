@@ -1,7 +1,7 @@
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `&'a NoSum` from an iterator
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by multiplying all elements of type `&'a NoSum` from a `std::iter::Iterator`
    |
 help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
@@ -9,7 +9,8 @@ help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Product<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Product<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Product<A>`:
              `Option<T>` implements `Product<Option<U>>`
              `Result<T, E>` implements `Product<Result<U, E>>`
@@ -31,9 +32,9 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `NoSum` from an iterator
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by multiplying all elements of type `NoSum` from a `std::iter::Iterator`
    |
 help: the trait `Product` is not implemented for `NoSum`
@@ -41,7 +42,8 @@ help: the trait `Product` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Product<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Product<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Product<A>`:
              `Option<T>` implements `Product<Option<U>>`
              `Result<T, E>` implements `Product<Result<U, E>>`
@@ -63,9 +65,9 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `&'a NoSum`
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by summing a `std::iter::Iterator<Item=&'a NoSum>`
    |
 help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
@@ -73,7 +75,8 @@ help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Sum<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Sum<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Sum<A>`:
              `Duration` implements `Sum<&'a Duration>`
              `Duration` implements `Sum`
@@ -95,9 +98,9 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `NoSum`
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by summing a `std::iter::Iterator<Item=NoSum>`
    |
 help: the trait `Sum` is not implemented for `NoSum`
@@ -105,7 +108,8 @@ help: the trait `Sum` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Sum<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Sum<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Sum<A>`:
              `Duration` implements `Sum<&'a Duration>`
              `Duration` implements `Sum`
@@ -127,9 +131,9 @@ note: required by a bound in `reassoc::__private::AlgebraicFloat`
    |       ^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
 
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `&'a NoSum` from an iterator
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by multiplying all elements of type `&'a NoSum` from a `std::iter::Iterator`
    |
 help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
@@ -137,7 +141,8 @@ help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Product<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Product<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Product<A>`:
              `Option<T>` implements `Product<Option<U>>`
              `Result<T, E>` implements `Product<Result<U, E>>`
@@ -151,18 +156,18 @@ help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
    = note: required for `NoSum` to implement `for<'a> ProductOf<&'a NoSum, __ReassocOptIn>`
    = note: required for `NoSum` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_sum.rs:23:1
+  --> tests/ui/algebraic_float_missing_sum.rs:25:1
    |
-23 | #[algebraic_float]
+25 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-24 | pub trait Float: Clone {}
+26 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `NoSum` from an iterator
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by multiplying all elements of type `NoSum` from a `std::iter::Iterator`
    |
 help: the trait `Product` is not implemented for `NoSum`
@@ -170,7 +175,8 @@ help: the trait `Product` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Product<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Product<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Product<A>`:
              `Option<T>` implements `Product<Option<U>>`
              `Result<T, E>` implements `Product<Result<U, E>>`
@@ -184,18 +190,18 @@ help: the trait `Product` is not implemented for `NoSum`
    = note: required for `NoSum` to implement `ProductOf<NoSum, __ReassocOptIn>`
    = note: required for `NoSum` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_sum.rs:23:1
+  --> tests/ui/algebraic_float_missing_sum.rs:25:1
    |
-23 | #[algebraic_float]
+25 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-24 | pub trait Float: Clone {}
+26 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `&'a NoSum`
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by summing a `std::iter::Iterator<Item=&'a NoSum>`
    |
 help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
@@ -203,7 +209,8 @@ help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Sum<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Sum<&'a NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Sum<A>`:
              `Duration` implements `Sum<&'a Duration>`
              `Duration` implements `Sum`
@@ -217,18 +224,18 @@ help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
    = note: required for `NoSum` to implement `for<'a> SumOf<&'a NoSum, __ReassocOptIn>`
    = note: required for `NoSum` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_sum.rs:23:1
+  --> tests/ui/algebraic_float_missing_sum.rs:25:1
    |
-23 | #[algebraic_float]
+25 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-24 | pub trait Float: Clone {}
+26 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `NoSum`
-  --> tests/ui/algebraic_float_missing_sum.rs:27:16
+  --> tests/ui/algebraic_float_missing_sum.rs:29:16
    |
-27 | impl Float for NoSum {}
+29 | impl Float for NoSum {}
    |                ^^^^^ value of type `NoSum` cannot be made by summing a `std::iter::Iterator<Item=NoSum>`
    |
 help: the trait `Sum` is not implemented for `NoSum`
@@ -236,7 +243,8 @@ help: the trait `Sum` is not implemented for `NoSum`
    |
  8 | struct NoSum(Box<f64>);
    | ^^^^^^^^^^^^
-   = note: the output type needs `Sum<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate); `#[algebraic(reductions = false)]` leaves `.sum()` and `.product()` as written
+   = note: the output type needs `Sum<NoSum>`, and a type that is not a primitive needs `#[reassoc::passthrough]` on its definition (or on the `use` that brings it in from another crate)
+   = note: if `NoSum` is a generic type parameter, put `#[reassoc::algebraic_float]` on the float trait it is bounded by (a trait of yours implemented for `f32` and `f64`), or mark the function `#[algebraic(skip)]`
    = help: the following other types implement trait `Sum<A>`:
              `Duration` implements `Sum<&'a Duration>`
              `Duration` implements `Sum`
@@ -250,10 +258,10 @@ help: the trait `Sum` is not implemented for `NoSum`
    = note: required for `NoSum` to implement `SumOf<NoSum, __ReassocOptIn>`
    = note: required for `NoSum` to implement `reassoc::__private::AlgebraicFloat<__ReassocTag_Float>`
 note: required by a bound in `Float`
-  --> tests/ui/algebraic_float_missing_sum.rs:23:1
+  --> tests/ui/algebraic_float_missing_sum.rs:25:1
    |
-23 | #[algebraic_float]
+25 | #[algebraic_float]
    | ^^^^^^^^^^^^^^^^^^ required by this bound in `Float`
-24 | pub trait Float: Clone {}
+26 | pub trait Float: Clone {}
    |           ----- required by a bound in this trait
    = note: this error originates in the attribute macro `algebraic_float` (in Nightly builds, run with -Z macro-backtrace for more info)

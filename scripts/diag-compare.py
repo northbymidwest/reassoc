@@ -68,6 +68,16 @@ DIVERGENT = {
         " `.sum()` and `.product()` are matched by name, the receiver's type"
         " being unknown to a macro; `#[algebraic(reductions = false)]` is the way out",
     ),
+    "c18_generic_sum_bound": (
+        "strict",
+        "`.sum()` on a type parameter bounded by `Sum` alone: the same as"
+        " c13, dispatch being a trait the bare bound does not name",
+    ),
+    "c19_powi_on_own_method": (
+        "strict",
+        "a one-argument `powi` method of an opted-in type's own, matched by"
+        " name like `sum`; `#[algebraic(powi = false)]` is the way out",
+    ),
     "c15_vec_index_compound_assign": (
         "lenient",
         "the right-hand side is bound before the place, so `index` runs before"

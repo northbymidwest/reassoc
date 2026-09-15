@@ -36,6 +36,20 @@ fn linear(m: &Matrix, v: &Vector, b: &Matrix) -> (Vector, Matrix) {
     (m * v, m + b)
 }
 
+/// `.sum()` into a foreign opted-in type: the marker blanket under the
+/// `use`'s own tag, to the type's `Sum<&Vec3>`.
+#[algebraic]
+fn centroid(vs: &[Vec3]) -> Vec3 {
+    let n = vs.len() as f32;
+    vs.iter().sum::<Vec3>() * (1.0 / n)
+}
+
+#[test]
+fn foreign_type_sums_through_its_own_sum() {
+    let vs = [Vec3(1.0, 2.0, 3.0), Vec3(3.0, 2.0, 1.0)];
+    assert_eq!(centroid(&vs), Vec3(2.0, 2.0, 2.0));
+}
+
 #[test]
 fn foreign_copy_type_dispatches() {
     let p = kinematics(

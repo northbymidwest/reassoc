@@ -52,13 +52,13 @@ pub fn call(
     })
 }
 
-/// `func::<first, _, _>`: a turbofish on the path's last segment, the given
-/// type first and then `infer` underscores, every token but the type at
-/// `span`.
-pub fn turbofish(span: Span, func: Expr, first: syn::Type, infer: usize) -> Expr {
-    let Expr::Path(mut path) = func else {
-        unreachable!("`turbofish` is applied to a path built by `path`");
-    };
+/// `::<first, _, ..>`: a turbofish with the given type first and then
+/// `infer` underscores, every token but the type at `span`.
+pub fn turbofish(
+    span: Span,
+    first: syn::Type,
+    infer: usize,
+) -> syn::AngleBracketedGenericArguments {
     let mut args: Punctuated<syn::GenericArgument, Token![,]> = Punctuated::new();
     args.push(syn::GenericArgument::Type(first));
     for _ in 0..infer {
@@ -69,14 +69,79 @@ pub fn turbofish(span: Span, func: Expr, first: syn::Type, infer: usize) -> Expr
             },
         )));
     }
-    let last = path.path.segments.last_mut().expect("a path has a segment");
-    last.arguments = syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+    syn::AngleBracketedGenericArguments {
         colon2_token: Some(Token![::](span)),
         lt_token: Token![<](span),
         args,
         gt_token: Token![>](span),
+    }
+}
+
+/// `#[..] receiver.method::<..>(args..)`, the dot and parens at `span`.
+pub fn method_call(
+    span: Span,
+    receiver: Expr,
+    method: syn::Ident,
+    turbofish: Option<syn::AngleBracketedGenericArguments>,
+    args: impl IntoIterator<Item = Expr>,
+    attrs: Vec<Attribute>,
+) -> Expr {
+    Expr::MethodCall(syn::ExprMethodCall {
+        attrs,
+        receiver: Box::new(receiver),
+        dot_token: Token![.](span),
+        method,
+        turbofish,
+        paren_token: syn::token::Paren(span),
+        args: args.into_iter().collect(),
+    })
+}
+
+/// `{ #[allow(unused_imports)] use ::a::b::c as _; expr }`: a block that
+/// brings a trait into scope for the one expression, every token at `span`
+/// except the segment idents, which keep their own. The allow: on a
+/// receiver that is a type parameter the method resolves through the
+/// marker's supertrait bound and the import goes unused, which is a
+/// warning the user did nothing to deserve. The block is what lets a rewritten method call
+/// stay a *method* call: an extension trait's method gets the receiver
+/// adjustments (a `&mut` reborrow, auto-deref) that a function argument
+/// does not, and a trait method is callable by name only with the trait in
+/// scope.
+pub fn block_with_use(
+    span: Span,
+    segments: impl IntoIterator<Item = syn::Ident>,
+    expr: Expr,
+) -> Expr {
+    let mut idents: Vec<syn::Ident> = segments.into_iter().collect();
+    let last = idents.pop().expect("a path has a segment");
+    let mut tree = syn::UseTree::Rename(syn::UseRename {
+        ident: last,
+        as_token: Token![as](span),
+        rename: syn::Ident::new("_", span),
     });
-    Expr::Path(path)
+    for ident in idents.into_iter().rev() {
+        tree = syn::UseTree::Path(syn::UsePath {
+            ident,
+            colon2_token: Token![::](span),
+            tree: Box::new(tree),
+        });
+    }
+    let item = syn::Item::Use(syn::ItemUse {
+        attrs: vec![allow(span, "unused_imports")],
+        vis: syn::Visibility::Inherited,
+        use_token: Token![use](span),
+        leading_colon: Some(Token![::](span)),
+        tree,
+        semi_token: Token![;](span),
+    });
+    Expr::Block(syn::ExprBlock {
+        attrs: Vec::new(),
+        label: None,
+        block: syn::Block {
+            brace_token: syn::token::Brace(span),
+            stmts: vec![syn::Stmt::Item(item), syn::Stmt::Expr(expr, None)],
+        },
+    })
 }
 
 /// `&mut place`.

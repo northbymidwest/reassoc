@@ -43,5 +43,5 @@ mod operators;
 #[path = "../../../reassoc/tests/passthrough.rs"]
 mod passthrough;
 #[rustfmt::skip]
-#[path = "../../../reassoc/tests/reduce.rs"]
-mod reduce;
+#[path = "../../../reassoc/tests/methods.rs"]
+mod methods;

@@ -69,4 +69,5 @@ CARGO="$wrap" exec "$bin" mutants -p reassoc-macros -j "${JOBS:-3}" --output tar
   --features reassoc/unstable-algebraic-float-trait \
   --test alg --test attribute --test compound --test expressions --test operators \
   --test macros --test passthrough --test features --test dispatch --test foreign \
+  --test methods --test generic_float \
   --test edition2024 --test ui --test rewrite -- --include-ignored

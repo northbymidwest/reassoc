@@ -29,6 +29,16 @@ impl Mul<Vec3> for f32 {
         v * self
     }
 }
+impl core::iter::Sum for Vec3 {
+    fn sum<I: Iterator<Item = Vec3>>(iter: I) -> Vec3 {
+        iter.fold(Vec3(0.0, 0.0, 0.0), |a, b| a + b)
+    }
+}
+impl<'a> core::iter::Sum<&'a Vec3> for Vec3 {
+    fn sum<I: Iterator<Item = &'a Vec3>>(iter: I) -> Vec3 {
+        iter.fold(Vec3(0.0, 0.0, 0.0), |a, b| a + *b)
+    }
+}
 impl core::ops::AddAssign for Vec3 {
     fn add_assign(&mut self, o: Vec3) {
         *self = *self + o;
@@ -101,6 +111,11 @@ pub struct Big(pub Box<f64>);
 impl Big {
     pub fn new(v: f64) -> Big {
         Big(Box::new(v))
+    }
+    /// What an opt-in on a marked float trait also requires: the type's
+    /// own `powi`, which generic `x.powi(n)` dispatches to.
+    pub fn powi(self, n: i32) -> Big {
+        Big(Box::new(self.0.powi(n)))
     }
 }
 macro_rules! big_ops {

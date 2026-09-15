@@ -206,11 +206,11 @@ nested `fn`/`impl`/`mod`/`trait` items, and the arguments of the std macros
 whose arguments are expressions (`assert!`, `panic!`, `println!`, `format!`,
 `write!`, `dbg!`, `vec!` and their relatives, and the scrutinee of
 `matches!`). Any other macro is opaque, which is what makes `strict!` work.
-`.sum()` and `.product()` are rewritten too: into `f32` or `f64` they fold
-with the algebraic operator, so a reduction over an iterator vectorizes like
-the loop above; into anything else they are the type's own `Sum` /
-`Product`. Matched by name, like the macros, so a `sum()` method of your own
-on something that is not an iterator needs `reductions = false`
+`.sum()`, `.product()` and `.powi(n)` are rewritten too: into `f32` or `f64`
+a reduction folds with the algebraic operator, so it vectorizes like the loop
+above, and `powi` is algebraic multiplies; on anything else they are the
+type's own. Matched by name, like the macros, so a `sum()` or `powi()` method
+of your own on some other type needs `reductions = false` or `powi = false`
 ([Limitations](#limitations)).
 `#[algebraic(skip)]` on any item (a nested item, a container member of any
 kind, a standalone `const fn`) excludes it. A `const fn`'s own arithmetic
@@ -223,6 +223,7 @@ or a closure body, is ordinary runtime code and is rewritten as usual.
 | `closures` | `true` | `false` leaves closure bodies alone |
 | `macros` | `true` | `false` leaves every macro's arguments alone |
 | `reductions` | `true` | `false` leaves `.sum()` and `.product()` calls alone |
+| `powi` | `true` | `false` leaves `.powi(n)` calls alone |
 
 ## Correctness
 

@@ -410,6 +410,35 @@ pub fn direct_sum_option_f32(v: &[Option<f32>]) -> Option<f32> {
     v.iter().copied().sum::<Option<f32>>()
 }
 
+/// `.powi(n)` with a constant exponent: square-and-multiply with the
+/// algebraic multiply, unrolled, so the twin is those multiplies by hand
+/// (`x * x` squared, times `x`, for `n = 3`), and the following multiply
+/// may contract with them. `plain_powi_f32` is `f32::powi`, the strict
+/// control: LLVM expands it to the same multiplies, without the flags.
+#[algebraic]
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn sugar_powi_f32(x: f32, y: f32) -> f32 {
+    x.powi(3) * y + y
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn direct_powi_f32(x: f32, y: f32) -> f32 {
+    x.algebraic_mul(x.algebraic_mul(x))
+        .algebraic_mul(y)
+        .algebraic_add(y)
+}
+#[unsafe(no_mangle)]
+#[inline(never)]
+pub fn plain_powi_f32(x: f32, y: f32) -> f32 {
+    x.powi(3) * y + y
+}
+// A runtime exponent is not paired: the impl is the small-exponent arms
+// and then the loop, and after two inlining layers LLVM lays its blocks
+// out differently from the same code written by hand, the same
+// instructions in another order, which the strict O2/O3 comparison reads
+// as a difference. `tests/methods.rs` pins its values.
+
 // ---- generic code over a user float trait (`#[algebraic_float]`) ----
 //
 // The dispatch path is the same sealed-generic float impl the concrete

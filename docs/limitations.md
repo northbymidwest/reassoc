@@ -64,38 +64,62 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   across glam, whose operator bodies are `self.x.mul(rhs.x)`, reached almost
   none of its float arithmetic until those calls were spelled as operators
   (`scripts/adopt/` has an opt-in pass that does exactly that, for measuring).
-  A `methods` parameter that treats the `core::ops` method names as their
-  operators inside an algebraic scope is a potential to-do, not a decision:
-  covering them may be revisited.
-- `.sum()` and `.product()` are the one method-call shape that *is*
-  rewritten, and they are matched by name, as the std macros are: a call
-  named `sum` or `product` with no arguments and at most one type argument,
-  on any receiver. `iter.sum::<S>()` becomes `ops::sum::<S, _, _>(iter)`,
-  dispatched on the output type: `f32` and `f64` fold with the algebraic
-  operator from the identity `core` uses (`-0.0` for a sum, `1.0` for a
-  product), which is what lets the reduction vectorize; an integer,
-  `Option`, `Result`, `Duration`, `Wrapping` or opted-in output goes through
-  its own `Sum` / `Product` unchanged, and a type parameter bounded by an
-  `#[algebraic_float]` trait reaches the same impls. Two things follow from
-  matching by name. A macro does not know the receiver's type, so a
-  zero-argument `sum` method on a type that is not an iterator (ndarray's
-  `ArrayBase::sum` is one) is rewritten too and fails at the call with
-  "`&Grid` is not an iterator"; `#[algebraic(reductions = false)]` leaves both
-  calls as written in that scope, and a `sum` that takes arguments is never
-  matched. And only the method-call shape is seen: `Iterator::sum(iter)`
-  stays strict, as `a.mul(b)` does. An unannotated `let s = v.iter().sum();`
-  is `E0283` in plain Rust and here; the candidate list is shorter, and one
-  more `E0282` precedes it (`docs/diagnostics.md`). `Iterator::sum` inside a
-  dependency is that crate's code and stays strict, as before. One output is
-  dispatched but still strict: a sum or product *into* `Option<f32>` or
-  `Result<f32, E>` goes to `core`'s short-circuiting impl, whose inner fold
-  over the float is the strict one `core` wrote. Reaching it means a shunt of
-  this crate's own (stop at the first `None`, hand the rest to the float's
-  dispatched sum) under a tag of its own; not done yet.
+  Extending the name-matched rules below to the `core::ops` method names is
+  a potential to-do, not a decision: covering them may be revisited.
+- `.sum()`, `.product()` and `.powi(n)` are the method-call shapes that
+  *are* rewritten, and they are matched by name, as the std macros are: a
+  call named `sum` or `product` with no arguments and at most one type
+  argument, or `powi` with one argument and none, on any receiver. Each
+  becomes a method call on a hidden extension trait, brought into scope by
+  a `use` inside a block (`{ use ::reassoc::__private::ops::Reduce as _;
+  iter.__reassoc_sum::<S, _>() }`), and stays a *method* call for a reason:
+  a function argument is moved, where method syntax reborrows a `&mut`
+  iterator receiver (`self.it.sum()` twice on a `&mut` field) and
+  auto-derefs a `&f32` one (`.map(|x| x.powi(2))`), and both compile
+  natively. The reductions dispatch on the output type: `f32` and `f64`
+  fold with the algebraic operator from the identity `core` uses (`-0.0`
+  for a sum, `1.0` for a product), which is what lets the reduction
+  vectorize; an integer, `Option`, `Result`, `Duration`, `Wrapping` or
+  opted-in output goes through its own `Sum` / `Product` unchanged. `powi`
+  on `f32` / `f64` is square-and-multiply with the algebraic multiply, the
+  multiplies `llvm.powi` expands a constant exponent to, now free to
+  contract and reassociate with their neighbours; a runtime exponent is that
+  loop inline. A type parameter bounded by an `#[algebraic_float]` trait
+  reaches the same impls, and an opted-in bignum its own `powi`.
+
+  Four things follow from matching by name. A macro does not know the
+  receiver's type, so a zero-argument `sum` method on a type that is not an
+  iterator (ndarray's `ArrayBase::sum` is one) is rewritten too and fails at
+  the call with "`&Grid` is not an iterator", the chain below it naming
+  `Reducible` and `Reduce::__reassoc_sum`;
+  and a one-argument `powi` of an opted-in type's own fails with "the method
+  `__reassoc_powi` exists for struct `Gain`, but its trait bounds were not
+  satisfied", since that method is implemented for the floats and for
+  marked-trait opt-ins, not for every type (that is what keeps auto-deref
+  for a `&f32` receiver). `#[algebraic(reductions = false)]` leaves the two
+  reductions as written in that scope and `#[algebraic(powi = false)]` the
+  `powi` calls, each its own switch; a `sum` that takes arguments, or a
+  `powi` that takes two, is never matched. Second, only the method-call shape is
+  seen: `Iterator::sum(iter)` stays strict, as `a.mul(b)` does. Third,
+  `.sum()` on a type parameter bounded by `core::iter::Sum` alone compiles
+  in plain Rust and not here, exactly as `T: Mul<Output = T>` does not
+  (below): dispatch is a trait the bare bound does not name; the error's
+  note says to mark the float trait or `skip` the function. Fourth, an
+  unannotated `let s = v.iter().sum();` is `E0283` in plain Rust and here,
+  with a shorter candidate list (`docs/diagnostics.md`). `Iterator::sum`
+  inside a dependency is that crate's code and stays strict, as before. Two
+  outputs are dispatched but still strict: a sum or product *into*
+  `Option<f32>` or `Result<f32, E>` goes to `core`'s short-circuiting impl,
+  whose inner fold over the float is the strict one `core` wrote (reaching
+  it means a shunt of this crate's own under a tag of its own; not done
+  yet); and a `#[passthrough] type` alias of `Option<M>` makes
+  `.sum::<Option<M>>()` ambiguous (`E0283`), the concrete impl and the
+  alias's blanket both applying, the hazard every foreign opt-in of a type
+  with a concrete impl has.
 - The other float arithmetic `core` writes behind a method name stays
-  strict, since only operator tokens and the two reductions are seen. Each
-  of these is a few operators in `core`'s source, and inside a scope the
-  spelled-out form is algebraic where the call is not: `recip()` is
+  strict, since only operator tokens and the three methods above are seen.
+  Each of these is a few operators in `core`'s source, and inside a scope
+  the spelled-out form is algebraic where the call is not: `recip()` is
   `1.0 / self`, `to_degrees()` and `to_radians()` are one multiply by a
   constant, `midpoint()` is an add and a halving (through `f64` on most
   targets), `rem_euclid()` and `div_euclid()` wrap `%` and `/` with a
@@ -103,15 +127,13 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   then a multiply, `(1.0 / x) * y` folds to one division; the single
   multiply in `to_radians` and the like has nothing to reassociate with
   until it meets a neighbour, so the cost is a missed contraction, not a
-  missed reduction. Not gaps, also measured or by construction: `powi(2)`
-  expands to the same multiplies as `x * x` and contracts with what follows;
-  `mul_add` is an explicit FMA; `sqrt`, `abs`, `copysign`, `min`, `max` and
-  `clamp` are exact and have no algebraic form; `sin`, `exp`, `powf` and
-  the rest are libm calls with nothing to rewrite to. Covering the first
-  group is the same shape as the reductions (a name-matched rule and a
-  dispatch trait per method), and `recip` is the only one of them that
-  changes generated code on its own; it may be revisited.
-
+  missed reduction. Not gaps, also measured or by construction: `mul_add`
+  is an explicit FMA; `sqrt`, `abs`, `copysign`, `min`, `max` and `clamp`
+  are exact and have no algebraic form; `sin`, `exp`, `powf` and the rest
+  are libm calls with nothing to rewrite to. Covering the first group is the
+  same shape as `powi` (a name-matched rule and a dispatch trait per
+  method), and `recip` is the only one of them that changes generated code
+  on its own; it may be revisited.
 - User-defined types need a one-line opt-in, `#[passthrough]` on the
   definition. After it, every operator the type implements is
   dispatched (any right-hand type, any output, the `op=` forms, references
@@ -276,9 +298,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   tags, and a concrete operator on the type is then `E0283`, the hazard a
   foreign opt-in already has). Three
   limits follow. The type needs all five operators with `Output = Self` and
-  the five `op=` forms, and `Sum` and `Product` by value and by reference,
-  since the bound names every one and generic code may `.sum()`
-  (`tests/ui/algebraic_float_missing_sum.rs` is the error without). It implements one
+  the five `op=` forms, `Sum` and `Product` by value and by reference, and a
+  `powi(self, i32) -> Self` method reachable where the `impl` is written,
+  since the bound names every one and generic code may `.sum()` and
+  `.powi(n)` (`tests/ui/algebraic_float_missing_sum.rs` and
+  `algebraic_float_missing_powi.rs` are the errors without). It implements one
   marked trait, for the same two-tags reason. And the impl form names a
   hidden type the trait form put beside the trait, through the trait's own
   path: `impl a::Float for Big` works anywhere, `impl Float for Big` beside

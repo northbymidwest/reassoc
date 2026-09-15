@@ -75,6 +75,7 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
             ("sugar_chain_compound8", "plain_chain_compound8"),
             ("sugar_dot_loop_f32", "plain_dot_loop_f32"),
             ("sugar_sum_iter_f32", "plain_sum_iter_f32"),
+            ("sugar_powi_f32", "plain_powi_f32"),
         ] {
             let sb = body(s, &fns, &aliases).unwrap_or_default();
             let pb = body(p, &fns, &aliases).unwrap_or_default();

@@ -16,8 +16,10 @@ pub struct Rewriter {
     pub closures: bool,
     /// Enter the arguments of the std macros whose arguments are expressions.
     pub macros: bool,
-    /// Rewrite `.sum()` and `.product()` into `ops::sum` / `ops::product`.
+    /// Rewrite `.sum()` and `.product()`.
     pub reductions: bool,
+    /// Rewrite `.powi(n)`.
+    pub powi: bool,
     /// Errors to report alongside the rewritten item: a `const fn` whose
     /// arithmetic would have been rewritten.
     pub errors: Vec<syn::Error>,
@@ -25,8 +27,8 @@ pub struct Rewriter {
     /// expansion: with `resolve-crate-name` the lookup reads the manifest,
     /// and it used to run once per operator.
     krate: String,
-    /// Operators rewritten so far (binary, compound, and the two iterator
-    /// reductions), for `REASSOC_TRACE`.
+    /// Operators rewritten so far (binary, compound, and the name-matched
+    /// method calls), for `REASSOC_TRACE`.
     pub ops: usize,
     /// Set while visiting the parts of a `const fn` body that a `const fn`
     /// actually evaluates. An operator met there cannot become a call
@@ -49,6 +51,7 @@ impl Rewriter {
             closures: true,
             macros: true,
             reductions: true,
+            powi: true,
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
@@ -62,6 +65,7 @@ impl Rewriter {
             closures: scope.closures,
             macros: scope.macros,
             reductions: scope.reductions,
+            powi: scope.powi,
             errors: Vec::new(),
             krate: crate::krate::name(),
             ops: 0,
@@ -301,11 +305,18 @@ impl VisitMut for Rewriter {
         visit_mut::visit_expr_mut(self, expr);
         reparen_tight_positions(expr);
 
+        // A `const fn` cannot call `Iterator::sum` or `f32::powi` either, so
+        // in const context the call stays as written and rustc's own error
+        // stands; nothing is recorded, the function being wrong already.
         if let Expr::MethodCall(call) = expr
-            && self.reductions
-            && let Some(func) = reduction_fn(call)
+            && !self.const_context
+            && let Some(method) = matched_method(call)
+            && match method {
+                Matched::Sum | Matched::Product => self.reductions,
+                Matched::Powi => self.powi,
+            }
         {
-            return self.reduce(expr, func);
+            return self.method_call(expr, method);
         }
 
         let Expr::Binary(binary) = expr else { return };
@@ -422,26 +433,52 @@ impl VisitMut for Rewriter {
 }
 
 impl Rewriter {
-    /// `iter.sum()` becomes `ops::sum(iter)`, and `iter.sum::<S>()` becomes
-    /// `ops::sum::<S, _, _>(iter)`: the output type is the dispatch
-    /// function's first parameter so a turbofish travels as written. The
-    /// receiver was visited already; the method's own attributes move onto
-    /// the call. Spanned at the method name, as an operator is at its token.
-    fn reduce(&mut self, expr: &mut Expr, func: &'static str) {
+    /// `iter.sum()` becomes `{ use ::reassoc::__private::ops::Reduce as _;
+    /// iter.__reassoc_sum() }`, `iter.sum::<S>()` carries the turbofish as
+    /// `__reassoc_sum::<S, _>`, `x.powi(n)` becomes the same shape on
+    /// `Powi`. A method call rather than `ops::sum(iter)`: a function
+    /// argument is moved, where method syntax reborrows a `&mut` receiver
+    /// and auto-derefs a `&f32` one, and both shapes compile natively
+    /// (`tests/methods.rs`). The receiver is kept exactly as written,
+    /// parentheses included, since it stays in receiver position where they
+    /// may be load-bearing (`(0..n).sum()`); it was visited already. The
+    /// call's own attributes move onto the new call. Spanned at the method
+    /// name, as an operator is at its token.
+    fn method_call(&mut self, expr: &mut Expr, method: Matched) {
         let Expr::MethodCall(call) = core::mem::replace(expr, Expr::PLACEHOLDER) else {
             unreachable!("matched `Expr::MethodCall` above");
         };
         let span = call.method.span();
-        let receiver = unparen(*call.receiver);
-        let mut ops_fn = self.ops_fn(span, func);
-        if let Some(turbofish) = call.turbofish {
+        let (trait_name, method_name) = match method {
+            Matched::Sum => ("Reduce", "__reassoc_sum"),
+            Matched::Product => ("Reduce", "__reassoc_product"),
+            Matched::Powi => ("Powi", "__reassoc_powi"),
+        };
+        let turbofish = call.turbofish.map(|turbofish| {
             let Some(syn::GenericArgument::Type(output)) = turbofish.args.into_iter().next() else {
-                unreachable!("`reduction_fn` accepted exactly one type argument");
+                unreachable!("`matched_method` accepted exactly one type argument");
             };
-            ops_fn = build::turbofish(span, ops_fn, output, 2);
-        }
+            build::turbofish(span, output, 1)
+        });
         self.ops += 1;
-        *expr = build::call(span, ops_fn, [receiver], call.attrs);
+        let inner = build::method_call(
+            span,
+            *call.receiver,
+            syn::Ident::new(method_name, span),
+            turbofish,
+            call.args,
+            call.attrs,
+        );
+        *expr = build::block_with_use(
+            span,
+            [
+                syn::Ident::new(&self.krate, span),
+                syn::Ident::new("__private", span),
+                syn::Ident::new("ops", span),
+                syn::Ident::new(trait_name, span),
+            ],
+            inner,
+        );
     }
 
     /// Enters the arguments of a listed std macro. Only a macro whose last
@@ -564,30 +601,46 @@ fn is_listed_macro(path: &syn::Path) -> bool {
         .is_some_and(|s| LISTED_MACROS.iter().any(|m| s.ident == m))
 }
 
-/// The dispatch function for a method call that has `Iterator::sum`'s or
-/// `Iterator::product`'s shape: that name, no arguments, and at most one
-/// type argument. Matched by name, as the std macros are: the receiver's
-/// type is not known here, so a `sum` method on some other type is caught
-/// too (and fails to compile, with the error naming the receiver as not an
-/// iterator); `reductions = false` turns the rule off.
-fn reduction_fn(call: &syn::ExprMethodCall) -> Option<&'static str> {
-    let func = if call.method == "sum" {
-        "sum"
+/// The method calls matched by name.
+#[derive(Clone, Copy)]
+enum Matched {
+    Sum,
+    Product,
+    Powi,
+}
+
+/// A method call with `Iterator::sum`'s, `Iterator::product`'s or
+/// `f32::powi`'s shape: that name, and the arity of the std method (no
+/// arguments and at most one type argument for the reductions; exactly one
+/// argument and no type argument for `powi`). Matched by name, as the std
+/// macros are: the receiver's type is not known here, so a `sum` or `powi`
+/// method on some other type is caught too and fails to compile
+/// (`docs/limitations.md`); `reductions = false` and `powi = false` turn the
+/// two rules off.
+fn matched_method(call: &syn::ExprMethodCall) -> Option<Matched> {
+    let type_args = call.turbofish.as_ref().map(|t| {
+        let all_types = t
+            .args
+            .iter()
+            .all(|a| matches!(a, syn::GenericArgument::Type(_)));
+        if all_types { t.args.len() } else { usize::MAX }
+    });
+    let matched = if call.method == "sum" {
+        Matched::Sum
     } else if call.method == "product" {
-        "product"
+        Matched::Product
+    } else if call.method == "powi" {
+        Matched::Powi
     } else {
         return None;
     };
-    if !call.args.is_empty() {
-        return None;
-    }
-    if let Some(turbofish) = &call.turbofish
-        && !(turbofish.args.len() == 1
-            && matches!(turbofish.args[0], syn::GenericArgument::Type(_)))
-    {
-        return None;
-    }
-    Some(func)
+    let shape_ok = match matched {
+        Matched::Sum | Matched::Product => {
+            call.args.is_empty() && matches!(type_args, None | Some(1))
+        }
+        Matched::Powi => call.args.len() == 1 && type_args.is_none(),
+    };
+    shape_ok.then_some(matched)
 }
 
 /// The dispatch function for an arithmetic operator: `ops::add` for `+`,

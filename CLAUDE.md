@@ -116,12 +116,17 @@ reverts to a worse result if undone.
 - Macros are opaque (`strict!` depends on it) except the std expression macros
   (`LISTED_MACROS` in `rewrite.rs`), matched on the last path segment and only
   when the arguments parse as expressions; `macros = false` turns it off.
-- `.sum()` / `.product()` are the other name-matched rule (`reduction_fn`):
-  no arguments, at most one type argument, any receiver; `reductions = false` turns
-  it off. Dispatch is on the output type (`SumOf`/`ProductOf<Item, Tag>`);
-  floats fold from `-0.0`/`1.0` with the algebraic op, `Option`/`Result` are
-  concrete, the marker carries all four bounds so a bignum opt-in needs
-  `Sum`/`Product` by value and by reference. Not `const` under `const-fn`.
+- `.sum()` / `.product()` / `.powi(n)` are the other name-matched rule
+  (`matched_method`): the std arity, any receiver; `reductions = false` and
+  `powi = false` turn them off, one each. Emitted as a *method* call on a hidden extension trait inside a
+  `{ use ..; }` block, never a function: a function argument moves a `&mut`
+  receiver and does not auto-deref (measured). Reductions dispatch on the
+  output type (`SumOf`/`ProductOf<Item, Tag>`), floats fold from
+  `-0.0`/`1.0` with the algebraic op, `Option`/`Result` are concrete;
+  `Powi<Tag>` is for floats and marked-trait opt-ins only (a blanket would
+  kill auto-deref). The marker carries all five bounds, so a bignum opt-in
+  needs `Sum`/`Product` by value and by reference and a `powi`. Not `const`
+  under `const-fn`; left alone in const context.
 - `unparen` strips groups, then exactly one paren layer.
 - A non-float literal, or a cast to an integer type, on either side leaves the
   operation native. Do not widen to all literals (drops algebraic on float

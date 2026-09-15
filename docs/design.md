@@ -62,30 +62,52 @@ output through the blanket would see `{integer}` fall back to `i32` first and
 fail with `E0271`, the hazard that once argued against associated-type
 outputs, in a new place.
 
-**The reductions dispatch on the output type**: `SumOf<Item, Tag>` and
-`ProductOf<Item, Tag>` are implemented for the output, as `core::iter::Sum`
-is, with the item and the tag as parameters; `ops::sum<S, I, T>` is bounded
-`S: SumOf<I::Item, T>`. The floats fold from `core`'s identities (`-0.0`,
-`1.0`) with `alg_add` / `alg_mul`, generic over `Float` under `FloatTag` so
-that `let s: f64 = [1.0, 2.0].iter().sum()` resolves the literals as
-natively; the integers call `core`'s own under `IntTag`; `Option` and
-`Result` are concrete under the default tag, as `String`'s `+` is, since
-neither is marked and both are what `core` sums *into*; every marked type
-goes through the blanket to its own `Sum` / `Product`. Unannotated, the
-call is `E0283` with two candidates listed where `core` lists ninety. The
-marker (`AlgebraicFloat`) carries the four bounds (`Self` and `&Self`, each
-reduction) so generic code over a marked trait may `.sum()`; the price is
-that a bignum opted in on its `impl` needs `Sum` and `Product` by value and
-by reference, which `rug`, `num-bigint` and `half` all have, and a type
-without fails at the opt-in naming the one it lacks
-(`tests/ui/algebraic_float_missing_sum.rs`). Not `const` under `const-fn`:
-there is no const `Iterator::fold` to build the float fold on, and the two
-functions are plain `fn` in both configurations. Codegen: the fold through
-dispatch is the hand-written fold at every level (`sugar_sum_iter_f32`,
-`sugar_product_iter_f64`, `sugar_map_sum_f32` in the matrix), the strict
-`Iterator::sum` is the negative control, and at `-O3` the algebraic sum must
-vectorize where it does not. Adding the four bounds and the float impls
-moved no instruction in any existing pair.
+**The reductions dispatch on the output type, `powi` on the receiver.**
+`SumOf<Item, Tag>` and `ProductOf<Item, Tag>` are implemented for the
+output, as `core::iter::Sum` is, with the item and the tag as parameters;
+the emitted method (`Reduce::__reassoc_sum<S, T>`, implemented for every
+type so that it is always found) is bounded `S: SumOf<Self::Item, T>` and
+`Self: Reducible`, a local stand-in for `Iterator` so that a receiver that
+is not one fails with the chain "required for `&Grid` to implement
+`Reducible`, required by a bound in `Reduce::__reassoc_sum`", which says
+the call was rewritten. A note on `Reducible` naming `reductions = false`
+was tried and does not surface: rustc prints the leaf obligation's
+(`Iterator`'s) `on_unimplemented` message and ignores the trait the chain
+ends at, and `#[diagnostic::do_not_recommend]` on the blanket impl only
+shortens the chain to "the trait `Reducible` is not implemented", losing
+the `Iterator` line without gaining the note (measured on 1.98.1). The floats fold from `core`'s identities (`-0.0`, `1.0`) with
+`alg_add` / `alg_mul`, generic over `Float` under `FloatTag` so that
+`let s: f64 = [1.0, 2.0].iter().sum()` resolves the literals as natively;
+the integers call `core`'s own under `IntTag`; `Option` and `Result` are
+concrete under the default tag, as `String`'s `+` is, since neither is
+marked and both are what `core` sums *into*; every marked type goes through
+the blanket to its own `Sum` / `Product`. Unannotated, the call is `E0283`
+with two candidates listed where `core` lists ninety. `Powi<Tag>` is
+implemented for the sealed floats under `FloatTag` (square-and-multiply in
+compiler-rt's order with `alg_mul`, the exponents up to four spelled out so
+a constant folds at every opt level, `-C opt-level=z` included, where the
+loop is not unrolled) and, by the `#[passthrough]` on a marked-trait `impl`,
+for that type under its own tag, calling the type's own `powi`;
+deliberately not for every type, since method probing stops at the first
+receiver type with the method, and a blanket over everything would have
+made `x.powi(2)` on `x: &f32` fail where native auto-derefs. The marker
+(`AlgebraicFloat`) carries the five bounds (`Self` and `&Self` for each
+reduction, and `Powi`) so generic code over a marked trait may `.sum()` and
+`.powi(n)`; the price is that a bignum opted in on its `impl` needs `Sum`
+and `Product` by value and by reference and a `powi` method, which `rug`,
+`num-bigint` and `half` have, and a type without fails at the opt-in naming
+the one it lacks (`tests/ui/algebraic_float_missing_sum.rs`,
+`algebraic_float_missing_powi.rs`). Not `const` under `const-fn`: there is
+no const `Iterator::fold` to build the float fold on, and `f32::powi` is not
+`const` natively. Codegen: the reductions through dispatch are the
+hand-written fold at every level (`sugar_sum_iter_f32`,
+`sugar_product_iter_f64`, `sugar_map_sum_f32` in the matrix), `powi` with a
+constant exponent is the unrolled multiplies (`sugar_powi_f32`; a runtime
+exponent is not paired, the same instructions coming out in another block
+order after two inlining layers), the strict
+`Iterator::sum` and `f32::powi` are the negative controls, and at `-O3` the
+algebraic sum must vectorize where the strict one does not. Adding the five
+bounds and the float impls moved no instruction in any existing pair.
 
 **A float or integer on the left of an opted-in type is a separate blanket,
 per concrete primitive, under the default tag.** `2.0 * v` is `MulRhs<f32, ..>
@@ -169,24 +191,51 @@ parse is left whole, so a user macro sharing a std name keeps its grammar
 unless it takes expressions and reads their tokens. `strict!` is never on the
 list; `macros = false` turns the entry off.
 
-**`.sum()` and `.product()` are the second name-matched exception**, since
-0.15.0. Inside a scope, `v.iter().sum::<f32>()` was the one reduction that
-stayed strict: `Sum for f32` is a fold over `+` written in `core`, which the
-rewriter never sees, so a kernel whose loop vectorized had a serial chain
-of scalar adds the moment it was spelled as an iterator (kurbo's adoption
-found 84 operators out of reach in `const fn`s and this beside them).
-Measured on this host at `-O3`: `Iterator::sum` over `&[f32]` is sixteen
-dependent `fadd`s per unrolled iteration; the same call rewritten is four
-`fadd.4s` accumulators, and the linker folds it into the hand-written
-algebraic fold as identical code. The rule is a method call named `sum` or
-`product`, no arguments, at most one type argument, on any receiver; the
-receiver's type is unknowable to a macro, so a `sum(&self)` on a
-non-iterator is caught too and fails at `ops::sum`'s `Iterator` bound
-(`tests/ui/sum_on_non_iterator.rs`, `c16` in `diag-compare`). `reductions = false`
-is the opt-out, and a `sum` with arguments is never matched. The turbofish
-travels as the dispatch function's first type parameter
-(`ops::sum::<S, _, _>`), so `iter.sum::<f32>()` needs no annotation it did
-not need before.
+**`.sum()`, `.product()` and `.powi(n)` are the second name-matched
+exception.** Inside a scope, `v.iter().sum::<f32>()` was the one reduction
+that stayed strict: `Sum for f32` is a fold over `+` written in `core`,
+which the rewriter never sees, so a kernel whose loop vectorized had a
+serial chain of scalar adds the moment it was spelled as an iterator
+(kurbo's adoption found 84 operators out of reach in `const fn`s and this
+beside them). Measured on this host at `-O3`: `Iterator::sum` over `&[f32]`
+is sixteen dependent `fadd`s per unrolled iteration; the same call
+rewritten is four `fadd.4s` accumulators, and the linker folds it into the
+hand-written algebraic fold as identical code. `powi` came next for the same
+reason: `f32::powi` is an intrinsic whose expansion carries no flags, so
+`x.powi(2)` in a scope was the one multiply that could not contract or
+reassociate with its neighbours. The rule is a method call named `sum` or
+`product` with no arguments and at most one type argument, or `powi` with
+exactly one argument and none, on any receiver; the receiver's type is
+unknowable to a macro, so a `sum(&self)` on a non-iterator, or a `powi` of
+an opted-in type's own, is caught too (`tests/ui/sum_on_non_iterator.rs`,
+`powi_on_own_method.rs`, `c16` and `c19` in `diag-compare`). `reductions =
+false` and `powi = false` are the opt-outs, one per rule, since a crate
+that has to switch one off for a type of its own need not lose the other;
+a call of another arity is never matched.
+
+The emission is a *method* call on a hidden extension trait, inside a block
+that brings the trait in: `{ #[allow(unused_imports)] use
+::reassoc::__private::ops::Reduce as _; iter.__reassoc_sum::<S, _>() }`. It
+began as `ops::sum(iter)`, a function like the operators', and review found
+what that loses: a function argument is moved, where method syntax
+reborrows a `&mut` receiver, so `r.sum()` twice on `r: &mut I`, or
+`self.it.sum()` on a `&mut` field, compiled natively and not in a scope
+(measured: E0382 and E0507; `tests/methods.rs` pins both). Method syntax
+also auto-derefs, which `x.powi(2)` on a `&f32` inside `map` needs. The
+`use` is inside a block because a trait method is callable by name only
+with the trait in scope, and a block is the one expression that can hold a
+`use`; the `allow` is for a receiver that is a type parameter, where the
+method resolves through the marker's supertrait and the import goes unused.
+Clippy's `blocks_in_conditions` does not fire on the block as an `if`
+condition or a `match` scrutinee (`consumers/lints` denies it and compiles
+both). The receiver is kept exactly as written, parentheses included: it
+stays in receiver position, where `(0..n).sum()`'s parentheses are
+load-bearing. In const context the call is left alone with nothing
+recorded: a `const fn` cannot call `Iterator::sum` or `f32::powi` natively
+either, and rustc's own error is the better one. The turbofish travels as
+the method's first type argument, so `iter.sum::<f32>()` needs no
+annotation it did not need before, and an unannotated `.sum()` is the one
+`E0283` plain Rust gives (the function form had added an `E0282`).
 
 **`unparen` strips invisible groups, then exactly one paren layer.** Groups are
 what a `macro_rules!` `$e:expr` arrives in; not looking through them made

@@ -1,9 +1,8 @@
-//! The reduction rule matches `.sum()` by name, the receiver's type being
-//! unknown to a macro: a zero-argument `sum` method on a type that is not
-//! an iterator is rewritten too, and fails at the dispatch function's
-//! `Iterator` bound rather than compiling to the method. `reductions = false` on
-//! the function is the way out; a `sum` that takes arguments is never
-//! matched.
+//! `.sum()` is matched by name, the receiver's type being unknown to a
+//! macro: a zero-argument `sum` method on a type that is not an iterator is
+//! rewritten too, and fails on the `Reducible` bound, whose note names
+//! `reductions = false`, rather than compiling to the method. A `sum` that
+//! takes arguments is never matched.
 use reassoc::algebraic;
 
 struct Grid(Vec<f32>);
