@@ -123,16 +123,17 @@ pub fn users_tail_without_semicolon(mut x: f32, k: f32) -> f32 {
 /// which clippy's `blocks_in_conditions` would flag as the condition of an
 /// `if` or the scrutinee of a `match` if it read the expansion as user
 /// code; every position it looks at, with the block as the whole condition
-/// and as an operand of it.
+/// and as an operand of it. (`powi` expands to the same block, behind its
+/// feature.)
 #[algebraic]
 pub fn methods_in_conditions(v: &[f32], x: f32, k: f32) -> f32 {
     if v.iter().sum::<f32>() > k {
-        return x.powi(2);
+        return x * x;
     }
-    if x.powi(2) > k && v.iter().product::<f32>() < k {
+    if x * x > k && v.iter().product::<f32>() < k {
         return k;
     }
-    match v.iter().map(|y| y.powi(2)).sum::<f32>() {
+    match v.iter().map(|y| y * y).sum::<f32>() {
         s if s > k => s,
         s => s + k,
     }

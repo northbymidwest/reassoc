@@ -66,6 +66,10 @@ jobs:
       # The unstable public bound is behind a feature; its tests are too.
       - run: cargo test -p reassoc --features unstable-algebraic-float-trait
       - run: cargo test -p edition2021 --features unstable-algebraic-float-trait
+      # `.powi(n)` is rewritten only under this feature; its tests are too.
+      - run: cargo test -p reassoc --features powi
+      - run: cargo test -p reassoc-macros --features powi
+      - run: cargo test -p edition2021 --features powi
       - run: cargo test -p reassoc --no-default-features
       - run: cargo test -p reassoc --no-default-features --features alloc
       # A consumer that renames the dependency, with `resolve-crate-name` on.
@@ -173,7 +177,7 @@ jobs:
           toolchain: 1.98.0
           components: rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: cargo test -p reassoc --features unstable-algebraic-float-trait --test ui -- --ignored
+      - run: cargo test -p reassoc --features unstable-algebraic-float-trait,powi --test ui -- --ignored
 
   # `f16` and `f128` are unstable (rust-lang/rust#116909); the features that
   # make them algebraic build only on nightly. Each alone, then both.

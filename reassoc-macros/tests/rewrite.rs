@@ -203,6 +203,7 @@ fn sum_and_product_calls_become_trait_method_calls() {
     assert!(out.contains("{ # [allow (unused_imports)] use :: reassoc :: __private :: ops :: Reduce as _ ; v . iter () . __reassoc_product () }"), "{out}");
 }
 
+#[cfg(feature = "powi")]
 #[test]
 fn powi_becomes_a_trait_method_call() {
     let out = rewritten("fn f(x: f32) -> f32 { x.powi(2) }");
@@ -257,7 +258,11 @@ fn parentheses_around_the_receiver_are_kept() {
         out.contains("(0 .. 10) . __reassoc_sum :: < i32 , _ > ()"),
         "{out}"
     );
-    assert!(out.contains("(x as f32) . __reassoc_powi (2)"), "{out}");
+    if cfg!(feature = "powi") {
+        assert!(out.contains("(x as f32) . __reassoc_powi (2)"), "{out}");
+    } else {
+        assert!(out.contains("(x as f32) . powi (2)"), "{out}");
+    }
 }
 
 #[test]
@@ -273,10 +278,13 @@ fn reductions_false_leaves_the_reductions_alone() {
     assert!(out.contains("v . iter () . product :: < f32 > ()"), "{out}");
     // `powi` has its own switch, and the `+`s are still rewritten: the
     // switch is about the two calls, nothing else.
-    assert!(out.contains("x . __reassoc_powi (2)"), "{out}");
+    if cfg!(feature = "powi") {
+        assert!(out.contains("x . __reassoc_powi (2)"), "{out}");
+    }
     assert!(out.contains("ops :: add"), "{out}");
 }
 
+#[cfg(feature = "powi")]
 #[test]
 fn powi_false_leaves_powi_alone() {
     let scope = scope::Scope::parse(quote::quote!(powi = false)).unwrap();
@@ -328,8 +336,8 @@ fn the_operator_count_counts_every_rewrite() {
     .unwrap();
     let mut rewriter = Rewriter::expression_scope();
     rewriter.visit_item_fn_mut(&mut f);
-    // `*`, `+=`, `sum`, `product`, three `+`, `powi`.
-    assert_eq!(rewriter.ops, 8);
+    // `*`, `+=`, `sum`, `product`, three `+`, and `powi` under its feature.
+    assert_eq!(rewriter.ops, 7 + usize::from(cfg!(feature = "powi")));
     // A native operator is not counted: the literal rule leaves `i + 1`.
     let mut g: syn::ItemFn =
         syn::parse_str("fn g(i: usize, x: f32) -> f32 { let _j = i + 1; x * x }").unwrap();

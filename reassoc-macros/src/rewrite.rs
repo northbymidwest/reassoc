@@ -609,10 +609,10 @@ enum Matched {
     Powi,
 }
 
-/// A method call with `Iterator::sum`'s, `Iterator::product`'s or
-/// `f32::powi`'s shape: that name, and the arity of the std method (no
-/// arguments and at most one type argument for the reductions; exactly one
-/// argument and no type argument for `powi`). Matched by name, as the std
+/// A method call with `Iterator::sum`'s, `Iterator::product`'s or, under
+/// the `powi` feature, `f32::powi`'s shape: that name, and the arity of the
+/// std method (no arguments and at most one type argument for the
+/// reductions; exactly one argument and no type argument for `powi`). Matched by name, as the std
 /// macros are: the receiver's type is not known here, so a `sum` or `powi`
 /// method on some other type is caught too and fails to compile
 /// (`docs/limitations.md`); `reductions = false` and `powi = false` turn the
@@ -629,7 +629,7 @@ fn matched_method(call: &syn::ExprMethodCall) -> Option<Matched> {
         Matched::Sum
     } else if call.method == "product" {
         Matched::Product
-    } else if call.method == "powi" {
+    } else if call.method == "powi" && cfg!(feature = "powi") {
         Matched::Powi
     } else {
         return None;

@@ -25,6 +25,9 @@ resolve-crate-name = ["dep:proc-macro-crate"]
 # Enter `const fn` bodies: the facade's dispatch layer is `const` under its
 # feature of the same name (nightly). Never turn on alone.
 const-fn = []
+# Match `.powi(n)`: the facade's `Powi` trait exists under its feature of the
+# same name. Never turn on alone.
+powi = []
 
 [dependencies]
 proc-macro-crate = { version = "3.5", optional = true }

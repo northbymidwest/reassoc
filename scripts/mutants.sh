@@ -67,7 +67,7 @@ WRAP
 chmod +x "$wrap"
 bin="$(command -v cargo-mutants || { echo "cargo-mutants not installed: cargo install cargo-mutants" >&2; exit 1; })"
 CARGO="$wrap" exec "$bin" mutants -p reassoc-macros -j "${JOBS:-3}" --output target/mutants "$@" -- \
-  --features reassoc/unstable-algebraic-float-trait \
+  --features reassoc/unstable-algebraic-float-trait,reassoc/powi \
   --test alg --test attribute --test compound --test expressions --test operators \
   --test macros --test passthrough --test features --test dispatch --test foreign \
   --test methods --test generic_float \

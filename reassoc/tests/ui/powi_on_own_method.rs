@@ -1,4 +1,5 @@
-//! `.powi(n)` is matched by name too: a one-argument `powi` method of an
+//! Under the `powi` feature (the `ui` run turns it on), `.powi(n)` is
+//! matched by name too: a one-argument `powi` method of an
 //! opted-in type's own is rewritten and fails, since the hidden method is
 //! implemented for the primitive floats and for types opted into a marked
 //! float trait, not for every type (that is what keeps auto-deref for a

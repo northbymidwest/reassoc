@@ -139,6 +139,7 @@ local_reduce! {
     Sum sum 0.0 +;
     Product product 1.0 *;
 }
+#[cfg(feature = "powi")]
 impl Local {
     fn powi(self, n: i32) -> Local {
         Local(Box::new(self.0.powi(n)))
@@ -312,12 +313,15 @@ fn product<T: Float>(v: &[T]) -> T {
 fn total_wide<T: Wide>(v: &[T]) -> T {
     v.iter().sum()
 }
-// `powi` on a bare type parameter reaches the marker's `Powi` bound: the
-// primitives' algebraic square-and-multiply, an opted-in type's own `powi`.
+// `powi` on a bare type parameter reaches the marker's `Powi` bound, under
+// the `powi` feature: the primitives' algebraic square-and-multiply, an
+// opted-in type's own `powi`.
+#[cfg(feature = "powi")]
 #[algebraic]
 fn sum_of_squares<T: Float>(v: &[T]) -> T {
     v.iter().map(|x| x.powi(2)).sum()
 }
+#[cfg(feature = "powi")]
 #[algebraic]
 fn cube_wide<T: Wide>(x: T) -> T {
     x.powi(3)
@@ -334,6 +338,11 @@ fn reductions_over_a_type_parameter() {
         total_wide(&[Local(Box::new(1.0)), Local(Box::new(2.0))]),
         Local(Box::new(3.0))
     );
+}
+
+#[cfg(feature = "powi")]
+#[test]
+fn powi_over_a_type_parameter() {
     assert_eq!(sum_of_squares(&[1.0f32, 2.0, 3.0]), 14.0);
     assert_eq!(sum_of_squares(&[1.0f64, 2.0, 3.0]), 14.0);
     assert_eq!(cube_wide(Big::new(2.0)), Big::new(8.0));

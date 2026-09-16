@@ -28,6 +28,10 @@ fn trace_logs_every_entered_function_and_nothing_else() {
             manifest,
             "--example",
             "codegen_matrix",
+            // The `powi` pair exists only under the feature; the matrix
+            // builds the example with it too.
+            "--features",
+            "powi",
             "--target-dir",
             target,
         ])
@@ -53,6 +57,8 @@ fn trace_logs_every_entered_function_and_nothing_else() {
                 manifest,
                 "--example",
                 "codegen_matrix",
+                "--features",
+                "powi",
                 "--target-dir",
                 target,
             ])

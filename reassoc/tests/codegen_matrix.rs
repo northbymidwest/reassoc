@@ -156,6 +156,8 @@ fn emit_ir(level: &str) -> String {
             "-p",
             "reassoc",
             "--release",
+            "--features",
+            "powi",
             "--example",
             "codegen_matrix",
         ])

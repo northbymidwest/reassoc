@@ -17,7 +17,9 @@ cargo test --workspace                 # unit + integration tests
 cargo test -p reassoc --doc            # doctests (must stay at 0 ignored)
 cargo test -p reassoc --test alg -- rewrites_compound_assignment   # one test
 
-cargo test -p reassoc --features unstable-algebraic-float-trait --test ui -- --ignored  # trybuild diagnostics; the feature is required, a case names the bound it gates
+cargo test -p reassoc --features unstable-algebraic-float-trait,powi --test ui -- --ignored  # trybuild diagnostics; the features are required, cases name what they gate
+cargo test -p reassoc --features powi                # `.powi(n)` is rewritten only under this feature; its tests are too
+cargo test -p reassoc-macros --features powi         # the rewriter's own powi unit tests
 cargo test -p reassoc --test codegen_matrix         # every construct == its hand-written twin, as optimized IR, at -C opt-level=1,2,3,s,z
 cargo test -p reassoc --test renamed -- --ignored   # renamed-dependency consumer (consumers/renamed)
 cargo test -p reassoc --test foreign                # #[passthrough] on a use, against consumers/foreign-types
@@ -118,7 +120,9 @@ reverts to a worse result if undone.
   when the arguments parse as expressions; `macros = false` turns it off.
 - `.sum()` / `.product()` / `.powi(n)` are the other name-matched rule
   (`matched_method`): the std arity, any receiver; `reductions = false` and
-  `powi = false` turn them off, one each. Emitted as a *method* call on a hidden extension trait inside a
+  `powi = false` turn them off, one each, and `powi` exists only under the
+  `powi` feature (off by default; the marker bound, the trait and the
+  opt-in's emitted impl are behind it too). Emitted as a *method* call on a hidden extension trait inside a
   `{ use ..; }` block, never a function: a function argument moves a `&mut`
   receiver and does not auto-deref (measured). Reductions dispatch on the
   output type (`SumOf`/`ProductOf<Item, Tag>`), floats fold from

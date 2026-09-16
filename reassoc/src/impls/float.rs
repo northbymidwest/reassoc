@@ -172,6 +172,7 @@ float_reduce!(ProductOf, product_of, ONE, alg_mul);
 // constant too: it cost a compare chain on every runtime exponent that
 // fell through it, up to half again the libcall's time, for a size-only
 // gain. `n == 0` is `1.0` for every `x`, NaN included, as natively.
+#[cfg(feature = "powi")]
 impl<F: Float> crate::__private::ops::Powi<FloatTag> for F {
     #[inline(always)]
     fn __reassoc_powi(self, n: i32) -> F {

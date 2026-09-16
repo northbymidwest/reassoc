@@ -1,6 +1,7 @@
-//! A type opted into a marked trait needs a `powi(self, i32) -> Self` of
-//! its own, beside the operators and the reductions: generic code over the
-//! trait may `.powi(n)`, and the impl the attribute emits calls it. A type
+//! Under the `powi` feature (the `ui` run turns it on), a type opted into
+//! a marked trait needs a `powi(self, i32) -> Self` of its own, beside the
+//! operators and the reductions: generic code over the trait may
+//! `.powi(n)`, and the impl the attribute emits calls it. A type
 //! without one fails there, on the missing method.
 use reassoc::{algebraic_float, passthrough};
 

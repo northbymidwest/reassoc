@@ -113,6 +113,8 @@ big_reduce! {
     Sum sum 0.0 +;
     Product product 1.0 *;
 }
+// Only the `powi` feature's opt-in calls this.
+#[allow(dead_code)]
 impl Big {
     fn powi(self, n: i32) -> Big {
         Big(Box::new(self.0.powi(n)))

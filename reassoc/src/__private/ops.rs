@@ -197,7 +197,8 @@ impl<I: Iterator> Reducible for I {
     }
 }
 
-/// The method a rewritten `.powi(n)` calls. The primitive floats implement
+/// The method a rewritten `.powi(n)` calls, under the `powi` feature. The
+/// primitive floats implement
 /// it under `FloatTag` (`impls/float.rs`): square-and-multiply with the
 /// algebraic multiply, which is what `llvm.powi` expands a constant
 /// exponent to, now free to contract and reassociate with its neighbours. A
@@ -206,6 +207,7 @@ impl<I: Iterator> Reducible for I {
 /// type, so that method probing auto-derefs a `&f32` receiver as it does
 /// natively; a `powi` method of some other type's own is then "no method
 /// named `__reassoc_powi`" inside a scope (`docs/limitations.md`).
+#[cfg(feature = "powi")]
 pub trait Powi<Tag = ()>: Sized {
     /// `self.powi(n)`.
     fn __reassoc_powi(self, n: i32) -> Self;

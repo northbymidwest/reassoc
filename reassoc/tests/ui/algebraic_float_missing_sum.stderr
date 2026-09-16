@@ -25,11 +25,19 @@ help: the trait `for<'a> Product<&'a NoSum>` is not implemented for `NoSum`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + for<'a> ProductOf<&'a Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + for<'a> ProductOf<&'a Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `NoSum` from an iterator
   --> tests/ui/algebraic_float_missing_sum.rs:29:16
@@ -58,11 +66,19 @@ help: the trait `Product` is not implemented for `NoSum`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + ProductOf<Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + ProductOf<Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `&'a NoSum`
   --> tests/ui/algebraic_float_missing_sum.rs:29:16
@@ -91,11 +107,19 @@ help: the trait `for<'a> Sum<&'a NoSum>` is not implemented for `NoSum`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + for<'a> SumOf<&'a Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + for<'a> SumOf<&'a Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by summing an iterator over elements of type `NoSum`
   --> tests/ui/algebraic_float_missing_sum.rs:29:16
@@ -124,11 +148,19 @@ help: the trait `Sum` is not implemented for `NoSum`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + SumOf<Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + SumOf<Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: a value of type `NoSum` cannot be made by multiplying all elements of type `&'a NoSum` from an iterator
   --> tests/ui/algebraic_float_missing_sum.rs:29:16

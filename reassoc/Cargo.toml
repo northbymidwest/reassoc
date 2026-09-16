@@ -28,6 +28,12 @@ alloc = []
 # rustc gates them separately and they may stabilise apart.
 f16 = []
 f128 = []
+# Rewrite `.powi(n)` inside an algebraic scope into square-and-multiply with
+# the algebraic multiply. Off by default: `powi` is matched by name, and a
+# `powi` method of an opted-in type's own is caught with it; and with it on,
+# a type opted into an `#[algebraic_float]` trait needs a `powi` of its own.
+# Forwarded to the macros, which then match the name.
+powi = ["reassoc-macros/powi"]
 # `#[algebraic]` on a `const fn`. Nightly only: the dispatch layer becomes
 # `const` through `const_trait_impl`/`const_ops`. Forwarded to the macros,
 # which then enter `const fn` bodies instead of refusing them.
@@ -46,7 +52,7 @@ unstable-algebraic-float-trait = []
 # `const-fn` is deliberately off: it adds no item, re-signs all ten `ops::*`
 # as `const fn`, and documents each a second time under `ops::konst`.
 [package.metadata.docs.rs]
-features = ["f16", "f128", "unstable-algebraic-float-trait"]
+features = ["f16", "f128", "unstable-algebraic-float-trait", "powi"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]

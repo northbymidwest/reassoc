@@ -9,7 +9,9 @@ pub struct Scope {
     pub macros: bool,
     /// Rewrite `.sum()` and `.product()` into the dispatch layer.
     pub reductions: bool,
-    /// Rewrite `.powi(n)` into the dispatch layer.
+    /// Rewrite `.powi(n)` into the dispatch layer (under the `powi`
+    /// feature; accepted regardless, so a scope written for the feature
+    /// parses without it).
     pub powi: bool,
     pub skip: bool,
 }

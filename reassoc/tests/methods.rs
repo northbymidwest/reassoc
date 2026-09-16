@@ -4,9 +4,10 @@
 //! `core::iter::Sum` / `Product`. `Summed` implements the two dispatch
 //! traits and not `core::iter::Sum`, so each call on it below compiles only
 //! because the call was rewritten; the opt-out direction is
-//! `tests/ui/reductions_false_opts_out.rs`. `.powi(n)` on a float is
-//! square-and-multiply with the algebraic multiply; its trait is sealed to
-//! the floats, so the rewrite is observable through the codegen matrix
+//! `tests/ui/reductions_false_opts_out.rs`. `.powi(n)` on a float, under
+//! the `powi` feature, is square-and-multiply with the algebraic multiply;
+//! its trait is sealed to the floats, so the rewrite is observable through
+//! the codegen matrix
 //! (`sugar_powi_f32` against its strict control) and
 //! `tests/ui/powi_on_own_method.rs`, and the tests here pin values and
 //! receiver shapes.
@@ -203,6 +204,7 @@ fn a_mutable_iterator_receiver_is_reborrowed_not_moved() {
     assert_eq!(s.drain(), 0.0);
 }
 
+#[cfg(feature = "powi")]
 #[test]
 fn powi_values_match_core() {
     assert_eq!(alg!(3.0f32.powi(3)), 27.0);
@@ -216,6 +218,7 @@ fn powi_values_match_core() {
     assert_eq!(alg!(2.0f32.powi(n)), 32.0);
 }
 
+#[cfg(feature = "powi")]
 #[test]
 fn powi_auto_derefs_its_receiver_as_natively() {
     let x = 3.0f32;
@@ -235,6 +238,7 @@ fn powi_auto_derefs_its_receiver_as_natively() {
 /// called as written (with the rule on, this does not compile:
 /// `tests/ui/powi_on_own_method.rs`), while the sum beside it is still
 /// rewritten.
+#[cfg(feature = "powi")]
 #[test]
 fn powi_false_leaves_a_types_own_powi_alone() {
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -255,6 +259,7 @@ fn powi_false_leaves_a_types_own_powi_alone() {
     );
 }
 
+#[cfg(feature = "powi")]
 #[test]
 fn a_powi_with_another_arity_is_not_f32_powi() {
     struct Poly(Vec<f32>);

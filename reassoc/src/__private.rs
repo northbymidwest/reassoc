@@ -43,40 +43,58 @@ use traits::{
 /// type from another crate (a bignum), which the orphan rule permits only
 /// when a local type appears in the trait's parameters. The primitive
 /// impls are generic over `X` and serve every marked trait.
-#[doc(hidden)]
-#[diagnostic::on_unimplemented(
-    message = "`{Self}` is not a primitive float, and is not opted into this \
-               `#[algebraic_float]` trait",
-    label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
-    note = "a primitive float needs nothing; any other type is opted in by putting \
-            `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
-            to have all five operators (`+ - * / %` and their `op=` forms), `Sum` and \
-            `Product` by value and by reference, and a `powi(self, i32) -> Self` method",
-    note = "a type can implement one marked trait, and that `impl` is its one opt-in",
-    note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
-            only and cannot be extended: bound on a float trait of your own carrying \
-            `#[algebraic_float]` instead"
-)]
-pub trait AlgebraicFloat<X = ()>:
-    Sized
-    + AddRhs<Self, Self, Self::Tag>
-    + SubRhs<Self, Self, Self::Tag>
-    + MulRhs<Self, Self, Self::Tag>
-    + DivRhs<Self, Self, Self::Tag>
-    + RemRhs<Self, Self, Self::Tag>
-    + AddAssignRhs<Self, Self::Tag>
-    + SubAssignRhs<Self, Self::Tag>
-    + MulAssignRhs<Self, Self::Tag>
-    + DivAssignRhs<Self, Self::Tag>
-    + RemAssignRhs<Self, Self::Tag>
-    + SumOf<Self, Self::Tag>
-    + for<'a> SumOf<&'a Self, Self::Tag>
-    + ProductOf<Self, Self::Tag>
-    + for<'a> ProductOf<&'a Self, Self::Tag>
-    + ops::Powi<Self::Tag>
-{
-    type Tag;
+// One definition, with the `powi` bound and the words about it present
+// only under the feature: an opt-in owes a `powi` only when generic code
+// can reach one.
+macro_rules! algebraic_float_trait {
+    ($powi_note:literal $(, $($powi_bound:tt)+)?) => {
+        #[doc(hidden)]
+        #[diagnostic::on_unimplemented(
+            message = "`{Self}` is not a primitive float, and is not opted into this \
+                       `#[algebraic_float]` trait",
+            label = "not `f32` or `f64`, and no `#[reassoc::passthrough]` on its `impl`",
+            note = "a primitive float needs nothing; any other type is opted in by putting \
+                    `#[reassoc::passthrough]` on its `impl` of the marked trait, which needs the type \
+                    to have all five operators (`+ - * / %` and their `op=` forms) and `Sum` and \
+                    `Product` by value and by reference",
+            note = $powi_note,
+            note = "a type can implement one marked trait, and that `impl` is its one opt-in",
+            note = "if the bound is `reassoc::AlgebraicFloat` itself, that is the primitive floats \
+                    only and cannot be extended: bound on a float trait of your own carrying \
+                    `#[algebraic_float]` instead"
+        )]
+        pub trait AlgebraicFloat<X = ()>:
+            Sized
+            + AddRhs<Self, Self, Self::Tag>
+            + SubRhs<Self, Self, Self::Tag>
+            + MulRhs<Self, Self, Self::Tag>
+            + DivRhs<Self, Self, Self::Tag>
+            + RemRhs<Self, Self, Self::Tag>
+            + AddAssignRhs<Self, Self::Tag>
+            + SubAssignRhs<Self, Self::Tag>
+            + MulAssignRhs<Self, Self::Tag>
+            + DivAssignRhs<Self, Self::Tag>
+            + RemAssignRhs<Self, Self::Tag>
+            + SumOf<Self, Self::Tag>
+            + for<'a> SumOf<&'a Self, Self::Tag>
+            + ProductOf<Self, Self::Tag>
+            + for<'a> ProductOf<&'a Self, Self::Tag>
+            $(+ $($powi_bound)+)?
+        {
+            type Tag;
+        }
+    };
 }
+#[cfg(feature = "powi")]
+algebraic_float_trait!(
+    "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+     own, reachable where the `impl` is written",
+    ops::Powi<Self::Tag>
+);
+#[cfg(not(feature = "powi"))]
+algebraic_float_trait!(
+    "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its own"
+);
 
 impl<X> AlgebraicFloat<X> for f32 {
     type Tag = FloatTag;

@@ -66,10 +66,14 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   (`scripts/adopt/` has an opt-in pass that does exactly that, for measuring).
   Extending the name-matched rules below to the `core::ops` method names is
   a potential to-do, not a decision: covering them may be revisited.
-- `.sum()`, `.product()` and `.powi(n)` are the method-call shapes that
-  *are* rewritten, and they are matched by name, as the std macros are: a
-  call named `sum` or `product` with no arguments and at most one type
-  argument, or `powi` with one argument and none, on any receiver. Each
+- `.sum()`, `.product()` and, under the `powi` feature, `.powi(n)` are
+  the method-call shapes that *are* rewritten, and they are matched by
+  name, as the std macros are: a call named `sum` or `product` with no
+  arguments and at most one type argument, or `powi` with one argument and
+  none, on any receiver. The feature is off by default because the `powi`
+  rule has the larger blast radius: `powi` is a method many numeric types
+  have, and with the rule on an opt-in on a marked float trait owes a `powi`
+  of its own. Each
   becomes a method call on a hidden extension trait, brought into scope by
   a `use` inside a block (`{ use ::reassoc::__private::ops::Reduce as _;
   iter.__reassoc_sum::<S, _>() }`), and stays a *method* call for a reason:
@@ -298,11 +302,11 @@ measured constraint; none is an oversight. Diagnostics have their own page in
   tags, and a concrete operator on the type is then `E0283`, the hazard a
   foreign opt-in already has). Three
   limits follow. The type needs all five operators with `Output = Self` and
-  the five `op=` forms, `Sum` and `Product` by value and by reference, and a
-  `powi(self, i32) -> Self` method reachable where the `impl` is written,
-  since the bound names every one and generic code may `.sum()` and
-  `.powi(n)` (`tests/ui/algebraic_float_missing_sum.rs` and
-  `algebraic_float_missing_powi.rs` are the errors without). It implements one
+  the five `op=` forms, `Sum` and `Product` by value and by reference, and,
+  with the `powi` feature on, a `powi(self, i32) -> Self` method reachable
+  where the `impl` is written, since the bound names every one and generic
+  code may `.sum()` and `.powi(n)` (`tests/ui/algebraic_float_missing_sum.rs`
+  and `algebraic_float_missing_powi.rs` are the errors without). It implements one
   marked trait, for the same two-tags reason. And the impl form names a
   hidden type the trait form put beside the trait, through the trait's own
   path: `impl a::Float for Big` works anywhere, `impl Float for Big` beside

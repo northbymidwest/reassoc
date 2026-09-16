@@ -274,6 +274,21 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 .iter()
                 .map(|p| p.emit(&krate, &tag))
                 .collect::<syn::Result<Vec<_>>>()?;
+            // Generic `x.powi(n)` over the trait reaches this: the type's
+            // own `powi`, whichever is in scope here. Only under the
+            // feature, which is what makes the method a requirement.
+            let powi_impl = if cfg!(feature = "powi") {
+                quote! {
+                    impl #impl_generics ::#krate::__private::ops::Powi<#tag> for #self_ty #where_clause {
+                        #[inline(always)]
+                        fn __reassoc_powi(self, n: i32) -> Self {
+                            self.powi(n)
+                        }
+                    }
+                }
+            } else {
+                quote!()
+            };
             Ok(quote! {
                 const _: () = {
                     pub struct #tag;
@@ -282,14 +297,7 @@ pub fn expand(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                     impl #impl_generics ::#krate::__private::AlgebraicFloat<#tag_path> for #self_ty #where_clause {
                         type Tag = #tag;
                     }
-                    // Generic `x.powi(n)` over the trait reaches this: the
-                    // type's own `powi`, whichever is in scope here.
-                    impl #impl_generics ::#krate::__private::ops::Powi<#tag> for #self_ty #where_clause {
-                        #[inline(always)]
-                        fn __reassoc_powi(self, n: i32) -> Self {
-                            self.powi(n)
-                        }
-                    }
+                    #powi_impl
                     #(#pair_impls)*
                 };
                 #item

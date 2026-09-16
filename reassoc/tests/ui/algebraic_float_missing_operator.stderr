@@ -24,11 +24,19 @@ help: the trait `RemAssign` is not implemented for `NoRem`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + RemAssignRhs<Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + RemAssignRhs<Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: cannot calculate the remainder of `NoRem` divided by `NoRem`
   --> tests/ui/algebraic_float_missing_operator.rs:41:16
@@ -58,11 +66,19 @@ help: the trait `Rem` is not implemented for `NoRem`
 note: required by a bound in `reassoc::__private::AlgebraicFloat`
   --> src/__private.rs
    |
-   | pub trait AlgebraicFloat<X = ()>:
-   |           -------------- required by a bound in this trait
+   |           pub trait AlgebraicFloat<X = ()>:
+   |                     -------------- required by a bound in this trait
 ...
-   |     + RemRhs<Self, Self, Self::Tag>
-   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+   |               + RemRhs<Self, Self, Self::Tag>
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `AlgebraicFloat`
+...
+   | / algebraic_float_trait!(
+   | |     "with the `powi` feature on, the type also needs a `powi(self, i32) -> Self` method of its \
+   | |      own, reachable where the `impl` is written",
+   | |     ops::Powi<Self::Tag>
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `algebraic_float_trait` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: binary assignment operation `%=` cannot be applied to type `NoRem`
   --> tests/ui/algebraic_float_missing_operator.rs:41:16

@@ -410,19 +410,22 @@ pub fn direct_sum_option_f32(v: &[Option<f32>]) -> Option<f32> {
     v.iter().copied().sum::<Option<f32>>()
 }
 
-/// `.powi(n)`: the square-and-multiply loop with the algebraic multiply,
+// `.powi(n)`, under the `powi` feature (the test builds this with it):
+/// the square-and-multiply loop with the algebraic multiply,
 /// which the twin writes by hand. With a constant exponent both unroll
 /// (the test pins that at `-O3` the sugar body has no loop left), and the
 /// following multiply may contract with the result; at `opt-level=z`
 /// neither unrolls and they are the same loop. `plain_powi_f32` is
 /// `f32::powi`, the strict control: LLVM expands it to the same multiplies,
 /// without the flags, or calls compiler-rt.
+#[cfg(feature = "powi")]
 #[algebraic]
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub fn sugar_powi_f32(x: f32, y: f32) -> f32 {
     x.powi(3) * y + y
 }
+#[cfg(feature = "powi")]
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub fn direct_powi_f32(x: f32, y: f32) -> f32 {
@@ -441,6 +444,7 @@ pub fn direct_powi_f32(x: f32, y: f32) -> f32 {
     }
     acc.algebraic_mul(y).algebraic_add(y)
 }
+#[cfg(feature = "powi")]
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub fn plain_powi_f32(x: f32, y: f32) -> f32 {

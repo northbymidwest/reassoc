@@ -204,7 +204,7 @@ def generate(variant: str, against: str | None, cases: list[pathlib.Path]) -> pa
     if variant == "native":
         dep = ""
     elif variant == "local":
-        dep = f'reassoc = {{ path = "{(ROOT / "reassoc").as_posix()}" }}'
+        dep = f'reassoc = {{ path = "{(ROOT / "reassoc").as_posix()}", features = ["powi"] }}'
     else:
         dep = f'reassoc = "={against}"'
     (crate / "Cargo.toml").write_text(

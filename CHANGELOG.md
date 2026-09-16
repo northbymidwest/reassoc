@@ -12,6 +12,15 @@ section is missing or empty, or to leave anything behind under `Unreleased`.
 
 ### Changed
 
+- **`.powi(n)` is rewritten only under the new `powi` feature**, off by
+  default. The rule is matched by name and `powi` is a method many numeric
+  types have, and with the rule on an opt-in on an `#[algebraic_float]`
+  trait owes a `powi` of its own; both are a larger blast radius than the
+  reductions', so a crate turns it on when its scopes want it. Without the
+  feature nothing about `powi` exists: not the rule, not the hidden trait,
+  not the marker bound, not the impl the opt-in emits, so a bignum opt-in
+  needs `Sum` and `Product` only. `#[algebraic(powi = false)]` is still
+  accepted either way.
 - **A runtime `powi` exponent is faster.** The float `powi` was the
   square-and-multiply loop behind a `match` on the exponents up to four,
   put there so that `opt-level=z`, which does not unroll, would still fold

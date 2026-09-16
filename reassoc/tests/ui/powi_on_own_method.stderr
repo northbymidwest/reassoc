@@ -1,10 +1,10 @@
 error[E0599]: the method `__reassoc_powi` exists for struct `Gain`, but its trait bounds were not satisfied
-  --> tests/ui/powi_on_own_method.rs:25:7
+  --> tests/ui/powi_on_own_method.rs:26:7
    |
-10 | struct Gain(f32);
+11 | struct Gain(f32);
    | ----------- method `__reassoc_powi` not found for this struct because it doesn't satisfy `Gain: reassoc::__private::ops::Powi<FloatTag>` or `Gain: reassoc::impls::float::Float`
 ...
-25 |     g.powi(2) * g
+26 |     g.powi(2) * g
    |       ^^^^
    |
    = note: the following trait bounds were not satisfied:

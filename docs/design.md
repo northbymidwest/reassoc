@@ -195,7 +195,7 @@ unless it takes expressions and reads their tokens. `strict!` is never on the
 list; `macros = false` turns the entry off.
 
 **`.sum()`, `.product()` and `.powi(n)` are the second name-matched
-exception.** Inside a scope, `v.iter().sum::<f32>()` was the one reduction
+exception**, the last behind the `powi` feature. Inside a scope, `v.iter().sum::<f32>()` was the one reduction
 that stayed strict: `Sum for f32` is a fold over `+` written in `core`,
 which the rewriter never sees, so a kernel whose loop vectorized had a
 serial chain of scalar adds the moment it was spelled as an iterator
@@ -204,7 +204,11 @@ beside them). Measured on this host at `-O3`: `Iterator::sum` over `&[f32]`
 is sixteen dependent `fadd`s per unrolled iteration; the same call
 rewritten is four `fadd.4s` accumulators, and the linker folds it into the
 hand-written algebraic fold as identical code. `powi` came next for the same
-reason: `f32::powi` is an intrinsic whose expansion carries no flags, so
+reason, behind a feature that is off by default (a `powi` method is common
+on numeric types, so the name-collision hazard is the larger one, and the
+rule adds a requirement to marked-trait opt-ins; a crate turns it on when
+its scopes want it, and the marker bound, the trait and the opt-in's
+emitted impl exist only then): `f32::powi` is an intrinsic whose expansion carries no flags, so
 `x.powi(2)` in a scope was the one multiply that could not contract or
 reassociate with its neighbours. The rule is a method call named `sum` or
 `product` with no arguments and at most one type argument, or `powi` with
