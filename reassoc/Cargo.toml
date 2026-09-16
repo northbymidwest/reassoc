@@ -56,7 +56,7 @@ features = ["f16", "f128", "unstable-algebraic-float-trait", "powi"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-reassoc-macros = { version = "=0.15.0", path = "../reassoc-macros" }
+reassoc-macros = { version = "=0.16.0", path = "../reassoc-macros" }
 
 [dev-dependencies]
 trybuild = "1.0"
