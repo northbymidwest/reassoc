@@ -11,15 +11,13 @@
 //! `proc-macro = true` crate exports nothing but proc macros, so there is no
 //! other way to reach `Rewriter` from a test.
 //! `scripts/compile-bench/expander` does the same for the same reason, and
-//! mirrors `krate` and `trace` by hand; nothing here needs that, since
-//! `krate::name` falls back to the plain name off a cargo build and
-//! `trace::record` is a no-op with `REASSOC_TRACE` unset.
+//! mirrors `krate` and `trace` by hand. `krate::name` falls back to the
+//! plain name off a cargo build and is included as is; `trace` is mirrored
+//! here by a recorder that keeps every line in memory, so that the operator
+//! counts the rewriter reports per function (the `REASSOC_TRACE` machinery,
+//! otherwise observable only by the shell-out in `reassoc/tests/trace.rs`)
+//! are asserted in-process, where `scripts/mutants.sh` can see them.
 #![allow(dead_code)]
-
-// `trace.rs` asks `proc_macro::is_available()` before resolving a span, and
-// that crate is linked automatically only for a `proc-macro = true` one. It
-// answers `false` here, so nothing is written and no span is touched.
-extern crate proc_macro;
 
 #[path = "../src/build.rs"]
 mod build;
@@ -29,8 +27,22 @@ mod krate;
 mod rewrite;
 #[path = "../src/scope.rs"]
 mod scope;
-#[path = "../src/trace.rs"]
-mod trace;
+
+/// `trace::record` with the file replaced by a thread-local log; the
+/// signature is the real one's, so a change there fails here.
+mod trace {
+    use std::cell::RefCell;
+    thread_local! {
+        static LINES: RefCell<Vec<(String, String, usize)>> = const { RefCell::new(Vec::new()) };
+    }
+    pub fn record(kind: &str, _span: proc_macro2::Span, name: &str, ops: usize) {
+        LINES.with(|l| l.borrow_mut().push((kind.to_owned(), name.to_owned(), ops)));
+    }
+    /// Every line recorded on this thread since the last call.
+    pub fn take() -> Vec<(String, String, usize)> {
+        LINES.with(|l| core::mem::take(&mut *l.borrow_mut()))
+    }
+}
 
 use syn::parse::Parser;
 
@@ -298,4 +310,72 @@ fn a_const_fn_keeps_its_calls_as_written() {
     assert!(out.contains("v . iter () . sum () ; x . powi (2)"), "{out}");
     assert!(!out.contains("__reassoc"), "{out}");
     assert!(rewriter.errors.is_empty(), "{:?}", rewriter.errors);
+}
+
+/// The operator count feeds `REASSOC_TRACE`, whose test is a shell-out the
+/// mutants selection excludes, so the counter is asserted here where it can
+/// be read directly: every binary operator, compound assignment and matched
+/// method call is one.
+#[test]
+fn the_operator_count_counts_every_rewrite() {
+    let mut f: syn::ItemFn = syn::parse_str(
+        "fn f(v: &[f32], x: f32, y: f32) -> f32 { \
+             let mut a = x * y; \
+             a += x; \
+             v.iter().sum::<f32>() + v.iter().product::<f32>() + x.powi(2) + a \
+         }",
+    )
+    .unwrap();
+    let mut rewriter = Rewriter::expression_scope();
+    rewriter.visit_item_fn_mut(&mut f);
+    // `*`, `+=`, `sum`, `product`, three `+`, `powi`.
+    assert_eq!(rewriter.ops, 8);
+    // A native operator is not counted: the literal rule leaves `i + 1`.
+    let mut g: syn::ItemFn =
+        syn::parse_str("fn g(i: usize, x: f32) -> f32 { let _j = i + 1; x * x }").unwrap();
+    let mut rewriter = Rewriter::expression_scope();
+    rewriter.visit_item_fn_mut(&mut g);
+    assert_eq!(rewriter.ops, 1);
+}
+
+/// Each function body entered is one trace line with the operators
+/// rewritten inside it, nested items included; a nested function gets a
+/// line of its own with its own count. Asserted after other functions have
+/// already been counted, so the per-function subtraction is what is pinned
+/// and not a count from zero.
+#[test]
+fn every_function_reports_its_own_operator_count() {
+    let mut m: syn::Item = syn::parse_str(
+        "mod m { \
+             fn first(x: f32) -> f32 { x * x } \
+             fn outer(x: f32) -> f32 { fn inner(a: f32) -> f32 { a + a - a } inner(x) / x } \
+             impl S { fn method(&self, x: f32) -> f32 { x % x } } \
+             trait T { fn required(x: f32) -> f32; fn provided(x: f32) -> f32 { x - x } } \
+         }",
+    )
+    .unwrap();
+    trace::take();
+    let mut rewriter = Rewriter::expression_scope();
+    rewriter.visit_item_mut(&mut m);
+    let lines = trace::take();
+    let line = |name: &str| {
+        lines
+            .iter()
+            .find(|(_, n, _)| n == name)
+            .unwrap_or_else(|| panic!("no trace line for {name}: {lines:?}"))
+    };
+    assert_eq!(line("first").2, 1);
+    assert_eq!(line("inner").2, 2);
+    assert_eq!(
+        line("outer").2,
+        3,
+        "nested items are included in the outer count"
+    );
+    assert_eq!(line("method").2, 1);
+    assert_eq!(line("provided").2, 1);
+    assert!(
+        !lines.iter().any(|(_, n, _)| n == "required"),
+        "a required method has no body and no line: {lines:?}"
+    );
+    assert_eq!(rewriter.ops, 6);
 }

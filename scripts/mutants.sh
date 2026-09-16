@@ -19,10 +19,11 @@
 # only the facade and every mutant those tests alone catch is reported as a
 # survivor: `unparen`'s attribute guard was, until this took both.
 #
-# Consequence worth knowing: `trace` is one of the shell-outs, so the
-# `REASSOC_TRACE` machinery (`trace.rs`, and the operator counting that feeds
-# it) is invisible here and every mutant of it is reported as a survivor. Those
-# are a property of this selection, not gaps in the suite.
+# Consequence worth knowing: `trace` is one of the shell-outs, so `trace.rs`
+# itself is invisible here and every mutant of it is reported as a survivor.
+# Those are a property of this selection, not gaps in the suite. The operator
+# counts that feed it are not: `reassoc-macros/tests/rewrite.rs` mirrors the
+# recorder in memory and asserts them per function.
 #
 # The other thing to know is that "unviable" here does not mean "untested".
 # cargo-mutants reports a mutant as unviable when the build fails, and cannot
