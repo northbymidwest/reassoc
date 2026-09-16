@@ -313,6 +313,23 @@ README explains the variants and what remains, and why. Release codegen is
 unaffected either way: the dispatch is `#[inline(always)]` and compiles to the
 same instructions as hand-written algebraic calls.
 
+## `powi`
+
+The `powi` feature rewrites `x.powi(n)` inside a scope as well: on `f32` and
+`f64` it becomes square-and-multiply with the algebraic multiply, so the
+multiplies can contract and reassociate with their neighbours, and a runtime
+exponent runs inline rather than through compiler-rt. It is off by default
+because `powi` is matched by name and is a method many numeric types have,
+and because with it on a type opted into an `#[algebraic_float]` trait needs
+a `powi(self, i32) -> Self` of its own, which generic `.powi(n)` over the
+trait then calls. Turn it on when your scopes want it:
+
+```toml
+reassoc = { version = "0.16", features = ["powi"] }
+```
+
+`#[algebraic(powi = false)]` leaves the calls alone in one scope.
+
 ## `const fn` (nightly)
 
 The `const-fn` feature lets `#[algebraic]` enter a `const fn` (the dispatch
