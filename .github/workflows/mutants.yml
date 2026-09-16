@@ -45,12 +45,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      # Survivors that cannot be killed rather than gaps in the suite. Nine
+      # Survivors that cannot be killed rather than gaps in the suite. Ten
       # are the `REASSOC_TRACE` machinery, invisible here because its test
-      # shells out to cargo and the script excludes the shell-outs; the rest
-      # are equivalent mutants, each documented at its site. Lowering this is
-      # the point. Raising it needs a reason in the commit message.
-      BASELINE: ${{ inputs.baseline || '18' }}
+      # shells out to cargo and the script excludes the shell-outs (the tenth
+      # is the operator count in `Rewriter::method_call`); the rest are
+      # equivalent mutants, each documented at its site. Lowering this is the
+      # point. Raising it needs a reason in the commit message.
+      BASELINE: ${{ inputs.baseline || '19' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
