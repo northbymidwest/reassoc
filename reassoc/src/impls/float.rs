@@ -163,28 +163,19 @@ float_reduce!(ProductOf, product_of, ONE, alg_mul);
 // `x.powi(n)`: square-and-multiply with the algebraic multiply, in the
 // order compiler-rt's `__powisf2` and LLVM's constant-exponent expansion
 // use, so the values agree with `f32::powi` wherever the multiplies are
-// not reassociated. The exponents up to four are spelled out first, in
-// the loop's own order: a constant `n` then folds to those multiplies at
-// every opt level, `-C opt-level=z` included, where the loop below would
-// not be unrolled (`sugar_powi_f32` in the codegen matrix, whose twin is
-// this by hand); the loop is the rest, inline rather than a libcall for a
-// runtime `n`. `n == 0` is `1.0` for every `x`, NaN included, as natively.
+// not reassociated. Just the loop: a constant `n` unrolls to the multiplies
+// `llvm.powi` would have expanded to, now carrying the algebraic flags
+// (`sugar_powi_f32` in the codegen matrix, pinned unrolled at `-O3`), and a
+// runtime `n` runs it inline, measured faster than the `__powisf2` libcall
+// at every exponent tried. A `match` on the small exponents ahead of the
+// loop was tried, so that `opt-level=z` (which does not unroll) would fold a
+// constant too: it cost a compare chain on every runtime exponent that
+// fell through it, up to half again the libcall's time, for a size-only
+// gain. `n == 0` is `1.0` for every `x`, NaN included, as natively.
 impl<F: Float> crate::__private::ops::Powi<FloatTag> for F {
     #[inline(always)]
     fn __reassoc_powi(self, n: i32) -> F {
-        let x = self;
-        match n {
-            0 => return F::ONE,
-            1 => return x,
-            2 => return x.alg_mul(x),
-            3 => return x.alg_mul(x.alg_mul(x)),
-            4 => {
-                let sq = x.alg_mul(x);
-                return sq.alg_mul(sq);
-            }
-            _ => {}
-        }
-        let mut base = x;
+        let mut base = self;
         let mut exp = n.unsigned_abs();
         let mut acc = F::ONE;
         loop {

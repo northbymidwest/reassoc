@@ -124,6 +124,15 @@ fn every_construct_compiles_to_its_hand_written_twin_at_every_opt_level() {
                     ));
                 }
             }
+            // A constant exponent must have unrolled: no loop (no `phi`)
+            // left in the powi body, only flagged multiplies.
+            let powi = body("sugar_powi_f32", &fns, &aliases).unwrap_or_default();
+            if powi.contains("phi ") || !powi.contains("fmul reassoc") {
+                failures.push(
+                    "-C opt-level=3: sugar_powi_f32 did not unroll to flagged multiplies"
+                        .to_owned(),
+                );
+            }
         }
     }
     assert!(

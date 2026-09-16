@@ -84,9 +84,11 @@ marked and both are what `core` sums *into*; every marked type goes through
 the blanket to its own `Sum` / `Product`. Unannotated, the call is `E0283`
 with two candidates listed where `core` lists ninety. `Powi<Tag>` is
 implemented for the sealed floats under `FloatTag` (square-and-multiply in
-compiler-rt's order with `alg_mul`, the exponents up to four spelled out so
-a constant folds at every opt level, `-C opt-level=z` included, where the
-loop is not unrolled) and, by the `#[passthrough]` on a marked-trait `impl`,
+compiler-rt's order with `alg_mul`, just the loop: measured 7 to 20 percent
+faster than the `__powisf2` libcall at every runtime exponent tried, and a
+`match` on the small exponents ahead of it, added so `opt-level=z` would
+fold a constant, cost up to half again the libcall's time on the exponents
+that fell through and was removed) and, by the `#[passthrough]` on a marked-trait `impl`,
 for that type under its own tag, calling the type's own `powi`;
 deliberately not for every type, since method probing stops at the first
 receiver type with the method, and a blanket over everything would have
@@ -101,10 +103,11 @@ the one it lacks (`tests/ui/algebraic_float_missing_sum.rs`,
 no const `Iterator::fold` to build the float fold on, and `f32::powi` is not
 `const` natively. Codegen: the reductions through dispatch are the
 hand-written fold at every level (`sugar_sum_iter_f32`,
-`sugar_product_iter_f64`, `sugar_map_sum_f32` in the matrix), `powi` with a
-constant exponent is the unrolled multiplies (`sugar_powi_f32`; a runtime
-exponent is not paired, the same instructions coming out in another block
-order after two inlining layers), the strict
+`sugar_product_iter_f64`, `sugar_map_sum_f32` in the matrix), `powi` is
+the loop against the loop by hand, unrolled to flagged multiplies at `-O3`
+by a check of its own (`sugar_powi_f32`; a runtime exponent is not paired,
+the same instructions coming out in another block order after two inlining
+layers), the strict
 `Iterator::sum` and `f32::powi` are the negative controls, and at `-O3` the
 algebraic sum must vectorize where the strict one does not. Adding the five
 bounds and the float impls moved no instruction in any existing pair.

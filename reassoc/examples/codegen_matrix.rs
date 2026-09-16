@@ -410,11 +410,13 @@ pub fn direct_sum_option_f32(v: &[Option<f32>]) -> Option<f32> {
     v.iter().copied().sum::<Option<f32>>()
 }
 
-/// `.powi(n)` with a constant exponent: square-and-multiply with the
-/// algebraic multiply, unrolled, so the twin is those multiplies by hand
-/// (`x * x` squared, times `x`, for `n = 3`), and the following multiply
-/// may contract with them. `plain_powi_f32` is `f32::powi`, the strict
-/// control: LLVM expands it to the same multiplies, without the flags.
+/// `.powi(n)`: the square-and-multiply loop with the algebraic multiply,
+/// which the twin writes by hand. With a constant exponent both unroll
+/// (the test pins that at `-O3` the sugar body has no loop left), and the
+/// following multiply may contract with the result; at `opt-level=z`
+/// neither unrolls and they are the same loop. `plain_powi_f32` is
+/// `f32::powi`, the strict control: LLVM expands it to the same multiplies,
+/// without the flags, or calls compiler-rt.
 #[algebraic]
 #[unsafe(no_mangle)]
 #[inline(never)]
@@ -424,20 +426,30 @@ pub fn sugar_powi_f32(x: f32, y: f32) -> f32 {
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub fn direct_powi_f32(x: f32, y: f32) -> f32 {
-    x.algebraic_mul(x.algebraic_mul(x))
-        .algebraic_mul(y)
-        .algebraic_add(y)
+    let mut base = x;
+    let mut exp = 3u32;
+    let mut acc = 1.0f32;
+    loop {
+        if exp & 1 == 1 {
+            acc = acc.algebraic_mul(base);
+        }
+        exp >>= 1;
+        if exp == 0 {
+            break;
+        }
+        base = base.algebraic_mul(base);
+    }
+    acc.algebraic_mul(y).algebraic_add(y)
 }
 #[unsafe(no_mangle)]
 #[inline(never)]
 pub fn plain_powi_f32(x: f32, y: f32) -> f32 {
     x.powi(3) * y + y
 }
-// A runtime exponent is not paired: the impl is the small-exponent arms
-// and then the loop, and after two inlining layers LLVM lays its blocks
-// out differently from the same code written by hand, the same
-// instructions in another order, which the strict O2/O3 comparison reads
-// as a difference. `tests/methods.rs` pins its values.
+// A runtime exponent is not paired: after two inlining layers LLVM lays
+// the loop's blocks out differently from the same code written by hand,
+// the same instructions in another order, which the strict O2/O3
+// comparison reads as a difference. `tests/methods.rs` pins its values.
 
 // ---- generic code over a user float trait (`#[algebraic_float]`) ----
 //

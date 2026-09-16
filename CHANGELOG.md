@@ -8,6 +8,21 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Changed
+
+- **A runtime `powi` exponent is faster.** The float `powi` was the
+  square-and-multiply loop behind a `match` on the exponents up to four,
+  put there so that `opt-level=z`, which does not unroll, would still fold
+  a constant exponent. Measured against `f32::powi` (a call to compiler-rt's
+  `__powisf2` for a runtime exponent): the loop alone is 7 to 20 percent
+  faster at every exponent tried, and the `match` made the exponents that
+  fell through it, five, seven and their negatives, up to half again slower
+  than the libcall. The `match` is gone; a constant exponent still unrolls
+  at every level that unrolls, which the codegen matrix now pins directly
+  (no loop left in `sugar_powi_f32` at `-O3`).
+
 ## 0.15.0 - 2026-09-15
 
 ### Added
