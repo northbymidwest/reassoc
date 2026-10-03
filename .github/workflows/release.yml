@@ -27,6 +27,11 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# Plain rustup sets neither; dtolnay/rust-toolchain used to.
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   preflight:
     runs-on: ubuntu-latest
@@ -73,9 +78,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: northbymidwest/gh-actions/release-publish-crate@010696da1a1dc686d7931c4aab81f8bb02721613 # v0.5.2
         with:
           packages: |

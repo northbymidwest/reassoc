@@ -5,10 +5,9 @@
 # with it. Every action is pinned to a commit, with the tag in a comment, so
 # this is also the only thing that ever moves one of those pins.
 #
-# `dtolnay/rust-toolchain` is pinned like the others and chooses the compiler
-# through its `toolchain:` input, never through the ref, so a bump here moves
-# the action and not the toolchain. `1.98.0` in `ui` and `mutants` is
-# deliberate (trybuild compares rustc's rendered diagnostics byte for byte),
+# The compiler is installed with plain `rustup`, not an action, so nothing
+# here moves it. `1.98.0` in `ui` and `mutants` is deliberate
+# (trybuild compares rustc's rendered diagnostics byte for byte),
 # and `msrv` reads its version from `Cargo.toml`; none of those is a
 # dependency this file can see.
 #

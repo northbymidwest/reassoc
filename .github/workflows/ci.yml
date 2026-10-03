@@ -36,6 +36,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Plain rustup sets neither; dtolnay/rust-toolchain used to.
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   test:
     strategy:
@@ -50,9 +55,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo test --workspace
       # Every other job tests at opt-level 0, where an algebraic operator
@@ -76,7 +79,7 @@ jobs:
       # Inside this repository the feature only ever takes the `Itself` path.
       - run: cargo test -p reassoc --test renamed -- --ignored
 
-  # `test` above already runs the newest stable: `@stable` resolves to it and
+  # `test` above already runs the newest stable: `stable` resolves to it and
   # follows each release. This job is the other direction: the release that
   # has not happened yet. A regression caught here is six weeks from reaching
   # anyone, which is the difference between reporting it upstream and finding
@@ -93,9 +96,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: beta
+      - run: rustup toolchain install beta --profile minimal --no-self-update && rustup default beta
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo test --workspace
       - run: cargo test -p reassoc --no-default-features
@@ -107,10 +108,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
-          targets: thumbv7em-none-eabi
+      - run: rustup toolchain install stable --profile minimal --no-self-update -t thumbv7em-none-eabi && rustup default stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo build -p reassoc --no-default-features --target thumbv7em-none-eabi
 
@@ -132,9 +130,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
@@ -152,9 +148,10 @@ jobs:
           v=$(sed -n 's/^rust-version = "\([0-9.]*\)"$/\1/p' Cargo.toml)
           [ -n "$v" ] || { echo 'no rust-version in Cargo.toml' >&2; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: ${{ steps.floor.outputs.version }}
+      - run: rustup toolchain install "$TOOLCHAIN" --profile minimal --no-self-update && rustup default "$TOOLCHAIN"
+        shell: bash
+        env:
+          TOOLCHAIN: ${{ steps.floor.outputs.version }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo test --workspace
 
@@ -172,10 +169,7 @@ jobs:
       # line out of `core`. rustc can only render that line when it can read
       # core's source, so without this component those five tests mismatch on
       # exactly the quoted-source lines.
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: 1.98.0
-          components: rust-src
+      - run: rustup toolchain install 1.98.0 --profile minimal --no-self-update -c rust-src && rustup default 1.98.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo test -p reassoc --features unstable-algebraic-float-trait,powi --test ui -- --ignored
 
@@ -188,10 +182,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: nightly
-          components: clippy
+      - run: rustup toolchain install nightly --profile minimal --no-self-update --allow-downgrade -c clippy && rustup default nightly
       # No cache here on purpose. rust-cache keys on the rustc version and
       # nightly changes daily, so this job would miss almost every time and
       # pay the save cost for nothing: measured at 92s uncached against 112s
@@ -228,9 +219,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: nightly
+      - run: rustup toolchain install nightly --profile minimal --no-self-update && rustup default nightly
       - run: cargo update -Z direct-minimal-versions
       - run: cargo test --workspace
 
@@ -241,9 +230,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # Catches publish blockers (missing description, unshipped LICENSE)
       # before release rather than at `cargo publish` time.
@@ -262,10 +249,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
+      - run: rustup toolchain install stable --profile minimal --no-self-update -c rustfmt,clippy && rustup default stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -345,9 +329,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
   # The workflows themselves. They are the part of the repository with the
   # most hand-written shell and the least test coverage, and `fuzz.yml` once
