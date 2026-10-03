@@ -24,10 +24,12 @@ fn kahan(xs: &[f32]) -> f32 {
     let mut sum = 0.0;
     let mut c = 0.0;
     for &x in xs {
-        let y = x - c;
-        let t = sum + y;
-        c = strict!((t - sum) - y);
-        sum = t;
+        strict! {
+            let y = x - c;
+            let t = sum + y;
+            c = (t - sum) - y;
+            sum = t;
+        }
     }
     sum
 }

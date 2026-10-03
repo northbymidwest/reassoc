@@ -62,10 +62,12 @@ fn kahan(xs: &[f32]) -> f32 {
     let mut sum = 0.0;
     let mut c = 0.0;
     for &x in xs {
-        let y = x - c;
-        let t = sum + y;
-        c = strict!((t - sum) - y);
-        sum = t;
+        strict! {
+            let y = x - c;
+            let t = sum + y;
+            c = (t - sum) - y;
+            sum = t;
+        }
     }
     sum
 }
@@ -525,17 +527,23 @@ fn constants_under_a_minus_still_infer() {
     assert_eq!(alg!(200u8 + 55), 255);
 }
 
-/// f64 is not an afterthought: the dispatch layer, the escape hatch and the
-/// scope parameters all behave the same as for f32.
+/// The block form of `strict!` keeps a compensated sum exact under the
+/// optimizer. Only `--release` can fail this (at opt-level 0 an algebraic
+/// operator computes its IEEE value), so CI's release step is what runs it.
 #[algebraic]
 fn kahan_f64(xs: &[f64]) -> f64 {
     let mut sum = 0.0;
     let mut c = 0.0;
+    // The whole step, not just `(t - sum) - y`: `c` is zero in real
+    // arithmetic, so if `x - c` and `sum + y` may reassociate the optimizer
+    // can drop it (rustc 1.99 on x86_64 does, in an unrolled loop).
     for &x in xs {
-        let y = x - c;
-        let t = sum + y;
-        c = strict!((t - sum) - y);
-        sum = t;
+        strict! {
+            let y = x - c;
+            let t = sum + y;
+            c = (t - sum) - y;
+            sum = t;
+        }
     }
     sum
 }
@@ -549,6 +557,44 @@ fn doubles_behave_like_floats() {
     let naive = v.iter().fold(0.0f64, |a, b| a + b);
     assert_eq!(naive, 1.0);
     assert!((kahan_f64(&v) - 1.0000000001).abs() < 1e-15);
+}
+
+const LN2_HI: f32 = f32::from_bits(0x3f31_7200);
+const LN2_LO: f32 = f32::from_bits(0x35bf_be8e);
+
+/// The crate docs' example: one `strict!` expression amid algebraic code.
+/// Returns `k` and `r` as well, so the reduction can be checked on its own.
+#[algebraic]
+fn exp_reduced(x: f32) -> (f32, f32, f32) {
+    let k = (x * core::f32::consts::LOG2_E).round();
+    let r = strict!((x - k * LN2_HI) - k * LN2_LO);
+    let p = 1.0
+        + r * (1.0
+            + r * (1.0 / 2.0
+                + r * (1.0 / 6.0
+                    + r * (1.0 / 24.0
+                        + r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0)))))));
+    (k, r, p * f32::from_bits(((k as i32 + 127) as u32) << 23))
+}
+
+/// Without `strict!`, release builds fold `LN2_HI + LN2_LO` into one rounded
+/// ln 2 and `r` differs on 97 percent of a sweep like this one, on x86_64 and aarch64
+/// alike (measured with rustc 1.98 and 1.99). At opt-level 0 nothing folds,
+/// so as with `kahan_f64` only `--release` can fail this. Only `r` is
+/// compared: it is what `strict!` guarantees. The polynomial's accuracy is
+/// whatever the optimizer's grouping gives, and asserting it would pin LLVM.
+#[test]
+fn a_strict_reduction_amid_algebraic_code_rounds_as_written() {
+    for i in 0..=100_000 {
+        let x = -80.0 + 160.0 * i as f32 / 100_000.0;
+        let (k, r, e) = exp_reduced(std::hint::black_box(x));
+        assert_eq!(
+            r.to_bits(),
+            ((x - k * LN2_HI) - k * LN2_LO).to_bits(),
+            "x = {x}"
+        );
+        assert!(e.is_finite() && e > 0.0, "x = {x}");
+    }
 }
 
 /// Const positions inside a nested `impl` are const contexts too. An

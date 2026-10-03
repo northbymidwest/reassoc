@@ -8,6 +8,18 @@ reason is still fresh rather than reconstructed from the log at release time.
 `RELEASING.md` has the rest; the workflow refuses to publish a version whose
 section is missing or empty, or to leave anything behind under `Unreleased`.
 
+## Unreleased
+
+### Fixed
+
+- **The crate docs' Kahan example wrapped only the compensation in
+  `strict!`**, which does not protect it: `c` is zero in real arithmetic, so
+  with `x - c` and `sum + y` still algebraic the optimizer may drop it, and
+  rustc 1.99 does on x86_64 in an unrolled loop. The crate docs and the
+  README now show an `exp` instead, whose range reduction is `strict!` and
+  whose polynomial stays algebraic: without `strict!` the result is off by
+  up to 34 ulp on x86_64, against under 1 with it.
+
 ## 0.16.0 - 2026-09-15
 
 ### Changed

@@ -45,23 +45,30 @@
 //!
 //! Algebraic operators let the compiler reassociate and contract. Results may
 //! differ from strict IEEE evaluation in the final bits, and may differ
-//! between targets. Algorithms that depend on exact rounding, compensated
-//! summation above all, must be wrapped in [`strict!`], which takes an
-//! expression or a brace-delimited statement sequence:
+//! between targets. Code that depends on exact rounding goes in [`strict!`],
+//! which takes an expression or a brace-delimited statement sequence; the
+//! rest of the function stays algebraic. Here the range reduction of an
+//! `exp` must round as written, while the polynomial is free to regroup and
+//! contract into FMAs:
 //!
 //! ```
-//! # use reassoc::{algebraic, strict};
-//! # #[algebraic]
-//! # fn kahan(xs: &[f32]) -> f32 {
-//! # let mut sum = 0.0; let mut c = 0.0;
-//! # for i in 0..xs.len() {
-//! let y = xs[i] - c;
-//! let t = sum + y;
-//! c = strict!((t - sum) - y);  // algebraically zero; must not be optimized away
-//! sum = t;
-//! # }
-//! # sum
-//! # }
+//! use reassoc::{algebraic, strict};
+//!
+//! // ln 2 in two parts. LN2_HI has its low 12 bits clear, so k * LN2_HI is
+//! // exact, and LN2_LO carries the rest.
+//! const LN2_HI: f32 = f32::from_bits(0x3f31_7200);
+//! const LN2_LO: f32 = f32::from_bits(0x35bf_be8e);
+//!
+//! #[algebraic]
+//! fn exp(x: f32) -> f32 {
+//!     let k = (x * core::f32::consts::LOG2_E).round();
+//!     // Reassociated, the two parts fold back into one rounded ln 2.
+//!     let r = strict!((x - k * LN2_HI) - k * LN2_LO);
+//!     let p = 1.0 + r * (1.0 + r * (1.0 / 2.0 + r * (1.0 / 6.0 + r * (1.0 / 24.0
+//!         + r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0)))))));
+//!     p * f32::from_bits(((k as i32 + 127) as u32) << 23)
+//! }
+//! # assert!((exp(1.0) - core::f32::consts::E).abs() < 4.0 * f32::EPSILON);
 //! ```
 //!
 //! # What is rewritten

@@ -229,25 +229,26 @@ or a closure body, is ordinary runtime code and is rewritten as usual.
 ## Correctness
 
 Algebraic operators may reassociate. Results can differ from strict IEEE in
-the last bits and can differ between targets. **Wrap compensated-summation
-code in `strict!`**: `(t - sum) - y` is algebraically zero, and reassociation
-will delete it. The block form covers a whole step:
+the last bits and can differ between targets. **Code that depends on exact
+rounding goes in `strict!`**; the rest of the function stays algebraic:
 
 ```rust
 # use reassoc::{algebraic, strict};
-# #[algebraic]
-# fn kahan(xs: &[f32]) -> f32 {
-# let mut sum = 0.0; let mut c = 0.0;
-# for &x in xs {
-strict! {
-    let y = x - c;
-    let t = sum + y;
-    c = (t - sum) - y;
-    sum = t;
+// ln 2 in two parts; k * LN2_HI is exact.
+const LN2_HI: f32 = f32::from_bits(0x3f31_7200);
+const LN2_LO: f32 = f32::from_bits(0x35bf_be8e);
+
+#[algebraic]
+fn exp(x: f32) -> f32 {
+    let k = (x * core::f32::consts::LOG2_E).round();
+    // Reassociated, the two parts fold back into one rounded ln 2.
+    let r = strict!((x - k * LN2_HI) - k * LN2_LO);
+    // Free to regroup and contract into FMAs.
+    let p = 1.0 + r * (1.0 + r * (1.0 / 2.0 + r * (1.0 / 6.0 + r * (1.0 / 24.0
+        + r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0)))))));
+    p * f32::from_bits(((k as i32 + 127) as u32) << 23)
 }
-# }
-# sum
-# }
+# assert!((exp(1.0) - core::f32::consts::E).abs() < 4.0 * f32::EPSILON);
 ```
 
 ## Limitations
