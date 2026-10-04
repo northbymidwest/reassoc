@@ -71,7 +71,7 @@ jobs:
       # flag that 27.x passes regardless of `--test-package`; a release that
       # stopped doing that would quietly test the wrong package and report
       # everything as caught.
-      - uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: cargo-mutants@27.1.0
 
